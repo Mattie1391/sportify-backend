@@ -29,8 +29,8 @@ router.post("/login", async (req, res) => {
       });
       return res.json({ token });
     }
-    return res.status(401).json({ message: "請先登入" });
   }
+  return res.status(401).json({ message: "請先登入" });
 });
 
 //回傳使用者資訊，方便前端判斷使用者登入狀態，調整右上角顯示狀態

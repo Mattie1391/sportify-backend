@@ -1,6 +1,6 @@
 //logger套件
-const pinoHttp = require("pino-http");
-const logger = pinoHttp();
+const pino = require("pino");
+const logger = pino();
 
 const jwt = require("jsonwebtoken");
 const secret = process.env.JWT_SECRET;
@@ -53,6 +53,7 @@ module.exports = async (req, res, next) => {
     const User = require("../entities/User");
     const Coach = require("../entities/Coach");
     const Admin = require("../entities/Admin");
+
     let repository;
     switch (payload.role) {
       case "USER":
@@ -68,18 +69,36 @@ module.exports = async (req, res, next) => {
         logger.warn("[Auth] 角色資訊無效");
         return next(generateError(401, "請先登入"));
     }
+
     // 根據token解出的id，去資料庫找對應的user（學生/教練/管理員）
     const user = await repository.findOneBy({ id: payload.id });
     if (!user) {
       logger.warn(`[Auth] 找不到使用者 ID: ${payload.id}`);
       return next(generateError(401, "請先登入"));
     }
+
+    // 根據角色設定displayName
+    let displayName;
+    switch (payload.role) {
+      case "USER":
+        displayName = user.name;
+        break;
+      case "COACH":
+        displayName = user.nickname;
+        break;
+      case "ADMIN":
+        displayName = user.email.split("@")[0];
+        break;
+      default:
+        logger.warn("[Auth] 角色資訊無效");
+        return next(generateError(401, "請先登入"));
+    }
     //回傳使用者資訊
     req.user = {
       id: payload.id,
       role: payload.role,
-      name: user.name,
-      profile_image_url: user.profile_image_url,
+      name: displayName,
+      profile_image_url: user.profile_image_url || null,
     };
     next();
   } catch (error) {
