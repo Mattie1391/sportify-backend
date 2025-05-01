@@ -20,7 +20,7 @@ module.exports = new EntitySchema({
     },
     password: {
       type: "varchar",
-      length: 50,
+      length: 72,
       nullable: false, // 密碼
     },
     nickname: {
@@ -31,16 +31,16 @@ module.exports = new EntitySchema({
     realname: {
       type: "varchar",
       length: 50,
-      nullable: false, // 教練真實姓名，用於內部核對
+      nullable: true, // 教練真實姓名，用於內部核對
     },
     job_title: {
       type: "varchar",
       length: 100,
-      nullable: false, // 頭銜，例如「資深健身教練」
+      nullable: true, // 頭銜，例如「資深健身教練」
     },
     skill_description: {
       type: "varchar",
-      nullable: false, // 教練擅長的技能簡介
+      nullable: true, // 教練擅長的技能簡介
     },
     about_me: {
       type: "varchar",
@@ -48,21 +48,21 @@ module.exports = new EntitySchema({
     },
     experience_years: {
       type: "int",
-      nullable: false, // 教學經驗年數
+      nullable: true, // 教學經驗年數
     },
     experience: {
       type: "varchar",
-      nullable: false, // 教學經驗年數
+      nullable: true, // 教學經驗年數
     },
     id_number: {
       type: "varchar",
       length: 20,
-      nullable: false, // 身分證號或居留證號碼
+      nullable: true, // 身分證號或居留證號碼
     },
     phone_number: {
       type: "varchar",
       length: 30,
-      nullable: false, // 聯絡用手機號碼
+      nullable: true, // 聯絡用手機號碼
     },
     birthday: {
       type: "date",
@@ -86,7 +86,7 @@ module.exports = new EntitySchema({
     bankbook_copy_url: {
       type: "varchar",
       length: 2048,
-      nullable: false, // 存摺影本網址（薪資轉帳帳號）
+      nullable: true, // 存摺影本網址（薪資轉帳帳號）
     },
     created_at: {
       type: "timestamp",
