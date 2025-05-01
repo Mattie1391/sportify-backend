@@ -50,6 +50,7 @@ try {
     const result = await repository.save(newUser);
     res.status(201).json({
     status: true,
+    message: "註冊成功",
     data: {
         user: {
         id: result.id,
@@ -103,12 +104,12 @@ try {
 
     res.status(200).json({
     status: true,
+    message: "登入成功",
     data: {
         token,
-        user: {
-        id: existingUser.id,
-        name: role === 'USER' ? existingUser.name : existingUser.nickname
-        }
+        ...(role === 'USER'
+            ? { user: { name: existingUser.name } }
+            : { coach: { nickname: existingUser.nickname } })
     }
     });
 } catch (error) {
