@@ -1,29 +1,9 @@
 //logger套件
 const pino = require("pino");
 const logger = pino();
-
-const jwt = require("jsonwebtoken");
 const secret = process.env.JWT_SECRET;
-
-//產生Error物件(錯誤狀態碼、錯誤訊息)
-function generateError(statusCode, message) {
-  const error = new Error(message || "驗證出現錯誤");
-  error.status = statusCode;
-  return error;
-}
-
-//解碼token
-function verifyJWT(token, secret) {
-  return new Promise((resolve, reject) => {
-    jwt.verify(token, secret, (error, decoded) => {
-      if (error) {
-        reject(generateError(401, "請先登入"));
-      } else {
-        resolve(decoded); // 驗證成功：回傳token解碼後的payload資訊（id、role）
-      }
-    });
-  });
-}
+const generateError = require("../utils/generateError");
+const { verifyJWT } = require("../utils/jwtUtils");
 
 module.exports = async (req, res, next) => {
   if (!secret || typeof secret !== "string") {
