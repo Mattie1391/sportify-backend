@@ -41,12 +41,6 @@ module.exports = new EntitySchema({
       nullable: false,
     },
 
-    // 課程類別（多類型可觀看課程）
-    course_type_id: {
-      type: "uuid",
-      nullable: false,
-    },
-
     // 訂閱開始與結束時間
     start_at: {
       type: "timestamp",
@@ -91,17 +85,14 @@ module.exports = new EntitySchema({
       },
       onDelete: "CASCADE",
     },
-
-    // 每筆訂閱紀錄包含一種課程類別（對應 skill）
-    Skill: {
-      target: "Skill",
-      type: "many-to-one",
+    Subscription_Skill: {
+      target: "Subscription_Skill",
+      type: "one-to-many",
+      inverseSide: "Subscription",
       joinColumn: {
-        name: "course_type_id",
         referencedColumnName: "id",
-        foreignKeyConstraintName: "fk_subscription_course_type_id",
+        foreignKeyConstraintName: "fk_subscription_skill_subscription_id",
       },
-      onDelete: "CASCADE",
     },
   },
 });

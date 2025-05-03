@@ -22,4 +22,16 @@ module.exports = new EntitySchema({
       unique: true,
     },
   },
+
+  relations: {
+    Subscription_Skill: {
+      target: "Subscription_Skill",
+      type: "one-to-many",
+      inverseSide: "Skill",
+      joinColumn: {
+        referencedColumnName: "id",
+        foreignKeyConstraintName: "fk_subscription_skill_skill_id",
+      },
+    },
+  },
 });
