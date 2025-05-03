@@ -123,7 +123,9 @@ async function patchProfile(req, res, next) {
 			profile_image_url: user.profile_image_url,
 			updated_at: user.updated_at,
 		};
-		res.status(200).json({ message: "成功更新資料", data: userData });
+		res
+			.status(200)
+			.json({ status: true, message: "成功更新資料", data: userData });
 	} catch (error) {
 		next(error);
 	}
