@@ -1,43 +1,38 @@
-const dotenv = require('dotenv')//這隻index.js主要是用來讀取.env檔案的 處理環境變數的
-//config是針對環境變數的統一管理
-const result = dotenv.config()
-const db = require('./db')
-const web = require('./web')
-const secret = require('./secret')
+const dotenv = require('dotenv');
+const result = dotenv.config();
 
 if (result.error) {
-  throw result.error
+  throw result.error; // 如果 .env 載入失敗，則拋出錯誤
 }
+
+const db = require('./db');
+const web = require('./web');
+const secret = require('./secret');
+const email = require('./email'); // 新增 email 設定
+
+// 整合所有設定檔案
 const config = {
   db,
   web,
-  secret
-}
+  secret,
+  email, // 添加 email 設定
+};
 
 class ConfigManager {
-  /**
-   * Retrieves a configuration value based on the provided dot-separated path.
-   * Throws an error if the specified configuration path is not found.
-   *
-   * @param {string} path - Dot-separated string representing the configuration path.
-   * @returns {*} - The configuration value corresponding to the given path.
-   * @throws Will throw an error if the configuration path is not found.
-   */
-
-  static get (path) {
+  static get(path) {
     if (!path || typeof path !== 'string') {
-      throw new Error(`incorrect path: ${path}`)
+      throw new Error(`Incorrect path: ${path}`);
     }
-    const keys = path.split('.')
-    let configValue = config
+    const keys = path.split('.');
+    let configValue = config;
     keys.forEach((key) => {
       if (!Object.prototype.hasOwnProperty.call(configValue, key)) {
-        throw new Error(`config ${path} not found`)
+        throw new Error(`config ${path} not found`);
       }
-      configValue = configValue[key]
-    })
-    return configValue
+      configValue = configValue[key];
+    });
+    return configValue;
   }
 }
 
-module.exports = ConfigManager
+module.exports = ConfigManager;
