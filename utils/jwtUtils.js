@@ -1,14 +1,16 @@
 const jwt = require('jsonwebtoken')
 const generateError = require('../utils/generateError');
+const config = require('../config/index');
 
-const generateJWT = (payload)=> {
+const generateJWT = (payload, secret, options) => {
   // 產生 JWT token
   return jwt.sign(
-      payload, // payload：Token 內存的資訊
-      process.env.JWT_SECRET, // secret: 密鑰，存放於環境變數提高安全性
-      { expiresIn: process.env.JWT_EXPIRES_DAY } //options：包含 expiresIn (效期)
+    payload, // payload：Token 內存的資訊
+    secret || config.get("secret.jwtSecret"), // 如果未傳入 secret，則使用預設值
+    options || { expiresIn: config.get("secret.jwtExpiresDay") } // 如果未傳入 options，則使用預設值
   );
-}
+};
+
 //解碼token
 const verifyJWT = (token, secret) => {
   return new Promise((resolve, reject) => {
