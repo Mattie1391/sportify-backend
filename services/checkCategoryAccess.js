@@ -1,6 +1,5 @@
 const subscriptionRepo =
   require("../db/data-source").getRepository("Subscription");
-const generateError = require("../utils/generateError");
 
 const checkCategoryAccess = async (userId, courseId) => {
   const result = await subscriptionRepo
@@ -10,10 +9,6 @@ const checkCategoryAccess = async (userId, courseId) => {
     .innerJoin("course", "course", "course.id = :courseId", { courseId })
     .andWhere("course.type_id = sk.skill_id")
     .getOne();
-
-  if (!result) {
-    throw generateError(403, "未訂閱該課程類別");
-  }
 };
 
 module.exports = {

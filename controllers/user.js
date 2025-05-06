@@ -147,7 +147,9 @@ async function postLike(req, res, next) {
 
     //確認該使用者是否有訂閱此課程的類別
     await checkCategoryAccess(userId, courseId);
-
+    if (!result) {
+      throw generateError(403, "未訂閱該課程類別");
+    }
     // 確認是否已收藏過此課程
     const exist = await favoriteRepo.findOneBy({
       user_id: userId,
@@ -183,6 +185,9 @@ async function deleteUnlike(req, res, next) {
     }
     //確認該使用者是否有訂閱此課程的類別
     await checkCategoryAccess(userId, courseId);
+    if (!result) {
+      throw generateError(403, "未訂閱該課程類別");
+    }
     // 確認是否已收藏過此課程
     const exist = await favoriteRepo.findOneBy({
       user_id: userId,
