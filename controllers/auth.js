@@ -13,6 +13,7 @@ const Coach = require("../entities/Coach");
 const Admin = require("../entities/Admin");
 const gmailUserName = config.get("email.gmailUserName");
 const gmailAppPassword = config.get("email.gmailAppPassword");
+const { findRoleAndRepoByEmail, findRepoByRole } = require("../services/roleServices");
 
 async function postSignup(req, res, next) {
   try {
@@ -54,14 +55,12 @@ async function postSignup(req, res, next) {
     }
 
     // 判斷角色來決定資料庫
-    // 如果是 USER，則使用 User 資料庫；如果是 COACH，則使用 Coach 資料庫
-    const repository = AppDataSource.getRepository(
-      role === "USER" ? User : Coach
-    );
-    // 從資料庫中根據 email 查詢使用者
-    const existingUser = await repository.findOne({ where: { email } });
+    const repo = await findRepoByRole(role);
 
-    if (existingUser) {
+    // 從資料庫中根據 email 查詢使用者
+    const user = await repo.findOne({ where: { email } });
+
+    if (user) {
       return next(generateError(409, "Email 已被使用"));
     }
 
@@ -71,7 +70,7 @@ async function postSignup(req, res, next) {
 
     // 建立新使用者
     // 如果是 USER，則使用 name；如果是 COACH，則使用 nickname
-    const newUser = repository.create({
+    const newUser = repo.create({
       name: role === "USER" ? displayName : undefined,
       nickname: role === "COACH" ? displayName : undefined,
       email,
@@ -79,7 +78,7 @@ async function postSignup(req, res, next) {
       role,
     });
 
-    await repository.save(newUser);
+    await repo.save(newUser);
     res.status(201).json({
       status: true,
       message: "註冊成功",
@@ -107,32 +106,30 @@ async function postLogin(req, res, next) {
       return next(generateError(400, "欄位未填寫正確"));
     }
 
-    // 嘗試從三個身分找出使用者
-    const roles = [
-      { role: "USER", repo: AppDataSource.getRepository(User) },
-      { role: "COACH", repo: AppDataSource.getRepository(Coach) },
-      { role: "ADMIN", repo: AppDataSource.getRepository(Admin) },
-    ];
+    // 從email中找出對應的角色和資料庫
+    const { role, repo } = await findRoleAndRepoByEmail(email);
 
-    for (const { role, repo } of roles) {
-      const user = await repo.findOneBy({ email });
-      if (user) {
-        //檢查密碼 (使用 bcrypt.compare比對加密後的密碼)
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-          return next(generateError(400, "使用者不存在或密碼輸入錯誤"));
-        }
-        //密碼正確，產生 JWT
-        const token = await generateJWT(
-          { id: user.id, role },
-          secret,
-          { expiresIn: expiresDay }
-        );
-        return res.json({ token });
-      }
+    // 從資料庫中找出對應的使用者
+    user = await repo.findOne({ where: { email } });
+
+    // 如果沒有找到使用者，返回錯誤
+    if (!user) {
+      return next(generateError(400, "查無此信箱"));
     }
-    // 如果沒有找到使用者，則返回錯誤
-    return next(generateError(400, "使用者不存在或密碼輸入錯誤"));
+
+    // 檢查密碼 (使用 bcrypt.compare比對加密後的密碼)
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return next(generateError(400, "使用者不存在或密碼輸入錯誤"));
+    }
+    // 密碼正確，產生 JWT
+    const token = await generateJWT(
+      { id: user.id, role },
+      secret,
+      { expiresIn: expiresDay }
+    );
+
+    return res.json({ token });
   } catch (error) {
     next(error);
   }
@@ -147,26 +144,11 @@ async function postForgotPassword(req, res, next) {
       return next(generateError(400, "email格式錯誤"));
     }
 
-    // 嘗試從三個角色（USER, COACH, ADMIN）中找出使用者
-    const roles = [
-      { role: "USER", repo: AppDataSource.getRepository(User) }, // User 資料庫
-      { role: "COACH", repo: AppDataSource.getRepository(Coach) }, // Coach 資料庫
-      { role: "ADMIN", repo: AppDataSource.getRepository(Admin) }, // Admin 資料庫
-    ];
+    // 從email中找出對應的角色和資料庫
+    const { role, repo } = await findRoleAndRepoByEmail(email);
 
-    let user = null; // 用來儲存找到的使用者
-    let foundRole = null; // 用來儲存找到的角色
-    let role = null; // 預設角色為 null
-    let repo = null; // 預設資料庫為 null
-
-    // 遍歷角色，嘗試根據 email 找到使用者
-    for ({ role, repo } of roles) {
-      user = await repo.findOne({ where: { email } });
-      if (user) {
-        foundRole = role; // 如果找到使用者，記錄對應的角色
-        break; // 結束循環
-      }
-    }
+    // 從資料庫中找出對應的使用者
+    user = await repo.findOne({ where: { email } });
 
     // 如果沒有找到使用者，返回錯誤
     if (!user) {
@@ -175,7 +157,7 @@ async function postForgotPassword(req, res, next) {
 
     // 生成臨時的 JWT Token，包含用戶 ID 和角色
     const temporaryToken = await generateJWT(
-      { id: user.id, role: foundRole }, // 傳入用戶 ID 和角色
+      { id: user.id, role: role }, // 傳入用戶 ID 和角色
       secret, // 簽名密鑰
       { expiresIn: temporaryExpiresDay } // 設定有效期 一小時
     );
@@ -259,11 +241,10 @@ async function patchResetPassword(req, res, next) {
     const { id, role } = decoded;
 
     // 根據角色找到對應的用戶
-    const repository = AppDataSource.getRepository(
-      role === "USER" ? User : role === "COACH" ? Coach : Admin
-    );
+    const repo = await findRepoByRole(role);
 
-    const user = await repository.findOne({ where: { id } });
+    // 從資料庫中找出對應的使用者
+    const user = await repo.findOne({ where: { id } });
 
     if (!user) {
       return next(generateError(400, "找不到用戶"));
@@ -280,7 +261,7 @@ async function patchResetPassword(req, res, next) {
 
     // 更新用戶密碼
     user.password = hashPassword;
-    await repository.save(user);
+    await repo.save(user);
 
     res.status(200).json({
       status: true,
