@@ -3,7 +3,7 @@ const nodemailer = require("nodemailer");
 const { isUndefined, isNotValidString, isNotValidEmail } = require("../utils/validators");
 const generateError = require("../utils/generateError");
 const AppDataSource = require("../db/data-source");
-const { generateJWT } = require("../utils/jwtUtils");
+const { generateJWT, verifyJWT } = require("../utils/jwtUtils");
 const config = require("../config/index");
 const secret = config.get("secret.jwtSecret");
 const expiresDay = config.get("secret.jwtExpiresDay");
@@ -219,6 +219,67 @@ async function postForgotPassword(req, res, next) {
   }
 }
 
+async function patchResetPassword(req, res, next) {
+  try {
+    const { new_password, password_check } = req.body;
+    const token = req.query.token; // 從 URL 的 Query Parameters 中取得 Token
+
+    // 檢查請求資料是否完整
+    if (!token || !new_password || !password_check) {
+      return next(generateError(400, "欄位未填寫正確"));
+    }
+
+    // 驗證 Token 並解碼
+    const decoded = await verifyJWT(token, secret);
+    if (!decoded) {
+      return next(generateError(401, "Token 無效或已過期"));
+    }
+
+    // 檢查密碼是否符合規則
+    const passwordPattern = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,16}/;
+    if (!passwordPattern.test(new_password)) {
+      return next(
+        generateError(
+          400,
+          "密碼不符合規則，需要包含英文數字大小寫，最短8個字，最長16個字"
+        )
+      );
+    }
+
+    if (new_password !== password_check) {
+      return next(generateError(400, "密碼確認錯誤"));
+    }
+
+    const { id, role } = decoded;
+
+    // 根據角色找到對應的用戶
+    const repository = AppDataSource.getRepository(
+      role === "USER" ? User : role === "COACH" ? Coach : Admin
+    );
+
+    const user = await repository.findOne({ where: { id } });
+
+    if (!user) {
+      return next(generateError(404, "找不到用戶"));
+    }
+
+    // 密碼加密
+    const salt = await bcrypt.genSalt(10);
+    const hashPassword = await bcrypt.hash(new_password, salt);
+
+    // 更新用戶密碼
+    user.password = hashPassword;
+    await repository.save(user);
+
+    res.status(200).json({
+      status: true,
+      message: "密碼重設成功",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 //回傳使用者資訊，方便前端判斷使用者登入狀態，調整右上角顯示狀態
 async function getMe(req, res, next) {
   res.json(req.user);
@@ -229,4 +290,5 @@ module.exports = {
   postLogin,
   getMe,
   postForgotPassword,
+  patchResetPassword,
 };

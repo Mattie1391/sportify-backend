@@ -8,5 +8,6 @@ router.post("/coaches/signup", authController.postSignup);
 router.post("/login", authController.postLogin);
 router.get("/me", auth, authController.getMe);
 router.post("/forgot-password", authController.postForgotPassword);
+router.patch("/reset-password", authController.patchResetPassword);
 
 module.exports = router;
