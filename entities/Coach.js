@@ -23,6 +23,12 @@ module.exports = new EntitySchema({
 			length: 72,
 			nullable: false, // 密碼
 		},
+		// 重設密碼的 token，僅儲存一組最新有效的 token，避免使用者在時限內多次請求產生好幾組有效的 token
+		reset_password_token: {
+			type: "varchar",
+			length: 512,
+			nullable: true,
+		},
 		nickname: {
 			type: "varchar",
 			length: 50,

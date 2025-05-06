@@ -36,6 +36,13 @@ module.exports = new EntitySchema({
 			nullable: false,
 		},
 
+        // 重設密碼的 token，僅儲存一組最新有效的 token，避免使用者在時限內多次請求產生好幾組有效的 token
+		reset_password_token: {
+			type: "varchar",
+			length: 512,
+			nullable: true,
+		},
+
 		// 訂閱方案 ID（若有訂閱才會有值）
 		subscription_id: {
 			type: "uuid",

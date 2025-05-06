@@ -156,9 +156,11 @@ async function postForgotPassword(req, res, next) {
 
     let user = null; // 用來儲存找到的使用者
     let foundRole = null; // 用來儲存找到的角色
+    let role = null; // 預設角色為 null
+    let repo = null; // 預設資料庫為 null
 
     // 遍歷角色，嘗試根據 email 找到使用者
-    for (const { role, repo } of roles) {
+    for ({ role, repo } of roles) {
       user = await repo.findOne({ where: { email } });
       if (user) {
         foundRole = role; // 如果找到使用者，記錄對應的角色
@@ -208,6 +210,11 @@ async function postForgotPassword(req, res, next) {
       }
     });
 
+    // 更新使用者的重設密碼 Token
+    user.reset_password_token = temporaryToken; // 儲存 Token
+    await repo.save(user); // 更新資料庫
+
+
     // 返回成功訊息
     res.status(200).json({
       status: true, // 狀態為成功
@@ -228,11 +235,10 @@ async function patchResetPassword(req, res, next) {
     if (!token || !new_password || !password_check) {
       return next(generateError(400, "欄位未填寫正確"));
     }
-
     // 驗證 Token 並解碼
     const decoded = await verifyJWT(token, secret);
     if (!decoded) {
-      return next(generateError(401, "Token 無效或已過期"));
+      return next(generateError(400, "Token 無效或已過期"));
     }
 
     // 檢查密碼是否符合規則
@@ -260,7 +266,12 @@ async function patchResetPassword(req, res, next) {
     const user = await repository.findOne({ where: { id } });
 
     if (!user) {
-      return next(generateError(404, "找不到用戶"));
+      return next(generateError(400, "找不到用戶"));
+    }
+
+    // 檢查 Token 是否為最新的
+    if (user.reset_password_token !== token) { //從資料庫中取得的 token 比對 url中的 token
+      return next(generateError(400, "Token 不正確或已過期"));
     }
 
     // 密碼加密
