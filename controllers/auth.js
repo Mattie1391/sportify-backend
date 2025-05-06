@@ -3,7 +3,7 @@ const nodemailer = require("nodemailer");
 const { isUndefined, isNotValidString, isNotValidEmail } = require("../utils/validators");
 const generateError = require("../utils/generateError");
 const AppDataSource = require("../db/data-source");
-const { generateJWT } = require("../utils/jwtUtils");
+const { generateJWT, verifyJWT } = require("../utils/jwtUtils");
 const config = require("../config/index");
 const secret = config.get("secret.jwtSecret");
 const expiresDay = config.get("secret.jwtExpiresDay");
@@ -13,6 +13,7 @@ const Coach = require("../entities/Coach");
 const Admin = require("../entities/Admin");
 const gmailUserName = config.get("email.gmailUserName");
 const gmailAppPassword = config.get("email.gmailAppPassword");
+const { findRoleAndRepoByEmail, findRepoByRole } = require("../services/roleServices");
 
 async function postSignup(req, res, next) {
   try {
@@ -54,14 +55,12 @@ async function postSignup(req, res, next) {
     }
 
     // 判斷角色來決定資料庫
-    // 如果是 USER，則使用 User 資料庫；如果是 COACH，則使用 Coach 資料庫
-    const repository = AppDataSource.getRepository(
-      role === "USER" ? User : Coach
-    );
-    // 從資料庫中根據 email 查詢使用者
-    const existingUser = await repository.findOne({ where: { email } });
+    const repo = await findRepoByRole(role);
 
-    if (existingUser) {
+    // 從資料庫中根據 email 查詢使用者
+    const user = await repo.findOne({ where: { email } });
+
+    if (user) {
       return next(generateError(409, "Email 已被使用"));
     }
 
@@ -71,7 +70,7 @@ async function postSignup(req, res, next) {
 
     // 建立新使用者
     // 如果是 USER，則使用 name；如果是 COACH，則使用 nickname
-    const newUser = repository.create({
+    const newUser = repo.create({
       name: role === "USER" ? displayName : undefined,
       nickname: role === "COACH" ? displayName : undefined,
       email,
@@ -79,7 +78,7 @@ async function postSignup(req, res, next) {
       role,
     });
 
-    await repository.save(newUser);
+    await repo.save(newUser);
     res.status(201).json({
       status: true,
       message: "註冊成功",
@@ -107,32 +106,30 @@ async function postLogin(req, res, next) {
       return next(generateError(400, "欄位未填寫正確"));
     }
 
-    // 嘗試從三個身分找出使用者
-    const roles = [
-      { role: "USER", repo: AppDataSource.getRepository(User) },
-      { role: "COACH", repo: AppDataSource.getRepository(Coach) },
-      { role: "ADMIN", repo: AppDataSource.getRepository(Admin) },
-    ];
+    // 從email中找出對應的角色和資料庫
+    const { role, repo } = await findRoleAndRepoByEmail(email);
 
-    for (const { role, repo } of roles) {
-      const user = await repo.findOneBy({ email });
-      if (user) {
-        //檢查密碼 (使用 bcrypt.compare比對加密後的密碼)
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-          return next(generateError(400, "使用者不存在或密碼輸入錯誤"));
-        }
-        //密碼正確，產生 JWT
-        const token = await generateJWT(
-          { id: user.id, role },
-          secret,
-          { expiresIn: expiresDay }
-        );
-        return res.json({ token });
-      }
+    // 從資料庫中找出對應的使用者
+    user = await repo.findOne({ where: { email } });
+
+    // 如果沒有找到使用者，返回錯誤
+    if (!user) {
+      return next(generateError(400, "查無此信箱"));
     }
-    // 如果沒有找到使用者，則返回錯誤
-    return next(generateError(400, "使用者不存在或密碼輸入錯誤"));
+
+    // 檢查密碼 (使用 bcrypt.compare比對加密後的密碼)
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return next(generateError(400, "使用者不存在或密碼輸入錯誤"));
+    }
+    // 密碼正確，產生 JWT
+    const token = await generateJWT(
+      { id: user.id, role },
+      secret,
+      { expiresIn: expiresDay }
+    );
+
+    return res.json({ token });
   } catch (error) {
     next(error);
   }
@@ -147,24 +144,11 @@ async function postForgotPassword(req, res, next) {
       return next(generateError(400, "email格式錯誤"));
     }
 
-    // 嘗試從三個角色（USER, COACH, ADMIN）中找出使用者
-    const roles = [
-      { role: "USER", repo: AppDataSource.getRepository(User) }, // User 資料庫
-      { role: "COACH", repo: AppDataSource.getRepository(Coach) }, // Coach 資料庫
-      { role: "ADMIN", repo: AppDataSource.getRepository(Admin) }, // Admin 資料庫
-    ];
+    // 從email中找出對應的角色和資料庫
+    const { role, repo } = await findRoleAndRepoByEmail(email);
 
-    let user = null; // 用來儲存找到的使用者
-    let foundRole = null; // 用來儲存找到的角色
-
-    // 遍歷角色，嘗試根據 email 找到使用者
-    for (const { role, repo } of roles) {
-      user = await repo.findOne({ where: { email } });
-      if (user) {
-        foundRole = role; // 如果找到使用者，記錄對應的角色
-        break; // 結束循環
-      }
-    }
+    // 從資料庫中找出對應的使用者
+    user = await repo.findOne({ where: { email } });
 
     // 如果沒有找到使用者，返回錯誤
     if (!user) {
@@ -173,7 +157,7 @@ async function postForgotPassword(req, res, next) {
 
     // 生成臨時的 JWT Token，包含用戶 ID 和角色
     const temporaryToken = await generateJWT(
-      { id: user.id, role: foundRole }, // 傳入用戶 ID 和角色
+      { id: user.id, role: role }, // 傳入用戶 ID 和角色
       secret, // 簽名密鑰
       { expiresIn: temporaryExpiresDay } // 設定有效期 一小時
     );
@@ -208,6 +192,11 @@ async function postForgotPassword(req, res, next) {
       }
     });
 
+    // 更新使用者的重設密碼 Token
+    user.reset_password_token = temporaryToken; // 儲存 Token
+    await repo.save(user); // 更新資料庫
+
+
     // 返回成功訊息
     res.status(200).json({
       status: true, // 狀態為成功
@@ -215,6 +204,70 @@ async function postForgotPassword(req, res, next) {
     });
   } catch (error) {
     // 捕獲錯誤並傳遞給下一個錯誤處理器
+    next(error);
+  }
+}
+
+async function patchResetPassword(req, res, next) {
+  try {
+    const { new_password, password_check } = req.body;
+    const token = req.query.token; // 從 URL 的 Query Parameters 中取得 Token
+
+    // 檢查請求資料是否完整
+    if (!token || !new_password || !password_check) {
+      return next(generateError(400, "欄位未填寫正確"));
+    }
+    // 驗證 Token 並解碼
+    const decoded = await verifyJWT(token, secret);
+    if (!decoded) {
+      return next(generateError(400, "Token 無效或已過期"));
+    }
+
+    // 檢查密碼是否符合規則
+    const passwordPattern = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,16}/;
+    if (!passwordPattern.test(new_password)) {
+      return next(
+        generateError(
+          400,
+          "密碼不符合規則，需要包含英文數字大小寫，最短8個字，最長16個字"
+        )
+      );
+    }
+
+    if (new_password !== password_check) {
+      return next(generateError(400, "密碼確認錯誤"));
+    }
+
+    const { id, role } = decoded;
+
+    // 根據角色找到對應的用戶
+    const repo = await findRepoByRole(role);
+
+    // 從資料庫中找出對應的使用者
+    const user = await repo.findOne({ where: { id } });
+
+    if (!user) {
+      return next(generateError(400, "找不到用戶"));
+    }
+
+    // 檢查 Token 是否為最新的
+    if (user.reset_password_token !== token) { //從資料庫中取得的 token 比對 url中的 token
+      return next(generateError(400, "Token 不正確或已過期"));
+    }
+
+    // 密碼加密
+    const salt = await bcrypt.genSalt(10);
+    const hashPassword = await bcrypt.hash(new_password, salt);
+
+    // 更新用戶密碼
+    user.password = hashPassword;
+    await repo.save(user);
+
+    res.status(200).json({
+      status: true,
+      message: "密碼重設成功",
+    });
+  } catch (error) {
     next(error);
   }
 }
@@ -229,4 +282,5 @@ module.exports = {
   postLogin,
   getMe,
   postForgotPassword,
+  patchResetPassword,
 };

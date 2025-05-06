@@ -25,5 +25,12 @@ module.exports = new EntitySchema({
 			length: 72, // 最長長度為 72 個字元（bcrypt 加密後密碼大概會落在這範圍）
 			nullable: false, // 不可為空，必須填寫
 		},
+
+		// 重設密碼的 token，僅儲存一組最新有效的 token，避免使用者在時限內多次請求產生好幾組有效的 token
+		reset_password_token: {
+			type: "varchar",
+			length: 512,
+			nullable: true,
+		},
 	},
 });
