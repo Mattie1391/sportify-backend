@@ -1,3 +1,7 @@
+// 僅在本地開發時才載入 .env 檔案
+if (process.env.NODE_ENV !== "production") {
+  require("dotenv").config();
+}
 module.exports = {
   host: process.env.DB_HOST,
   port: process.env.DB_PORT,

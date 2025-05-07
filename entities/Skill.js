@@ -24,14 +24,20 @@ module.exports = new EntitySchema({
   },
 
   relations: {
+    CoachSkills: {
+      target: "Coach_Skill",
+      type: "one-to-many",
+      inverseSide: "Skill",
+    },
     Subscription_Skill: {
       target: "Subscription_Skill",
       type: "one-to-many",
       inverseSide: "Skill",
-      joinColumn: {
-        referencedColumnName: "id",
-        foreignKeyConstraintName: "fk_subscription_skill_skill_id",
-      },
+    },
+    Course: {
+      target: "Course",
+      type: "one-to-many",
+      inverseSide: "Skill",
     },
   },
 });

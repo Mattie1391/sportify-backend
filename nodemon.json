@@ -1,7 +1,5 @@
 {
-    "watch": ["./"],
-    "ext": "ts js json",
-    "ignore": ["node_modules"],
-    "exec": "node ./bin/www"
-  }
-  
+  "watch": ["./bin/www", "./app.js", "./routes", "./controllers"],
+  "ext": "js,json",
+  "ignore": ["node_modules"]
+}
