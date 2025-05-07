@@ -1,12 +1,16 @@
 services:
   web:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: development
     ports:
       - "3000:3000"
     volumes:
       - .:/app
       - /app/node_modules
-    env_file:
+    env_file: #讀取環境變數，這只在本地測試有效。上線打包時要改.dockerignore忽略環境變數，並從主機設定，或用cli輸入環境變數
       - .env
     depends_on:
       - db
