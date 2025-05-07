@@ -9,8 +9,9 @@ const checkCategoryAccess = async (userId, courseId) => {
     .innerJoin("course", "course", "course.id = :courseId", { courseId })
     .andWhere("course.type_id = sk.skill_id")
     .getOne();
-};
 
+  return result;
+};
 module.exports = {
   checkCategoryAccess,
 };

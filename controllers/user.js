@@ -146,7 +146,7 @@ async function postLike(req, res, next) {
     }
 
     //確認該使用者是否有訂閱此課程的類別
-    await checkCategoryAccess(userId, courseId);
+    const result = await checkCategoryAccess(userId, courseId);
     if (!result) {
       throw generateError(403, "未訂閱該課程類別");
     }
@@ -184,7 +184,7 @@ async function deleteUnlike(req, res, next) {
       return next(generateError(400, "課程 ID 格式不正確"));
     }
     //確認該使用者是否有訂閱此課程的類別
-    await checkCategoryAccess(userId, courseId);
+    const result = await checkCategoryAccess(userId, courseId);
     if (!result) {
       throw generateError(403, "未訂閱該課程類別");
     }
