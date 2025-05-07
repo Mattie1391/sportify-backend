@@ -24,12 +24,11 @@ RUN if [ "$NODE_ENV" = "production" ]; then \
 COPY . .
 
 #賦予腳本執行權限
-COPY start.sh ./start.sh
-RUN chmod +x wait-for-it.sh start.sh
+RUN chmod +x wait-for-it.sh
 
 # 若使用 dotenv，自行定義或透過 Render 的環境變數設定，不需複製 .env
 # 可依需要開放對外 Port（非必要，但有助於本地測試）
 EXPOSE 3000
 
-# 根據環境設定啟動命令，參見./start.sh
-CMD ["/app/start.sh"]
+# 根據環境設定啟動命令
+CMD ["sh", "-c", "if [ \"$NODE_ENV\" = \"production\" ]; then node ./bin/www; else ./wait-for-it.sh db:5432 -- npm run dev; fi"]
