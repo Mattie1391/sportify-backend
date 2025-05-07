@@ -79,8 +79,6 @@ async function patchProfile(req, res, next) {
     if ("email" in req.body) {
       return next(generateError(403, "禁止修改 email"));
     }
-    // 記錄資料是否有異動
-    let isUpdated = false;
 
     //？.trim
     // 若值為字串，就回傳去掉前後空白的結果，空字串""就會回傳false
@@ -163,7 +161,7 @@ async function patchProfile(req, res, next) {
       (!profileValidCheck || !changeProfileCheck) &&
       !hasAnyPasswordField
     ) {
-      return next(generateError(400, "資料未變更，請輸入欲修改的內容"));
+      return next(generateError(400, "無資料需變更，請輸入欲修改的內容"));
     }
 
     //修改變更的資料
