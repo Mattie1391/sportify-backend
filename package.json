@@ -5,10 +5,12 @@
   "scripts": {
     "start": "node ./bin/www",
     "dev": "nodemon ./bin/www",
-    "seed": "node ./db/seed.js"
+    "seed": "node ./db/seed.js",
+    "build": "docker compose --env-file .env up -d --build",
+    "clean": "docker compose --env-file .env down -v"
   },
   "dependencies": {
-    "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.2",
     "cookie-parser": "~1.4.4",
     "cors": "^2.8.5",
     "debug": "~2.6.9",

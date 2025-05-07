@@ -5,10 +5,10 @@ const AppDataSource = new DataSource({
   type: "postgres",
   host: process.env.DB_HOST,
   port: process.env.DB_PORT,
-  username: process.env.DB_USER,
+  username: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  synchronize: false, //開發時 true，部署時請改為 false 並使用 migration
+  synchronize: true, //開發時 true，部署時請改為 false 並使用 migration
   logging: true,
   entities: [
     require("../entities/Admin"),

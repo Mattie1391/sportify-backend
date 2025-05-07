@@ -1,6 +1,10 @@
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const nodemailer = require("nodemailer");
-const { isUndefined, isNotValidString, isNotValidEmail } = require("../utils/validators");
+const {
+  isUndefined,
+  isNotValidString,
+  isNotValidEmail,
+} = require("../utils/validators");
 const generateError = require("../utils/generateError");
 const AppDataSource = require("../db/data-source");
 const { generateJWT } = require("../utils/jwtUtils");
@@ -123,11 +127,9 @@ async function postLogin(req, res, next) {
           return next(generateError(400, "使用者不存在或密碼輸入錯誤"));
         }
         //密碼正確，產生 JWT
-        const token = await generateJWT(
-          { id: user.id, role },
-          secret,
-          { expiresIn: expiresDay }
-        );
+        const token = await generateJWT({ id: user.id, role }, secret, {
+          expiresIn: expiresDay,
+        });
         return res.json({ token });
       }
     }
@@ -143,7 +145,7 @@ async function postForgotPassword(req, res, next) {
     const { email } = req.body;
 
     // 檢查請求資料是否完整
-    if (isNotValidEmail (email) ) {
+    if (isNotValidEmail(email)) {
       return next(generateError(400, "email格式錯誤"));
     }
 
@@ -187,7 +189,7 @@ async function postForgotPassword(req, res, next) {
       },
     });
 
-    // 動態生成的重設密碼連結 
+    // 動態生成的重設密碼連結
     // TODO 確認前端串接網址
     const resetLink = `https://tteddhuang.github.io/sportify-plus/api/v1/auth/reset-password?token=${temporaryToken}`;
 
