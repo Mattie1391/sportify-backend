@@ -10,7 +10,7 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
-    env_file: #讀取環境變數，這只在本地測試有效。上線打包時要改.dockerignore忽略環境變數，並從主機設定，或用cli輸入環境變數
+    env_file: #讀取環境變數，這只在本地測試有效。上線打包時要改.dockerignore忽略環境變數。此後環境變數要從主機設定，或用cli輸入
       - .env
     depends_on:
       - db

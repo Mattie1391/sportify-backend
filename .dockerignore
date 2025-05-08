@@ -1,0 +1,31 @@
+# 忽略 node_modules（建議在 container 內重新 npm install）
+node_modules
+
+# 忽略 log 檔
+*.log
+logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 忽略環境變數與憑證（先備註掉，除正式上線外，本地測試docker還是先把.env一起打包比較輕鬆）
+# .env
+# .env.local
+# .env.*.local
+
+# 忽略 Git 設定
+.git
+.gitignore
+
+# VS Code 設定檔（或其他 IDE）
+.vscode
+.idea
+
+# macOS 檔案
+.DS_Store
+
+# 測試與文件檔
+coverage
+test
+__tests__/
+docs

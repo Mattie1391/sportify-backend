@@ -5,7 +5,9 @@
   "scripts": {
     "start": "node ./bin/www",
     "dev": "nodemon ./bin/www",
-    "seed": "node ./db/seed.js"
+    "seed": "node ./db/seed.js",
+    "docker-build": "docker compose --env-file .env up -d --build",
+    "docker-clean": "docker compose --env-file .env down -v"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
