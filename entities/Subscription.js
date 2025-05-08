@@ -1,4 +1,5 @@
 const { EntitySchema } = require("typeorm");
+const Plan = require("./Plan");
 
 // Subscription：紀錄使用者的訂閱紀錄與付款資訊
 module.exports = new EntitySchema({
@@ -34,11 +35,11 @@ module.exports = new EntitySchema({
       nullable: false,
     },
 
-    // 訂閱方案名稱，使用 enum，可用字串代替（例如：'wellness方案'）
+    // 訂閱方案名稱，使用 enum，可用字串代替（例如：'Wellness方案'）。非訂閱狀態者則以null表示，所以設為可空白。
     plan: {
       type: "varchar",
-      length: 30,
-      nullable: false,
+      length: 20,
+      nullable: true,
     },
 
     // 訂閱開始與結束時間

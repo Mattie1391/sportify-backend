@@ -11,7 +11,7 @@ const {
 } = require("../utils/validators");
 const generateError = require("../utils/generateError");
 const { checkCategoryAccess } = require("../services/checkCategoryAccess");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 
 //取得使用者資料
 async function getProfile(req, res, next) {
@@ -47,6 +47,14 @@ async function getProfile(req, res, next) {
     res
       .status(200)
       .json({ status: true, message: "成功取得資料", data: userData });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function getSubscriptionPlans(req, res, next) {
+  try {
+    const plans = await AppDataSource.getRepository("");
   } catch (error) {
     next(error);
   }
@@ -297,6 +305,7 @@ async function getCourseType(req, res, next) {
 
 module.exports = {
   getProfile,
+  getSubscriptionPlans,
   patchProfile,
   postLike,
   deleteUnlike,
