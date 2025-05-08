@@ -16,10 +16,16 @@ function isNotValidInteger(value) {
 	return typeof value !== "number" || !Number.isInteger(value) || value <= 0;
 }
 
+// 驗證陣列
+const isNotValidArray = (arr) => {
+	return !Array.isArray(arr);
+};
+
 module.exports = {
 	isUndefined,
 	isNotValidString,
 	isNotValidInteger,
+	isNotValidArray,
 	isNotValidUUID: (str) => !validator.isUUID(str),
 	isNotValidEmail: (str) => !validator.isEmail(str),
 	isNotValidUrl: (str) => !validator.isURL(str),
