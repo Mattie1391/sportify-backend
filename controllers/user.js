@@ -335,13 +335,18 @@ async function postSubscription(req, res, next) {
     }
 
     // 驗證 course_type 是否為字串陣列，且數量為 0、1 或 3
-    if (
-      !Array.isArray(course_type) ||
-      !(course_type.length === 0 || course_type.length === 1 || course_type.length === 3)
-    ) {
+    if (!(course_type.length === 0 || course_type.length === 1 || course_type.length === 3)) {
       return next(generateError(400, "課程類別格式不正確"));
     }
 
+    if (Number(plan.sports_choice) !== course_type.length) {
+      return next(
+        generateError(
+          400,
+          `課程類別數量不符合方案限制，方案要求 ${plan.sports_choice} 個課程，但提供了 ${course_type.length} 個`
+        )
+      );
+    }
     // 初始化 validSkills 為空陣列
     let validSkills = [];
 
