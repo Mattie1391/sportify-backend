@@ -391,6 +391,20 @@ async function postSubscription(req, res, next) {
       await subscriptionSkillRepo.save(newSubscriptionSkills);
     }
 
+    // 更新 User 資料表的 subscription_id 和 is_subscribed 欄位
+    const userRepo = AppDataSource.getRepository("User");
+    const user = await userRepo.findOneBy({ id: userId });
+
+    if (!user) {
+      return next(generateError(400, "使用者不存在"));
+    }
+
+    user.subscription_id = savedSubscription.id; // 設定訂閱 ID
+    user.is_subscribed = true; // 更新訂閱狀態為已訂閱
+
+    // 儲存更新後的使用者資料
+    await userRepo.save(user);
+
     // 回傳成功訊息
     res.status(201).json({
       status: true,
