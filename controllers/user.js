@@ -71,7 +71,10 @@ async function patchProfile(req, res, next) {
       isNotValidUUID(userId)
     )
       return next(generateError(400, "使用者 ID 格式不正確"));
-    // email/id 無法修改,前端email欄位同步寫死，不能輸入
+
+    const user = await userRepo.findOneBy({ id: userId });
+
+    // email及使用者ID無法修改,前端email欄位同步寫死，不能輸入
     const {
       name,
       profile_image_url,
@@ -80,50 +83,105 @@ async function patchProfile(req, res, next) {
       newPassword_check,
     } = req.body;
 
-    if (!name || isUndefined(name) || isNotValidString(name)) {
-      return next(generateError(400, "欄位未填寫正確"));
+    //目前暫無email驗證功能，禁止修改email
+    if ("email" in req.body) {
+      return next(generateError(403, "禁止修改 email"));
     }
-    if (name.length < 2 || name.length > 20) {
-      return next(generateError(400, "用戶名長度需為 2~20 字"));
+
+    //？.trim
+    // 若值為字串，就回傳去掉前後空白的結果，空字串""就會回傳false
+    // 若值為null或undefined,就不執行trim()，直接回傳undefined（false）
+
+    //判斷機制提取
+    const nameValidCheck = Boolean(name?.trim()); //name合格會回傳true
+    let changeNameCheck = false;
+    if (nameValidCheck) {
+      changeNameCheck = name.trim() !== user.name; //name變更會回傳true
     }
-    //檢查頭貼網址是否正確
+
+    const profileValidCheck = Boolean(profile_image_url?.trim()); //url合格會回傳true
+    let changeProfileCheck = false;
+    if (profileValidCheck) {
+      changeProfileCheck = profile_image_url.trim() !== user.profile_image_url; //url變更會回傳true
+    }
+
+    // 若使用者想修改 name，檢查是否符合填寫規則
+    if (nameValidCheck && changeNameCheck) {
+      if (isNotValidString(name)) {
+        return next(generateError(400, "欄位未填寫正確"));
+      }
+      if (name.length < 2 || name.length > 20) {
+        return next(generateError(400, "用戶名長度需為 2~20 字"));
+      }
+    }
+
+    // 若使用者想修改大頭貼，檢查是否符合規則
+    if (profileValidCheck && changeProfileCheck) {
+      if (isNotValidUrl(profile_image_url)) {
+        return next(generateError(400, "頭貼網址格式不正確"));
+      }
+    }
+
+    // 若使用者想修改密碼，必須三個欄位都填寫
+    const hasAnyPasswordField = Boolean(
+      oldPassword?.trim() || newPassword?.trim() || newPassword_check?.trim()
+    );
+
+    const hasAllPasswordFields = Boolean(
+      oldPassword?.trim() && newPassword?.trim() && newPassword_check?.trim()
+    );
+
+    //如果有修改任一密碼欄位，但並沒有完全填寫全部密碼欄位
+    if (hasAnyPasswordField && !hasAllPasswordFields) {
+      return next(generateError(400, "請完整填寫密碼欄位"));
+    }
+
+    //如果全部密碼欄位都有填寫，檢查填寫是否符合規範
+    if (hasAllPasswordFields) {
+      // 密碼規則：至少8個字元，最多16個字元，至少一個數字，一個小寫字母和一個大寫字母，不允許空白字元
+      const passwordPattern = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])[^\s]{8,16}$/;
+      if (!passwordPattern.test(newPassword)) {
+        return next(
+          generateError(
+            400,
+            "密碼不符合規則，需要包含英文數字大小寫，最短8個字，最長16個字，不允許空白字元"
+          )
+        );
+      }
+      if (newPassword === oldPassword) {
+        return next(generateError(409, "新密碼不可與舊密碼相同"));
+      }
+      if (newPassword !== newPassword_check) {
+        return next(generateError(400, "密碼確認錯誤"));
+      }
+
+      //檢查舊密碼是否正確 (使用 bcrypt.compare比對加密後的密碼)
+      const isMatch = await bcrypt.compare(oldPassword, user.password);
+      if (!isMatch) {
+        return next(generateError(400, "舊密碼錯誤"));
+      }
+    }
+
+    // 最後判斷資料是否完全沒有變更過
+    // name/profile欄位都符合（欄位沒有填寫 或 欄位內容一樣）且 三個密碼欄位都完全沒有填寫
     if (
-      !profile_image_url ||
-      typeof profile_image_url !== "string" ||
-      isNotValidUrl(profile_image_url)
+      (!nameValidCheck || !changeNameCheck) &&
+      (!profileValidCheck || !changeProfileCheck) &&
+      !hasAnyPasswordField
     ) {
-      return next(generateError(400, "頭貼網址格式不正確"));
+      return next(generateError(400, "無資料需變更，請輸入欲修改的內容"));
     }
 
-    // 密碼規則：至少8個字元，最多16個字元，至少一個數字，一個小寫字母和一個大寫字母
-    const passwordPattern = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,16}/;
-    if (!passwordPattern.test(newPassword)) {
-      return next(
-        generateError(
-          400,
-          "密碼不符合規則，需要包含英文數字大小寫，最短8個字，最長16個字"
-        )
-      );
+    //修改變更的資料
+    if (nameValidCheck && changeNameCheck) {
+      user.name = name.trim();
     }
-    if (newPassword === oldPassword) {
-      return next(generateError(409, "新密碼不可與舊密碼相同"));
+    if (profileValidCheck && changeProfileCheck) {
+      user.profile_image_url = profile_image_url.trim();
     }
-    if (newPassword !== newPassword_check) {
-      return next(generateError(400, "密碼確認錯誤"));
+    if (hasAllPasswordFields) {
+      user.password = await bcrypt.hash(newPassword, 10);
     }
-
-    const user = await userRepo.findOneBy({ id: userId });
-
-    //檢查舊密碼是否正確 (使用 bcrypt.compare比對加密後的密碼)
-    const isMatch = await bcrypt.compare(oldPassword, user.password);
-    if (!isMatch) {
-      return next(generateError(400, "舊密碼錯誤"));
-    }
-
-    //替換原本資料
-    user.name = name;
-    user.profile_image_url = profile_image_url;
-    user.password = await bcrypt.hash(newPassword, 10);
     await userRepo.save(user);
 
     const userData = {

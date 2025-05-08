@@ -31,8 +31,8 @@ async function postSignup(req, res, next) {
       : req.path.includes("/users")
       ? "USER"
       : null;
-    // 密碼規則：至少8個字元，最多16個字元，至少一個數字，一個小寫字母和一個大寫字母
-    const passwordPattern = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,16}/;
+    // 密碼規則：至少8個字元，最多16個字元，至少一個數字，一個小寫字母和一個大寫字母，不允許空白字元
+    const passwordPattern = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])[^\s]{8,16}$/;
 
     // 判斷角色來決定顯示名稱
     // 如果是 USER，則使用 name；如果是 COACH，則使用 nickname
@@ -52,7 +52,7 @@ async function postSignup(req, res, next) {
       return next(
         generateError(
           400,
-          "密碼不符合規則，需要包含英文數字大小寫，最短8個字，最長16個字"
+          "密碼不符合規則，需要包含英文數字大小寫，最短8個字，最長16個字，不允許空白字元"
         )
       );
     }
@@ -114,10 +114,15 @@ async function postLogin(req, res, next) {
     }
 
     // 從email中找出對應的角色和資料庫
-    const { role, repo } = await findRoleAndRepoByEmail(email);
+    const result = await findRoleAndRepoByEmail(email);
+
+    if (!result) {
+      return next(generateError(400, "查無此信箱"));
+    }
+    const { role, repo } = result;
 
     // 從資料庫中找出對應的使用者
-    user = await repo.findOne({ where: { email } });
+    const user = await repo.findOne({ where: { email } });
 
     // 如果沒有找到使用者，返回錯誤
     if (!user) {
