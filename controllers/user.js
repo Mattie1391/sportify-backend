@@ -430,6 +430,39 @@ async function postSubscription(req, res, next) {
   }
 }
 
+// 取消訂閱方案
+async function patchSubscription(req, res, next) {
+  try {
+    const userId = req.user.id; // 從驗證中獲取使用者 ID
+
+    // 確認使用者是否存在
+    const user = await userRepo.findOneBy({ id: userId });
+
+    // 確認使用者是否有訂閱方案
+    if (!user.subscription_id) {
+      return next(generateError(400, "找不到訂閱資料或已取消"));
+    }
+
+    // 更新使用者資料：清空 subscription_id 並將 is_subscribed 設為 false
+    user.subscription_id = null;
+    user.is_subscribed = false;
+
+    // 儲存更新後的使用者資料
+    const updatedUser = await userRepo.save(user);
+    if (!updatedUser) {
+      return next(generateError(400, "資料刪除失敗"));
+    }
+
+    // 回傳成功訊息
+    res.status(200).json({
+      status: true,
+      message: "訂閱已成功取消",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getProfile,
   getSubscriptionPlans,
@@ -438,4 +471,5 @@ module.exports = {
   deleteUnlike,
   getCourseType,
   postSubscription,
+  patchSubscription
 };

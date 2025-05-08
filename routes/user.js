@@ -11,6 +11,8 @@ router.get("/course-type", auth, isUser, userController.getCourseType);
 
 //取得所有訂閱資訊
 router.get("/subscription-info", userController.getSubscriptionPlans);
+router.post("/subscription", auth, isUser, userController.postSubscription);
+router.patch("/subscription", auth, isUser, userController.patchSubscription);
 
 //動態路由
 router.get("/:userId", auth, isUser, isSelf, userController.getProfile);
@@ -29,5 +31,5 @@ router.delete(
   isSelf,
   userController.deleteUnlike
 );
-router.post("/subscription", auth, isUser, userController.postSubscription);
+
 module.exports = router;
