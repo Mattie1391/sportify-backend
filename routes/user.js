@@ -29,5 +29,5 @@ router.delete(
   isSelf,
   userController.deleteUnlike
 );
-
+router.post("/subscription", auth, isUser, userController.postSubscription);
 module.exports = router;

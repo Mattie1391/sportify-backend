@@ -6,6 +6,7 @@ const subscriptionRepo =
 const {
   isUndefined,
   isNotValidString,
+  isNotValidArray,
   isNotValidUUID,
   isNotValidUrl,
 } = require("../utils/validators");
@@ -303,6 +304,113 @@ async function getCourseType(req, res, next) {
   }
 }
 
+// 新增訂閱紀錄
+async function postSubscription(req, res, next) {
+  try {
+    const userId = req.user.id; // 從驗證中獲取使用者 ID
+    const { subscription_name, course_type } = req.body;
+
+    if (
+      isUndefined(subscription_name) ||
+      isNotValidString(subscription_name) ||
+      isUndefined(course_type) ||
+      isNotValidArray(course_type)
+    ) {
+      return next(generateError(400, "欄位未填寫正確"));
+    }
+
+    // 從 Plan 表中動態撈取所有有效的 plan_name
+    const planRepo = AppDataSource.getRepository("Plan");
+    const plans = await planRepo.find();
+
+    // 確保 plans 不為空
+    if (!plans || plans.length === 0) {
+      return next(generateError(400, "未找到任何訂閱方案"));
+    }
+
+    // 從 plans 中找到符合的訂閱方案
+    const plan = plans.find((p) => p.name === subscription_name);
+    if (!plan) {
+      return next(generateError(400, "訂閱方案不存在"));
+    }
+
+    // 驗證 course_type 是否為字串陣列，且數量為 0、1 或 3
+    if (
+      !Array.isArray(course_type) ||
+      !(course_type.length === 0 || course_type.length === 1 || course_type.length === 3)
+    ) {
+      return next(generateError(400, "課程類別格式不正確"));
+    }
+
+    // 初始化 validSkills 為空陣列
+    let validSkills = [];
+
+    // 如果 course_type 非空，執行技能的驗證邏輯
+    if (course_type.length > 0) {
+      // 驗證 course_type 中的技能是否存在於資料庫
+      const skillRepo = AppDataSource.getRepository("Skill");
+      validSkills = await skillRepo
+        .createQueryBuilder("skill")
+        .where("skill.name IN (:...names)", { names: course_type })
+        .getMany();
+        
+      if (validSkills.length !== course_type.length) {
+        return next(generateError(400, "部分課程類別不存在"));
+      }
+    }
+
+    // 建立訂單編號（假設格式為：年份月份日+遞增數字）
+    const orderNumber = `20250501${Math.floor(Math.random() * 10000).toString().padStart(4, "0")}`;
+
+    // 建立訂閱資料
+    const subscriptionRepo = AppDataSource.getRepository("Subscription");
+    const newSubscription = subscriptionRepo.create({
+      user_id: userId,
+      order_number: orderNumber,
+      plan: subscription_name,
+      price: plan.pricing,
+    });
+
+    // 儲存訂閱紀錄
+    const savedSubscription = await subscriptionRepo.save(newSubscription);
+    if (!savedSubscription) {
+      return next(generateError(400, "更新資料失敗"));
+    }
+
+    // 建立與技能的關聯
+    if (validSkills.length > 0) {
+      const subscriptionSkillRepo = AppDataSource.getRepository("Subscription_Skill");
+      const newSubscriptionSkills = validSkills.map((skill) => {
+        return subscriptionSkillRepo.create({
+          subscription_id: savedSubscription.id,
+          skill_id: skill.id,
+        });
+      });
+
+      // 儲存技能關聯
+      await subscriptionSkillRepo.save(newSubscriptionSkills);
+    }
+
+    // 回傳成功訊息
+    res.status(201).json({
+      status: true,
+      message: "成功新增資料",
+      data: {
+        subscription: {
+          id: savedSubscription.id,
+          user_id: savedSubscription.user_id,
+          plan: savedSubscription.plan,
+          course_type: course_type,
+          order_number: savedSubscription.order_number,
+          price: savedSubscription.price,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getProfile,
   getSubscriptionPlans,
@@ -310,4 +418,5 @@ module.exports = {
   postLike,
   deleteUnlike,
   getCourseType,
+  postSubscription,
 };

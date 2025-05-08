@@ -1,5 +1,4 @@
 const { EntitySchema } = require("typeorm");
-const Plan = require("./Plan");
 
 // Subscription：紀錄使用者的訂閱紀錄與付款資訊
 module.exports = new EntitySchema({
@@ -15,57 +14,47 @@ module.exports = new EntitySchema({
       generated: "uuid",
       nullable: false,
     },
-
     // 使用者 ID（誰買的訂閱）
     user_id: {
       type: "uuid",
       nullable: false,
     },
-
     // 訂閱購買時間
+    plan_id: {
+      type: "uuid",
+      nullable: true,
+    },
     purchased_at: {
       type: "timestamp",
-      nullable: false,
+      nullable: true,
     },
-
     // 訂單編號（外部金流系統回傳的 ID）
     order_number: {
       type: "varchar",
       length: 20,
       nullable: false,
     },
-
-    // 訂閱方案名稱，使用 enum，可用字串代替（例如：'Wellness方案'）。非訂閱狀態者則以null表示，所以設為可空白。
-    plan: {
-      type: "varchar",
-      length: 20,
-      nullable: true,
-    },
-
     // 訂閱開始與結束時間
     start_at: {
       type: "timestamp",
-      nullable: false,
+      nullable: true,
     },
     end_at: {
       type: "timestamp",
-      nullable: false,
+      nullable: true,
     },
-
     // 付款方式（例如信用卡、Apple Pay）
     payment_method: {
       type: "varchar",
       length: 20,
-      nullable: false,
+      nullable: true,
     },
-
     // 發票圖檔網址
     invoice_image_url: {
       type: "varchar",
       length: 2048,
-      nullable: false,
+      nullable: true,
     },
-
     // 價格（台幣金額）
     price: {
       type: "int",
@@ -86,14 +75,20 @@ module.exports = new EntitySchema({
       },
       onDelete: "CASCADE",
     },
-    Subscription_Skill: {
+    Plan: {
+      target: "Plan",
+      type: "many-to-one",
+      joinColumn: {
+        name: "plan_id",
+        referencedColumnName: "id",
+        foreignKeyConstraintName: "fk_subscription_plan_id",
+      },
+      nullable: false,
+    },
+    Subscription_Skills: {
       target: "Subscription_Skill",
       type: "one-to-many",
       inverseSide: "Subscription",
-      joinColumn: {
-        referencedColumnName: "id",
-        foreignKeyConstraintName: "fk_subscription_skill_subscription_id",
-      },
     },
   },
 });

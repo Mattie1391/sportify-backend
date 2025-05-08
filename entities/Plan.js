@@ -1,6 +1,6 @@
 const { EntitySchema } = require("typeorm");
 
-//Plan表，儲存訂閱方案
+// Plan 表，儲存訂閱方案
 module.exports = new EntitySchema({
   name: "Plan",
   tableName: "plan",
@@ -12,13 +12,13 @@ module.exports = new EntitySchema({
       type: "uuid",
       generated: "uuid", // 自動遞增主鍵
     },
-    plan_name: {
+    name: {
       type: "varchar",
       length: 20,
       nullable: false,
       unique: true,
     },
-    plan_intro: {
+    intro: {
       type: "varchar",
       length: 50,
       nullable: false,
@@ -28,16 +28,25 @@ module.exports = new EntitySchema({
       nullable: false,
     },
     max_resolution: {
-      type: "int", //提供給mux的是純數值720、1080、2160，2160轉成4K
+      type: "int", // 提供給 mux 的是純數值 720、1080、2160，2160 轉成 4K
       nullable: false,
     },
     livestream: {
-      type: "boolean", //決定該訂閱方案可否看直播
+      type: "boolean", // 決定該訂閱方案可否看直播
       nullable: false,
     },
     sports_choice: {
-      type: "int", //決定該方案可選的運動種類，1、3、null(eagerness，要比對方案名稱)
-      nullable: false,
+      type: "int", // 決定該方案可選的運動種類，1、3、null (eagerness，要比對方案名稱)
+      nullable: true,
+    },
+  },
+
+  // === 關聯定義 ===
+  relations: {
+    Subscriptions: {
+      target: "Subscription",
+      type: "one-to-many",
+      inverseSide: "Plan",
     },
   },
 });
