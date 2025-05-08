@@ -130,13 +130,13 @@ async function patchProfile(req, res, next) {
 
     //如果全部密碼欄位都有填寫，檢查填寫是否符合規範
     if (hasAllPasswordFields) {
-      // 密碼規則：至少8個字元，最多16個字元，至少一個數字，一個小寫字母和一個大寫字母
-      const passwordPattern = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,16}/;
+      // 密碼規則：至少8個字元，最多16個字元，至少一個數字，一個小寫字母和一個大寫字母，不允許空白字元
+      const passwordPattern = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])[^\s]{8,16}$/;
       if (!passwordPattern.test(newPassword)) {
         return next(
           generateError(
             400,
-            "密碼不符合規則，需要包含英文數字大小寫，最短8個字，最長16個字"
+            "密碼不符合規則，需要包含英文數字大小寫，最短8個字，最長16個字，不允許空白字元"
           )
         );
       }
