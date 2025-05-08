@@ -10,7 +10,7 @@ const userController = require("../controllers/user");
 router.get("/course-type", auth, isUser, userController.getCourseType);
 
 //取得所有訂閱資訊
-router.get("/subscription-info", userController.getSubscriptionPlans);
+router.get("/plan-info", userController.getPlans);
 
 //動態路由
 router.get("/:userId", auth, isUser, isSelf, userController.getProfile);

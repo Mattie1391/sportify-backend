@@ -52,10 +52,24 @@ async function getProfile(req, res, next) {
     next(error);
   }
 }
-
-async function getSubscriptionPlans(req, res, next) {
+//取得所有訂閱方案類別
+async function getPlans(req, res, next) {
   try {
-    const plans = await AppDataSource.getRepository("");
+    const plans = await AppDataSource.getRepository("Plan").find({
+      select: [
+        "id",
+        "name",
+        "intro",
+        "pricing",
+        "max_resolution",
+        "livestream",
+      ],
+    });
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: plans,
+    });
   } catch (error) {
     next(error);
   }
@@ -335,7 +349,13 @@ async function postSubscription(req, res, next) {
     }
 
     // 驗證 course_type 是否為字串陣列，且數量為 0、1 或 3
-    if (!(course_type.length === 0 || course_type.length === 1 || course_type.length === 3)) {
+    if (
+      !(
+        course_type.length === 0 ||
+        course_type.length === 1 ||
+        course_type.length === 3
+      )
+    ) {
       return next(generateError(400, "課程類別格式不正確"));
     }
 
@@ -358,14 +378,16 @@ async function postSubscription(req, res, next) {
         .createQueryBuilder("skill")
         .where("skill.name IN (:...names)", { names: course_type })
         .getMany();
-        
+
       if (validSkills.length !== course_type.length) {
         return next(generateError(400, "部分課程類別不存在"));
       }
     }
 
     // 建立訂單編號（假設格式為：年份月份日+遞增數字）
-    const orderNumber = `20250501${Math.floor(Math.random() * 10000).toString().padStart(4, "0")}`;
+    const orderNumber = `20250501${Math.floor(Math.random() * 10000)
+      .toString()
+      .padStart(4, "0")}`;
 
     // 建立訂閱資料
     const subscriptionRepo = AppDataSource.getRepository("Subscription");
@@ -384,7 +406,8 @@ async function postSubscription(req, res, next) {
 
     // 建立與技能的關聯
     if (validSkills.length > 0) {
-      const subscriptionSkillRepo = AppDataSource.getRepository("Subscription_Skill");
+      const subscriptionSkillRepo =
+        AppDataSource.getRepository("Subscription_Skill");
       const newSubscriptionSkills = validSkills.map((skill) => {
         return subscriptionSkillRepo.create({
           subscription_id: savedSubscription.id,
@@ -432,7 +455,7 @@ async function postSubscription(req, res, next) {
 
 module.exports = {
   getProfile,
-  getSubscriptionPlans,
+  getPlans,
   patchProfile,
   postLike,
   deleteUnlike,
