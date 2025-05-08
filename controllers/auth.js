@@ -1,6 +1,10 @@
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const nodemailer = require("nodemailer");
-const { isUndefined, isNotValidString, isNotValidEmail } = require("../utils/validators");
+const {
+  isUndefined,
+  isNotValidString,
+  isNotValidEmail,
+} = require("../utils/validators");
 const generateError = require("../utils/generateError");
 const AppDataSource = require("../db/data-source");
 const { generateJWT, verifyJWT } = require("../utils/jwtUtils");
@@ -13,7 +17,10 @@ const Coach = require("../entities/Coach");
 const Admin = require("../entities/Admin");
 const gmailUserName = config.get("email.gmailUserName");
 const gmailAppPassword = config.get("email.gmailAppPassword");
-const { findRoleAndRepoByEmail, findRepoByRole } = require("../services/roleServices");
+const {
+  findRoleAndRepoByEmail,
+  findRepoByRole,
+} = require("../services/roleServices");
 
 async function postSignup(req, res, next) {
   try {
@@ -123,11 +130,9 @@ async function postLogin(req, res, next) {
       return next(generateError(400, "使用者不存在或密碼輸入錯誤"));
     }
     // 密碼正確，產生 JWT
-    const token = await generateJWT(
-      { id: user.id, role },
-      secret,
-      { expiresIn: expiresDay }
-    );
+    const token = await generateJWT({ id: user.id, role }, secret, {
+      expiresIn: expiresDay,
+    });
 
     return res.json({ token });
   } catch (error) {
@@ -140,7 +145,7 @@ async function postForgotPassword(req, res, next) {
     const { email } = req.body;
 
     // 檢查請求資料是否完整
-    if (isNotValidEmail (email) ) {
+    if (isNotValidEmail(email)) {
       return next(generateError(400, "email格式錯誤"));
     }
 
@@ -171,7 +176,7 @@ async function postForgotPassword(req, res, next) {
       },
     });
 
-    // 動態生成的重設密碼連結 
+    // 動態生成的重設密碼連結
     // TODO 確認前端串接網址
     const resetLink = `https://tteddhuang.github.io/sportify-plus/api/v1/auth/reset-password?token=${temporaryToken}`;
 
@@ -195,7 +200,6 @@ async function postForgotPassword(req, res, next) {
     // 更新使用者的重設密碼 Token
     user.reset_password_token = temporaryToken; // 儲存 Token
     await repo.save(user); // 更新資料庫
-
 
     // 返回成功訊息
     res.status(200).json({
@@ -251,7 +255,8 @@ async function patchResetPassword(req, res, next) {
     }
 
     // 檢查 Token 是否為最新的
-    if (user.reset_password_token !== token) { //從資料庫中取得的 token 比對 url中的 token
+    if (user.reset_password_token !== token) {
+      //從資料庫中取得的 token 比對 url中的 token
       return next(generateError(400, "Token 不正確或已過期"));
     }
 
