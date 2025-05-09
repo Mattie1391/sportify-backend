@@ -497,6 +497,84 @@ async function patchSubscription(req, res, next) {
   }
 }
 
+//取得訂閱紀錄
+async function getSubscriptions(req, res, next) {
+  try {
+    //分頁設定
+    const page = parseInt(req.query.page) || 1; //當前頁數
+    const rawLimit = parseInt(req.query.limit) || 10; //每頁顯示筆數
+    const limit = Math.min(rawLimit, 100); // 限制最大筆數為 100
+    const skip = (page - 1) * limit; // 要跳過的資料筆數
+
+    //取得排序後的資料
+    const userId = req.user.id;
+    const [subscriptions, total] = await subscriptionRepo.findAndCount({
+      where: { user_id: userId },
+      order: { purchased_at: "DESC" },
+      relations: ["Plan"],
+      skip: skip, // 要跳過的資料筆數
+      take: limit, // 取得的資料筆數
+    });
+
+    //若查無訂閱紀錄
+    if (!subscriptions || subscriptions.length === 0) {
+      return res.status(200).json({
+        status: true,
+        message: "尚未訂閱，暫無訂閱紀錄",
+      });
+    }
+
+    //統一回傳時間格式：2025/05/01
+    function formatDate(date) {
+      const d = new Date(date);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0"); // 月份從 0 開始
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}/${mm}/${dd}`;
+    }
+
+    //扣款日期為訂閱結束日順延一日
+    function addDays(date, days) {
+      const result = new Date(date);
+      result.setDate(result.getDate() + days);
+      return result;
+    }
+
+    //取出回傳資料
+    const data = subscriptions.map((s) => {
+      return {
+        id: s.id,
+        purchased_at: formatDate(s.purchased_at),
+        order_number: s.order_number,
+        plan: s.Plan.name,
+        period: `${formatDate(s.start_at)} - ${formatDate(s.end_at)}`,
+        end_at: formatDate(s.end_at),
+        payment_method: s.payment_method,
+        invoice_image_url: s.invoice_image_url,
+        price: s.price,
+        next_payment: formatDate(addDays(s.end_at, 1)),
+      };
+    });
+
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data,
+      meta: {
+        sort: "desc", //後端寫死，前端不可改
+        sort_by: "time", //後端寫死，前端不可改
+        page: page, //目前頁數
+        limit: limit, //每頁顯示筆數
+        total: total, //全部資料筆數
+        total_pages: Math.ceil(total / limit), //總共頁數
+        has_next: page * limit < total, //是否有下一頁
+        has_previous: page > 1, //是否有前一頁
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
 module.exports = {
   getProfile,
   getPlans,
@@ -507,4 +585,5 @@ module.exports = {
   getCourseType,
   postSubscription,
   patchSubscription,
+  getSubscriptions,
 };
