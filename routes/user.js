@@ -12,7 +12,10 @@ const ratingController = require("../controllers/rating");
 router.get("/course-type", auth, isUser, userController.getCourseType);
 
 //取得所有訂閱資訊
-router.get("/subscription-info", userController.getSubscriptionPlans);
+router.get("/plan-info", userController.getPlans);
+//取得所有運動類別
+router.get("/show-sports-type", userController.getAllCourseType);
+
 router.post("/subscription", auth, isUser, userController.postSubscription);
 router.patch("/subscription", auth, isUser, userController.patchSubscription);
 
