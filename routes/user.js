@@ -4,6 +4,8 @@ const auth = require("../middlewares/auth");
 const isUser = require("../middlewares/isUser");
 const isSelf = require("../middlewares/isSelf");
 const userController = require("../controllers/user");
+const ratingController = require("../controllers/rating");
+
 
 //固定路由
 //固定路由順序要放在動態路由前，如:userId，否則會被/:userId的路由攔截
@@ -13,6 +15,8 @@ router.get("/course-type", auth, isUser, userController.getCourseType);
 router.get("/subscription-info", userController.getSubscriptionPlans);
 router.post("/subscription", auth, isUser, userController.postSubscription);
 router.patch("/subscription", auth, isUser, userController.patchSubscription);
+router.get("/courses/:courseId/ratings", auth, isUser, ratingController.getRatings);
+
 
 //動態路由
 router.get("/:userId", auth, isUser, isSelf, userController.getProfile);
