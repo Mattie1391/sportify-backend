@@ -21,6 +21,12 @@ module.exports = new EntitySchema({
       nullable: false,
       unique: true,
     },
+    //運動屬於室內運動 or 室外運動
+    activity_location_type: {
+      type: "varchar",
+      length: 10,
+      nullable: false,
+    },
   },
 
   relations: {

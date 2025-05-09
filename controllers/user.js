@@ -55,20 +55,30 @@ async function getProfile(req, res, next) {
 //取得所有訂閱方案類別
 async function getPlans(req, res, next) {
   try {
-    const plans = await AppDataSource.getRepository("Plan").find({
-      select: [
-        "id",
-        "name",
-        "intro",
-        "pricing",
-        "max_resolution",
-        "livestream",
-      ],
-    });
+    const plans = await AppDataSource.getRepository("Plan").find();
     res.status(200).json({
       status: true,
       message: "成功取得資料",
       data: plans,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function getAllCourseType(req, res, next) {
+  try {
+    const outdoor = await AppDataSource.getRepository("Skill").find({
+      where: { activity_location_type: "室外運動" },
+    });
+    console.log(outdoor);
+    const indoor = await AppDataSource.getRepository("Skill").find({
+      where: { activity_location_type: "室內運動" },
+    });
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: { indoor, outdoor },
     });
   } catch (error) {
     next(error);
@@ -489,10 +499,11 @@ async function patchSubscription(req, res, next) {
 module.exports = {
   getProfile,
   getPlans,
+  getAllCourseType,
   patchProfile,
   postLike,
   deleteUnlike,
   getCourseType,
   postSubscription,
-  patchSubscription
+  patchSubscription,
 };
