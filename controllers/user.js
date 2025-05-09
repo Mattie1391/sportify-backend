@@ -69,10 +69,11 @@ async function getPlans(req, res, next) {
 async function getAllCourseType(req, res, next) {
   try {
     const outdoor = await AppDataSource.getRepository("Skill").find({
+      select: ["id", "name"],
       where: { activity_location_type: "室外運動" },
     });
-    console.log(outdoor);
     const indoor = await AppDataSource.getRepository("Skill").find({
+      select: ["id", "name"],
       where: { activity_location_type: "室內運動" },
     });
     res.status(200).json({
