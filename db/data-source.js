@@ -10,7 +10,7 @@ const AppDataSource = new DataSource({
   database: db_config.database,
   ssl: db_config.ssl,
   synchronize: db_config.synchronize, // 開發時 true，部署時請改為 false 並使用 migration
-  logging: true,
+  logging: "warn",
   entities: [
     require("../entities/Admin"),
     require("../entities/User"),
