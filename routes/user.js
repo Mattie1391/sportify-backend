@@ -15,6 +15,8 @@ router.get("/course-type", auth, isUser, userController.getCourseType);
 router.get("/subscription-info", userController.getSubscriptionPlans);
 router.post("/subscription", auth, isUser, userController.postSubscription);
 router.patch("/subscription", auth, isUser, userController.patchSubscription);
+
+//取得課程評價
 router.get("/courses/:courseId/ratings", auth, isUser, ratingController.getRatings);
 
 

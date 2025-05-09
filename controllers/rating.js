@@ -39,27 +39,29 @@ async function getRatings(req, res, next) {
         created_at: "DESC", // 按建立時間降序排列，最新的評價在最前
       },
     });
-
+    console.log("ratings:", ratings);
+    console.log("totalRatings:", totalRatings);
     // 查詢每條評價對應的使用者名稱，並組裝返回數據結構
     const ratingsWithUserNames = await Promise.all(
-      ratings.map(async (rating) => {
-        // 根據 user_id 查詢對應的用戶
-        const user = await userRepo.findOne({
-          where: { id: rating.user_id },
-        });
-        // 組裝返回數據，若找不到用戶，名稱設為 "未知用戶"
-        return {
-          id: rating.id, // 評價 ID
-          name: user ? user.name : "未知用戶", // 使用者名稱
-          score: rating.score, // 評分
-          comment: rating.comment, // 評語留言
-          createdAt: rating.created_at, // 建立時間
-          updatedAt: rating.updated_at, // 最後更新時間
-        };
-      })
-    );
+        ratings.map(async (rating) => {
+          // 根據 user_id 查詢對應的用戶
+          const user = await userRepo.findOne({
+            where: { id: rating.user_id }, // 從資料庫中查詢對應的使用者
+          });
+      
+          // 組裝返回數據，若找不到用戶，名稱設為 "未知用戶"
+          return {
+            id: rating.id, // 評價 ID
+            username: user ? user.name : "未知用戶", // 使用者名稱，若無法找到，設為 "未知用戶"
+            comment: rating.comment, // 評語留言
+            score: rating.score, // 評分
+            createdAt: rating.created_at, // 建立時間
+            updatedAt: rating.updated_at, // 最後更新時間
+          };
+        })
+      );
 
-    // 計算總頁數（總數 / 每頁筆數，向上取整）
+      // 計算總頁數（總數 / 每頁筆數，向上取整）
     const totalPages = Math.ceil(totalRatings / itemsPerPage);
 
     // 返回成功響應，包含整理後的評價數據
@@ -67,10 +69,15 @@ async function getRatings(req, res, next) {
       status: true, // 請求狀態
       message: "成功取得資料", // 請求成功訊息
       data: {
-        totalRatings, // 總評價數
-        page: pageNumber, // 當前頁數
-        totalPages, // 總頁數
-        ratings: ratingsWithUserNames, // 評價列表
+        ratingsWithUserNames, // 評價列表
+        meta: {
+          sort: "desc", // 後端預設寫死，不寫在query
+          sort_by: "time", // 留言時間新到舊排序，後端預設寫死，不寫在query
+          page: pageNumber, // 當前頁數
+          limit: itemsPerPage, // 每頁筆數
+          total: totalRatings, // 總評價數
+          total_pages: totalPages, // 總頁數
+        },
       },
     });
   } catch (error) {
