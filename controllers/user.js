@@ -1,8 +1,7 @@
 const AppDataSource = require("../db/data-source");
 const userRepo = AppDataSource.getRepository("User");
 const favoriteRepo = AppDataSource.getRepository("User_Course_Favorite");
-const subscriptionRepo =
-  require("../db/data-source").getRepository("Subscription");
+const subscriptionRepo = require("../db/data-source").getRepository("Subscription");
 const {
   isUndefined,
   isNotValidString,
@@ -12,18 +11,14 @@ const {
 } = require("../utils/validators");
 const generateError = require("../utils/generateError");
 const { checkCategoryAccess } = require("../services/checkCategoryAccess");
+const formatDate = require("../utils/formatDate"); // 引入日期格式化工具函數
 const bcrypt = require("bcryptjs");
 
 //取得使用者資料
 async function getProfile(req, res, next) {
   try {
     const userId = req.params.userId;
-    if (
-      !userId ||
-      isNotValidString(userId) ||
-      userId.length === 0 ||
-      isNotValidUUID(userId)
-    ) {
+    if (!userId || isNotValidString(userId) || userId.length === 0 || isNotValidUUID(userId)) {
       return next(generateError(400, "使用者 ID 格式不正確"));
     }
     const user = await userRepo.findOneBy({ id: userId });
@@ -45,9 +40,7 @@ async function getProfile(req, res, next) {
       email: user.email,
       profile_image_url: user.profile_image_url,
     };
-    res
-      .status(200)
-      .json({ status: true, message: "成功取得資料", data: userData });
+    res.status(200).json({ status: true, message: "成功取得資料", data: userData });
   } catch (error) {
     next(error);
   }
@@ -90,24 +83,13 @@ async function getAllCourseType(req, res, next) {
 async function patchProfile(req, res, next) {
   try {
     const userId = req.params.userId;
-    if (
-      !userId ||
-      isNotValidString(userId) ||
-      userId.length === 0 ||
-      isNotValidUUID(userId)
-    )
+    if (!userId || isNotValidString(userId) || userId.length === 0 || isNotValidUUID(userId))
       return next(generateError(400, "使用者 ID 格式不正確"));
 
     const user = await userRepo.findOneBy({ id: userId });
 
     // email及使用者ID無法修改,前端email欄位同步寫死，不能輸入
-    const {
-      name,
-      profile_image_url,
-      oldPassword,
-      newPassword,
-      newPassword_check,
-    } = req.body;
+    const { name, profile_image_url, oldPassword, newPassword, newPassword_check } = req.body;
 
     //目前暫無email驗證功能，禁止修改email
     if ("email" in req.body) {
@@ -217,9 +199,7 @@ async function patchProfile(req, res, next) {
       profile_image_url: user.profile_image_url,
       updated_at: user.updated_at,
     };
-    res
-      .status(200)
-      .json({ status: true, message: "成功更新資料", data: userData });
+    res.status(200).json({ status: true, message: "成功更新資料", data: userData });
   } catch (error) {
     next(error);
   }
@@ -360,13 +340,7 @@ async function postSubscription(req, res, next) {
     }
 
     // 驗證 course_type 是否為字串陣列，且數量為 0、1 或 3
-    if (
-      !(
-        course_type.length === 0 ||
-        course_type.length === 1 ||
-        course_type.length === 3
-      )
-    ) {
+    if (!(course_type.length === 0 || course_type.length === 1 || course_type.length === 3)) {
       return next(generateError(400, "課程類別格式不正確"));
     }
 
@@ -417,8 +391,7 @@ async function postSubscription(req, res, next) {
 
     // 建立與技能的關聯
     if (validSkills.length > 0) {
-      const subscriptionSkillRepo =
-        AppDataSource.getRepository("Subscription_Skill");
+      const subscriptionSkillRepo = AppDataSource.getRepository("Subscription_Skill");
       const newSubscriptionSkills = validSkills.map((skill) => {
         return subscriptionSkillRepo.create({
           subscription_id: savedSubscription.id,
@@ -502,9 +475,12 @@ async function getSubscriptions(req, res, next) {
   try {
     //分頁設定
     const page = parseInt(req.query.page) || 1; //當前頁數
-    const rawLimit = parseInt(req.query.limit) || 10; //每頁顯示筆數
-    const limit = Math.min(rawLimit, 100); // 限制最大筆數為 100
+    const limit = 20;
     const skip = (page - 1) * limit; // 要跳過的資料筆數
+
+    if (isNaN(page) || page < 1 || !Number.isInteger(page)) {
+      return next(generateError(400, "分頁參數格式不正確，頁數需為正整數"));
+    }
 
     //取得排序後的資料
     const userId = req.user.id;
@@ -516,21 +492,18 @@ async function getSubscriptions(req, res, next) {
       take: limit, // 取得的資料筆數
     });
 
+    // 計算總頁數
+    const totalPages = Math.ceil(total / limit);
+    if (page > totalPages) {
+      return next(generateError(400, "頁數超出範圍"));
+    }
+
     //若查無訂閱紀錄
     if (!subscriptions || subscriptions.length === 0) {
       return res.status(200).json({
         status: true,
         message: "尚未訂閱，暫無訂閱紀錄",
       });
-    }
-
-    //統一回傳時間格式：2025/05/01
-    function formatDate(date) {
-      const d = new Date(date);
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, "0"); // 月份從 0 開始
-      const dd = String(d.getDate()).padStart(2, "0");
-      return `${yyyy}/${mm}/${dd}`;
     }
 
     //扣款日期為訂閱結束日順延一日
@@ -566,8 +539,8 @@ async function getSubscriptions(req, res, next) {
         page: page, //目前頁數
         limit: limit, //每頁顯示筆數
         total: total, //全部資料筆數
-        total_pages: Math.ceil(total / limit), //總共頁數
-        has_next: page * limit < total, //是否有下一頁
+        total_pages: totalPages, //總共頁數
+        has_next: page < totalPages, //是否有下一頁
         has_previous: page > 1, //是否有前一頁
       },
     });
