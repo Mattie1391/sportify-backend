@@ -10,7 +10,8 @@ const formatDate = require("../utils/formatDate"); // 引入日期格式化工�
 async function getRatings(req, res, next) {
   try {
     const { courseId } = req.params; // 從路徑參數中取得課程 ID
-    const { page = 1, limit = 10 } = req.query; // 從查詢參數中取得分頁數據，默認值為第 1 頁，每頁 10 筆
+    const { page = 1 } = req.query; // 從查詢參數中取得分頁數據，默認值為第 1 頁，每頁 10 筆
+    const limit = 20; // 每頁顯示的數量，這裡設置為 20 筆
 
     // 驗證課程 ID 是否存在且有效
     if (!courseId || isNotValidUUID(courseId)) {
@@ -40,8 +41,7 @@ async function getRatings(req, res, next) {
         created_at: "DESC", // 按建立時間降序排列，最新的評價在最前
       },
     });
-    console.log("ratings:", ratings);
-    console.log("totalRatings:", totalRatings);
+
     // 查詢每條評價對應的使用者名稱，並組裝返回數據結構
     const ratingsWithUserNames = await Promise.all(
         ratings.map(async (rating) => {
@@ -65,6 +65,15 @@ async function getRatings(req, res, next) {
       // 計算總頁數（總數 / 每頁筆數，向上取整）
     const totalPages = Math.ceil(totalRatings / itemsPerPage);
 
+    if (pageNumber > totalPages) {
+        return next(generateError(400, "頁數超出範圍")); // 若頁數超出範圍，返回 400 錯誤
+    }
+
+    // 判斷是否有上一頁或下一頁
+    const hasPrevious = pageNumber > 1; // 如果當前頁數大於 1，則有上一頁
+    const hasNext = pageNumber < totalPages; // 如果當前頁數小於總頁數，則有下一頁
+
+
     // 返回成功響應，包含整理後的評價數據
     res.status(200).json({
       status: true, // 請求狀態
@@ -78,6 +87,8 @@ async function getRatings(req, res, next) {
           limit: itemsPerPage, // 每頁筆數
           total: totalRatings, // 總評價數
           total_pages: totalPages, // 總頁數
+          has_previous: hasPrevious, // 是否有上一頁
+          has_next: hasNext, // 是否有下一頁
         },
       },
     });
