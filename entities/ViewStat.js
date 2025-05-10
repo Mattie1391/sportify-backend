@@ -11,16 +11,16 @@ module.exports = new EntitySchema({
       type: "uuid",
       generated: "uuid",
     },
-    course_id: {
-      type: "uuid",
-      nullable: false,
-    },
-    // 影片id
-    asset_id: {
-      type: "varchar",
-      length: 100,
-      nullable: false,
-    },
+    // course_id: {
+    //   type: "uuid",
+    //   nullable: false,
+    // },
+    // // 影片id
+    // asset_id: {
+    //   type: "varchar",
+    //   length: 100,
+    //   nullable: false,
+    // },
     //採計觀看次數的日期
     date: {
       type: "date",
