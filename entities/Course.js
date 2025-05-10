@@ -29,7 +29,7 @@ module.exports = new EntitySchema({
     },
 
     // 課程介紹（長文）
-    intro: {
+    description: {
       type: "varchar",
       length: 2048,
       nullable: true,
@@ -58,7 +58,6 @@ module.exports = new EntitySchema({
       type: "float",
       nullable: false,
     },
-
     // 觀看次數
     numbers_of_view: {
       type: "int",
@@ -118,6 +117,11 @@ module.exports = new EntitySchema({
         foreignKeyConstraintName: "fk_course_type_id",
       },
       onDelete: "RESTRICT", // 或 CASCADE，看你邏輯決定
+    },
+    ViewStat: {
+      target: "View_Stat",
+      type: "many-to-many",
+      inverseSide: "Course",
     },
   },
 });

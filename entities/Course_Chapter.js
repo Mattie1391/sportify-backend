@@ -62,5 +62,10 @@ module.exports = new EntitySchema({
       },
       onDelete: "CASCADE", // 若課程被刪除，相關章節一併刪除
     },
+    ViewStat: {
+      target: "View_Stat",
+      type: "many-to-many",
+      inverseSide: "course_chapter",
+    },
   },
 });
