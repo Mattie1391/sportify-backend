@@ -37,7 +37,7 @@ module.exports = new EntitySchema({
     },
     sports_choice: {
       type: "int", // 決定該方案可選的運動種類，1、3、0 (eagerness，要比對方案名稱)
-      nullable: true,
+      nullable: false,
     },
   },
 
