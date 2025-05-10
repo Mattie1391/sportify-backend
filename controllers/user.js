@@ -2,6 +2,8 @@ const AppDataSource = require("../db/data-source");
 const userRepo = AppDataSource.getRepository("User");
 const favoriteRepo = AppDataSource.getRepository("User_Course_Favorite");
 const subscriptionRepo = require("../db/data-source").getRepository("Subscription");
+const subscriptionSkillRepo = AppDataSource.getRepository("Subscription_Skill");
+const skillRepo = AppDataSource.getRepository("Skill");
 const {
   isUndefined,
   isNotValidString,
@@ -279,25 +281,52 @@ async function deleteUnlike(req, res, next) {
 async function getCourseType(req, res, next) {
   try {
     const userId = req.user.id;
-    //取得類別的id、名稱、學生人數（依照學生人數排序）
-    const result = await subscriptionRepo
-      .createQueryBuilder("s") // s = Subscription資料表
-      .innerJoin("s.Subscription_Skill", "ss") // ss = Subscription_Skill資料表
-      .innerJoin("ss.Skill", "sk") // sk = Skill資料表
-      .innerJoin("sk.Course", "c") // c = Course資料表
-      .select(["sk.id AS skill_id", "sk.name AS course_type"]) // 選擇 skill.id 和 skill.name 欄位
-      .addSelect("SUM(c.student_amount) AS student_count") // 計算該類別學生
-      .where("s.user_id = :userId", { userId }) // WHERE s.user_id = userId
-      .groupBy("sk.id") // 聚合相同課程類別，這樣可以計算每個類別下有多少學生
-      .orderBy("student_count", "DESC") // 按學生人數排序，讓熱門課程類別排在前面
-      .getRawMany();
+    let isEagerness = false;
+    let result = [];
 
-    if (!result || result.length === 0) {
+    //判斷是否有訂閱
+    const user = await userRepo.findOneBy({ id: userId });
+    if (!user.is_subscribed) {
       return next(generateError(403, "未訂閱，無可觀看課程類別"));
+    }
+
+    //取得此人最新的訂閱紀錄
+    const latestSubscription = await subscriptionRepo.findOne({
+      where: { user_id: userId },
+      order: { end_at: "DESC" },
+      relations: ["Plan"],
+    });
+
+    //如果是eagerness方案,取得所有類別
+    if (Number(latestSubscription.Plan.sports_choice) === 0) {
+      {
+        result = await skillRepo
+          .createQueryBuilder("s") // s = Skill資料表
+          .innerJoin("s.Course", "c") // c = Course資料表
+          .select(["s.id AS skill_id", "s.name AS course_type"]) // 選擇 skill.id 和 skill.name 欄位
+          .addSelect("SUM(c.student_amount) AS student_count") // 計算該類別學生
+          .groupBy("s.id") // 聚合相同課程類別，這樣可以計算每個類別下有多少學生
+          .orderBy("student_count", "DESC") // 按學生人數排序，讓熱門課程類別排在前面
+          .getRawMany();
+      }
+      isEagerness = true;
+    } else {
+      //若非eagerness,取得類別的id、名稱、學生人數（依照學生人數排序）
+      result = await subscriptionSkillRepo
+        .createQueryBuilder("ss") // s = SubscriptionSkill資料表
+        .innerJoin("ss.Skill", "sk") // sk = Skill資料表
+        .innerJoin("sk.Course", "c") // c = Course資料表
+        .select(["sk.id AS skill_id", "sk.name AS course_type"]) // 選擇 skill.id 和 skill.name 欄位
+        .addSelect("SUM(c.student_amount) AS student_count") // 計算該類別學生
+        .where("ss.subscription_id = :Id", { Id: latestSubscription.id }) //關聯最新訂閱紀錄
+        .groupBy("sk.id") // 聚合相同課程類別，這樣可以計算每個類別下有多少學生
+        .orderBy("student_count", "DESC") // 按學生人數排序，讓熱門課程類別排在前面
+        .getRawMany();
     }
     res.status(200).json({
       status: true,
       message: "成功取得資料",
+      isEagerness: isEagerness,
       data: result,
       meta: {
         sort: "desc",
@@ -548,6 +577,7 @@ async function getSubscriptions(req, res, next) {
     next(error);
   }
 }
+
 module.exports = {
   getProfile,
   getPlans,
