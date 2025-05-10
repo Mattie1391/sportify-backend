@@ -19,14 +19,15 @@ module.exports = new EntitySchema({
       type: "uuid",
       nullable: false,
     },
-    // 訂閱購買時間
+    //訂閱方案ID
     plan_id: {
       type: "uuid",
-      nullable: true,
+      nullable: false,
     },
+    // 訂閱購買時間
     purchased_at: {
       type: "timestamp",
-      nullable: true,
+      nullable: false,
     },
     // 訂單編號（外部金流系統回傳的 ID）
     order_number: {
@@ -37,11 +38,11 @@ module.exports = new EntitySchema({
     // 訂閱開始與結束時間
     start_at: {
       type: "timestamp",
-      nullable: true,
+      nullable: false,
     },
     end_at: {
       type: "timestamp",
-      nullable: true,
+      nullable: false,
     },
     // 付款方式（例如信用卡、Apple Pay）
     payment_method: {

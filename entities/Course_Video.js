@@ -5,22 +5,52 @@ module.exports = new EntitySchema({
   name: "Course_Video",
   tableName: "course_video",
   columns: {
-    id: { primary: true, type: "uuid", generated: "uuid" },
-    chapter_id: { type: "uuid", nullable: false },
+    mux_playback_id: {
+      primary: true,
+      length: 64,
+      nullable: false,
+    },
+    chapter_id: {
+      type: "uuid",
+      nullable: false,
+    },
     mux_asset_id: {
       type: "varchar",
       length: 64,
       nullable: false,
       unique: true,
     },
-    mux_playback_id: { type: "varchar", length: 64, nullable: false },
-    duration: { type: "int", nullable: true },
-    status: { type: "varchar", length: 32, default: "waiting" },
-    resolution_tier: { type: "varchar", length: 16, nullable: true },
-    position: { type: "int", default: 1 },
-    thumbnail_url: { type: "varchar", length: 2048, nullable: true },
-    created_at: { type: "timestamp", createDate: true },
-    updated_at: { type: "timestamp", updateDate: true },
+    duration: {
+      type: "int",
+      nullable: true,
+    },
+    status: {
+      type: "varchar",
+      length: 32,
+      default: "waiting",
+    },
+    resolution_tier: {
+      type: "varchar",
+      length: 16,
+      nullable: true,
+    },
+    position: {
+      type: "int",
+      default: 1,
+    },
+    thumbnail_url: {
+      type: "varchar",
+      length: 2048,
+      nullable: true,
+    },
+    created_at: {
+      type: "timestamp",
+      createDate: true,
+    },
+    updated_at: {
+      type: "timestamp",
+      updateDate: true,
+    },
   },
   relations: {
     Chapter: {

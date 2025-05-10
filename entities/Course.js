@@ -32,7 +32,7 @@ module.exports = new EntitySchema({
     description: {
       type: "varchar",
       length: 2048,
-      nullable: false,
+      nullable: true,
     },
 
     // 課程類別 ID（對應技能分類）
@@ -42,7 +42,7 @@ module.exports = new EntitySchema({
     },
 
     // 課程圖片網址
-    picture_url: {
+    image_url: {
       type: "varchar",
       length: 2048,
       nullable: false,
@@ -53,7 +53,11 @@ module.exports = new EntitySchema({
       type: "int",
       nullable: false,
     },
-
+    // 課程評分（1.0 ~ 5.0，浮點數）
+    score: {
+      type: "float",
+      nullable: false,
+    },
     // 觀看次數
     numbers_of_view: {
       type: "int",
