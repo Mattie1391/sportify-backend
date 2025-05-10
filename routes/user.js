@@ -8,40 +8,31 @@ const ratingController = require("../controllers/rating");
 
 //固定路由
 //固定路由順序要放在動態路由前，如:userId，否則會被/:userId的路由攔截
-router.get("/course-type", auth, isUser, userController.getCourseType);
 
-//取得所有訂閱資訊
+//取得可觀看類別
+router.get("/course-type", auth, isUser, userController.getCourseType);
+//取得所有訂閱方案類別
 router.get("/plan-info", userController.getPlans);
 //取得所有運動類別
 router.get("/show-sports-type", userController.getAllCourseType);
+//取得訂閱紀錄
 router.get("/subscriptions", auth, isUser, userController.getSubscriptions);
+//新增訂閱方案
 router.post("/subscription", auth, isUser, userController.postSubscription);
+//取消訂閱方案
 router.patch("/subscription", auth, isUser, userController.patchSubscription);
 
-//取得課程評價
-router.get(
-  "/courses/:courseId/ratings",
-  auth,
-  isUser,
-  ratingController.getRatings
-);
-
 //動態路由
+
+//取得使用者資料
 router.get("/:userId", auth, isUser, isSelf, userController.getProfile);
+//編輯使用者資料
 router.patch("/:userId", auth, isUser, isSelf, userController.patchProfile);
-router.post(
-  "/:userId/favorites/:courseId",
-  auth,
-  isUser,
-  isSelf,
-  userController.postLike
-);
-router.delete(
-  "/:userId/favorites/:courseId",
-  auth,
-  isUser,
-  isSelf,
-  userController.deleteUnlike
-);
+//收藏課程
+router.post("/:userId/favorites/:courseId", auth, isUser, isSelf, userController.postLike);
+//取消收藏課程
+router.delete("/:userId/favorites/:courseId", auth, isUser, isSelf, userController.deleteUnlike);
+//取得課程評價
+router.get("/courses/:courseId/ratings", auth, isUser, ratingController.getRatings);
 
 module.exports = router;
