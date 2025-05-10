@@ -5,20 +5,18 @@ module.exports = new EntitySchema({
   name: "Course_Video",
   tableName: "course_video",
   columns: {
-    mux_playback_id: {
-      primary: true,
-      length: 64,
-      nullable: false,
-    },
-    chapter_id: {
-      type: "uuid",
-      nullable: false,
-    },
     mux_asset_id: {
+      primary: true,
+      type: "varchar",
+    },
+    mux_playback_id: {
       type: "varchar",
       length: 64,
       nullable: false,
-      unique: true,
+    },
+    chapter_section_id: {
+      type: "varchar", //使用serial編排章節-小節。如1-1、1-2、2-1
+      nullable: false,
     },
     duration: {
       type: "int",
@@ -62,6 +60,11 @@ module.exports = new EntitySchema({
         foreignKeyConstraintName: "fk_video_chapter_id",
       },
       onDelete: "CASCADE",
+    },
+    ViewStat: {
+      target: "View_Stat",
+      type: "many-to-many",
+      inverseSide: "Course_Video",
     },
   },
 });

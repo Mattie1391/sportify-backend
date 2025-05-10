@@ -1,4 +1,7 @@
+const AppDataSource = require("../db/data-source");
 const { getTypeByStudentCount } = require("../services/getTypeByStudentCount");
+const coachRepo = AppDataSource.getRepository("Coach");
+const { isNotValidUUID } = require("../utils/validators"); // 引入驗證工具函數
 //取得課程類別（依照學生排序）
 async function getCourseType(req, res, next) {
   try {

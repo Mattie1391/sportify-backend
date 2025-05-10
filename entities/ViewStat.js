@@ -55,7 +55,7 @@ module.exports = new EntitySchema({
       type: "many-to-many",
       joinColumn: {
         name: "asset_id", //本表中的欄位名
-        referencedColumnName: "mux_asset_id", //Course_Chapter
+        referencedColumnName: "mux_asset_id", //Course_Video表的主鍵
         foreignKeyConstraintName: "fk_view_stat_course_video_id",
       },
       onDelete: "CASCADE", // 若影片被刪除，對應的觀看次數資料也被刪除
