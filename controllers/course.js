@@ -1,6 +1,9 @@
 const AppDataSource = require("../db/data-source");
 const { getTypeByStudentCount } = require("../services/getTypeByStudentCount");
 const coachRepo = AppDataSource.getRepository("Coach");
+const courseRepo = AppDataSource.getRepository("Course");
+const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
+const generateError = require("../utils/generateError");
 const { isNotValidUUID } = require("../utils/validators"); // 引入驗證工具函數
 //取得課程類別（依照學生排序）
 async function getCourseType(req, res, next) {
@@ -73,9 +76,79 @@ async function getCoachDetails(req, res, next) {
     next(error);
   }
 }
+//取得課程資訊
+async function getCourseDetails(req, res, next) {
+  try {
+    const courseId = req.params.courseId;
+    if (isNotValidUUID(courseId)) {
+      return next(generateError(400, "課程 ID 格式不正確"));
+    }
+    const course = await courseRepo.findOneBy({ id: courseId });
+    if (!course) {
+      return next(generateError(404, "查無此課程"));
+    }
+    const coachId = course.coach_id;
+    const coach = await coachRepo.findOneBy({ id: coachId });
+    const chapters = await courseChapterRepo.find({
+      where: { course_id: courseId },
+      order: {
+        chapter_number: "ASC",
+        id: "ASC", // 若 subtitle 有數字順序也可用它
+      },
+    });
+    const chaptersData = [];
+    chapters
+      .sort((a, b) => {
+        // 確保排序順序正確：先比大章節，再比副章節
+        if (a.chapter_number === b.chapter_number) {
+          return a.sub_chapter_number - b.sub_chapter_number;
+        }
+        return a.chapter_number - b.chapter_number;
+      })
+      .forEach((chapter) => {
+        // 嘗試找到該 title 的物件
+        let group = chaptersData.find((g) => g.title === chapter.title);
+        if (!group) {
+          // 如果沒有這個 title，就建立一個新的物件
+          group = { title: chapter.title, subtitles: [] };
+          chaptersData.push(group);
+        }
+        group.subtitles.push(chapter.subtitle);
+      });
+
+    const data = {
+      course: {
+        name: course.name,
+        score: course.score,
+        student_amount: course.student_amount,
+        hours: course.total_hours,
+        image_url: course.image_url,
+        trailer_url: course.trailer_url, //TODO:待確認網址格式，所有課程的第一部影片皆需設為公開
+        intro: course.intro,
+      },
+      coach: {
+        name: coach.nickname,
+        title: coach.job_title,
+        intro: coach.about_me,
+        profile_image_url: coach.profile_image_url,
+        coachPage_Url: `https://example.com/courses/coaches/${coachId}/details`, //TODO:待跟前端確認
+      },
+      chapters: chaptersData,
+    };
+
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
 
 module.exports = {
   getCourseType,
   getCoachType,
   getCoachDetails,
+  getCourseDetails,
 };
