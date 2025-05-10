@@ -36,7 +36,43 @@ async function getCoachType(req, res, next) {
     next(error);
   }
 }
+//取得教練資訊
+async function getCoachDetails(req, res, next) {
+  try {
+    const coachId = req.params.coachId;
+    if (isNotValidUUID(coachId)) {
+      return next(generateError(400, "教練 ID 格式不正確"));
+    }
+    const coach = await coachRepo.findOneBy({ id: coachId });
+    if (!coach) {
+      return next(generateError(404, "查無此教練"));
+    }
+
+    const data = {
+      id: coach.id,
+      nickname: coach.nickname,
+      job_title: coach.job_title,
+      about_me: coach.about_me,
+      hobby: coach.hobby,
+      experience: coach.experience,
+      favoriteWords: coach.favoriteWords,
+      motto: coach.motto,
+      profile_image_url: coach.profile_image_url,
+      background_image_url: coach.background_image_url,
+    };
+
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getCourseType,
   getCoachType,
+  getCoachDetails,
 };
