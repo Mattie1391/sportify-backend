@@ -4,12 +4,13 @@ const generateError = require("../utils/generateError"); // 引入自定義的�
 const AppDataSource = require("../db/data-source"); // 引入資料庫連線
 const Rating = require("../entities/Rating"); // 引入 Rating 實體（課程評價表）
 const User = require("../entities/User"); // 引入 User 實體（用戶表）
+const formatDate = require("../utils/formatDate"); // 引入日期格式化工具函數
 
 // 取得課程評價 API
 async function getRatings(req, res, next) {
   try {
     const { courseId } = req.params; // 從路徑參數中取得課程 ID
-    const { page = 1, perPage = 10 } = req.query; // 從查詢參數中取得分頁數據，默認值為第 1 頁，每頁 10 筆
+    const { page = 1, limit = 10 } = req.query; // 從查詢參數中取得分頁數據，默認值為第 1 頁，每頁 10 筆
 
     // 驗證課程 ID 是否存在且有效
     if (!courseId || isNotValidUUID(courseId)) {
@@ -18,7 +19,7 @@ async function getRatings(req, res, next) {
 
     // 將分頁參數轉換為整數
     const pageNumber = parseInt(page, 10); // 當前頁數
-    const itemsPerPage = parseInt(perPage, 10); // 每頁筆數
+    const itemsPerPage = parseInt(limit, 10); // 每頁筆數
 
     // 驗證分頁參數是否為有效數字
     if (isNaN(pageNumber) || isNaN(itemsPerPage)) {
@@ -55,8 +56,8 @@ async function getRatings(req, res, next) {
             username: user ? user.name : "未知用戶", // 使用者名稱，若無法找到，設為 "未知用戶"
             comment: rating.comment, // 評語留言
             score: rating.score, // 評分
-            createdAt: rating.created_at, // 建立時間
-            updatedAt: rating.updated_at, // 最後更新時間
+            createdAt: formatDate(new Date(rating.created_at)), // 格式化建立時間
+            updatedAt: formatDate(new Date(rating.updated_at)), // 格式化最後更新時間
           };
         })
       );
