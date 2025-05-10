@@ -26,6 +26,7 @@ const AppDataSource = new DataSource({
     require("../entities/Payment_Transfer"),
     require("../entities/Course_Video"),
     require("../entities/Plan"),
+    require("../entities/ViewStat"),
   ],
 });
 

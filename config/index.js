@@ -8,6 +8,7 @@ const db = require("./db");
 const web = require("./web");
 const secret = require("./secret");
 const email = require("./email"); // 新增 email 設定
+const mux = require("./mux");
 
 // 整合所有設定檔案
 const config = {
@@ -15,6 +16,7 @@ const config = {
   web,
   secret,
   email, // 添加 email 設定
+  mux, //添加mux串流token
 };
 
 class ConfigManager {

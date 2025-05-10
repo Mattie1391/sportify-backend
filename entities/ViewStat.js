@@ -15,7 +15,7 @@ module.exports = new EntitySchema({
       type: "uuid",
       nullable: false,
     },
-    //影片id
+    // 影片id
     asset_id: {
       type: "varchar",
       length: 100,
@@ -48,17 +48,17 @@ module.exports = new EntitySchema({
         referencedColumnName: "id",
         foreignKeyConstraintName: "fk_view_stat_course_id",
       },
+      onDelete: "CASCADE", // 若課程被刪除，對應的觀看次數資料也被刪除
     },
-    onDelete: "CASCADE", // 若課程被刪除，對應的觀看次數資料也被刪除
-  },
-  Course_Chapter: {
-    target: "Course_Chapter",
-    type: "many-to-many",
-    joinColumn: {
-      name: "asset_id", //本表中的欄位
-      referencedColumnName: "mux_asset_id",
-      foreignKeyConstraintName: "fk_view_stat_course_video_id",
+    Course_Chapter: {
+      target: "Course_Chapter",
+      type: "many-to-many",
+      joinColumn: {
+        name: "asset_id", //本表中的欄位
+        referencedColumnName: "mux_asset_id",
+        foreignKeyConstraintName: "fk_view_stat_course_video_id",
+      },
+      onDelete: "CASCADE", // 若影片被刪除，對應的觀看次數資料也被刪除
     },
   },
-  onDelete: "CASCADE", // 若影片被刪除，對應的觀看次數資料也被刪除
 });
