@@ -100,6 +100,73 @@ async function postSignup(req, res, next) {
   }
 }
 
+async function postAdminSignup(req, res, next) {
+  try {
+    const { email, password, password_check } = req.body;
+    // 判斷路徑來決定角色
+    const role = "ADMIN";
+
+    // 密碼規則：至少8個字元，最多16個字元，至少一個數字，一個小寫字母和一個大寫字母，不允許空白字元
+    const passwordPattern = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])[^\s]{8,16}$/;
+
+    if (
+      isUndefined(email) ||
+      isNotValidString(email) ||
+      isUndefined(password) ||
+      isNotValidString(password)
+    ) {
+      return next(generateError(400, "欄位未填寫正確"));
+    }
+
+    if (!passwordPattern.test(password)) {
+      return next(
+        generateError(
+          400,
+          "密碼不符合規則，需要包含英文數字大小寫，最短8個字，最長16個字，不允許空白字元"
+        )
+      );
+    }
+
+    if (password !== password_check) {
+      return next(generateError(400, "密碼確認錯誤"));
+    }
+
+    // 判斷角色來決定資料庫
+    const repo = await AppDataSource.getRepository(Admin);
+
+    // 從資料庫中根據 email 查詢使用者
+    const admin = await repo.findOne({ where: { email } });
+
+    if (admin) {
+      return next(generateError(409, "Email 已被使用"));
+    }
+
+    // 密碼加密
+    const salt = await bcrypt.genSalt(10);
+    const hashPassword = await bcrypt.hash(password, salt);
+
+    // 建立新使用者
+    const newAdmin = repo.create({
+      email,
+      password: hashPassword,
+      role,
+    });
+
+    await repo.save(newAdmin);
+    res.status(201).json({
+      status: true,
+      message: "註冊成功",
+      data: {
+        id: newAdmin.id,
+        email: newAdmin.email,
+
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function postLogin(req, res, next) {
   try {
     const { email, password } = req.body;
@@ -289,6 +356,7 @@ async function getMe(req, res, next) {
 
 module.exports = {
   postSignup,
+  postAdminSignup,
   postLogin,
   getMe,
   postForgotPassword,

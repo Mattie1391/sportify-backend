@@ -7,6 +7,8 @@ const authController = require("../controllers/auth");
 router.post("/users/signup", authController.postSignup);
 //教練註冊
 router.post("/coaches/signup", authController.postSignup);
+//管理者註冊(開發用)
+router.post("/admins/signup", authController.postAdminSignup);
 //登入
 router.post("/login", authController.postLogin);
 //驗證登入狀態
