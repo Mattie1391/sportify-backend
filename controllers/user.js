@@ -408,7 +408,7 @@ async function postSubscription(req, res, next) {
     const newSubscription = subscriptionRepo.create({
       user_id: userId,
       order_number: orderNumber,
-      plan: subscription_name,
+      plan_id: plan.id, 
       price: plan.pricing,
     });
 
@@ -454,7 +454,7 @@ async function postSubscription(req, res, next) {
         subscription: {
           id: savedSubscription.id,
           user_id: savedSubscription.user_id,
-          plan: savedSubscription.plan,
+          plan: subscription_name,
           course_type: course_type,
           order_number: savedSubscription.order_number,
           price: savedSubscription.price,
