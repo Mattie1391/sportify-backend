@@ -1,7 +1,7 @@
 const AppDataSource = require("../db/data-source");
 const userRepo = AppDataSource.getRepository("User");
 const favoriteRepo = AppDataSource.getRepository("User_Course_Favorite");
-const subscriptionRepo = require("../db/data-source").getRepository("Subscription");
+const subscriptionRepo = AppDataSource.getRepository("Subscription");
 const subscriptionSkillRepo = AppDataSource.getRepository("Subscription_Skill");
 const {
   isUndefined,
@@ -224,12 +224,15 @@ async function postLike(req, res, next) {
     if (isNotValidUUID(courseId)) {
       return next(generateError(400, "課程 ID 格式不正確"));
     }
-
-    //確認該使用者是否有訂閱此課程的類別
-    const result = await checkCategoryAccess(userId, courseId);
-    if (!result) {
-      throw generateError(403, "未訂閱該課程類別");
+    //判斷訂閱是否有效
+    const isActive = await hasActiveSubscription(userId);
+    if (!isActive) {
+      return next(generateError(403, "尚未訂閱或訂閱已失效，無可觀看課程類別"));
     }
+    //若訂閱有效，判斷此人是否可觀看此類別
+    const canWatchType = await checkCategoryAccess(userId, courseId);
+    if (!canWatchType) throw generateError(403, "未訂閱該課程類別");
+
     // 確認是否已收藏過此課程
     const exist = await favoriteRepo.findOneBy({
       user_id: userId,
@@ -263,11 +266,14 @@ async function deleteUnlike(req, res, next) {
     if (isNotValidUUID(courseId)) {
       return next(generateError(400, "課程 ID 格式不正確"));
     }
-    //確認該使用者是否有訂閱此課程的類別
-    const result = await checkCategoryAccess(userId, courseId);
-    if (!result) {
-      throw generateError(403, "未訂閱該課程類別");
+    //判斷訂閱是否有效
+    const isActive = await hasActiveSubscription(userId);
+    if (!isActive) {
+      return next(generateError(403, "尚未訂閱或訂閱已失效，無可觀看課程類別"));
     }
+    //若訂閱有效，判斷此人是否可觀看此類別
+    const canWatchType = await checkCategoryAccess(userId, courseId);
+    if (!canWatchType) throw generateError(403, "未訂閱該課程類別");
     // 確認是否已收藏過此課程
     const exist = await favoriteRepo.findOneBy({
       user_id: userId,
