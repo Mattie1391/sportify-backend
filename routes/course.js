@@ -12,5 +12,7 @@ router.get("/coach-type", courseController.getCoachType);
 router.get("/:courseId/ratings", auth, ratingController.getRatings);
 //取得教練詳細資訊
 router.get("/coaches/:coachId", courseController.getCoachDetails);
+//取得課程詳細資訊
+router.get("/:courseId/details", courseController.getCourseDetails);
 
 module.exports = router;
