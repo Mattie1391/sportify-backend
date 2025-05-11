@@ -1,9 +1,8 @@
 const AppDataSource = require("../db/data-source");
 const userRepo = AppDataSource.getRepository("User");
 const favoriteRepo = AppDataSource.getRepository("User_Course_Favorite");
-const subscriptionRepo = require("../db/data-source").getRepository("Subscription");
+const subscriptionRepo = AppDataSource.getRepository("Subscription");
 const subscriptionSkillRepo = AppDataSource.getRepository("Subscription_Skill");
-const skillRepo = AppDataSource.getRepository("Skill");
 const {
   isUndefined,
   isNotValidString,
@@ -12,7 +11,12 @@ const {
   isNotValidUrl,
 } = require("../utils/validators");
 const generateError = require("../utils/generateError");
-const { checkCategoryAccess } = require("../services/checkCategoryAccess");
+const {
+  checkCategoryAccess,
+  hasActiveSubscription,
+  getLatestSubscription,
+} = require("../services/checkServices");
+const { getTypeByStudentCount } = require("../services/getTypeByStudentCount");
 const formatDate = require("../utils/formatDate"); // 引入日期格式化工具函數
 const bcrypt = require("bcryptjs");
 
@@ -47,6 +51,7 @@ async function getProfile(req, res, next) {
     next(error);
   }
 }
+
 //取得所有訂閱方案類別
 async function getPlans(req, res, next) {
   try {
@@ -61,6 +66,7 @@ async function getPlans(req, res, next) {
   }
 }
 
+//取得所有運動類別
 async function getAllCourseType(req, res, next) {
   try {
     const outdoor = await AppDataSource.getRepository("Skill").find({
@@ -218,12 +224,15 @@ async function postLike(req, res, next) {
     if (isNotValidUUID(courseId)) {
       return next(generateError(400, "課程 ID 格式不正確"));
     }
-
-    //確認該使用者是否有訂閱此課程的類別
-    const result = await checkCategoryAccess(userId, courseId);
-    if (!result) {
-      throw generateError(403, "未訂閱該課程類別");
+    //判斷訂閱是否有效
+    const isActive = await hasActiveSubscription(userId);
+    if (!isActive) {
+      return next(generateError(403, "尚未訂閱或訂閱已失效，無可觀看課程類別"));
     }
+    //若訂閱有效，判斷此人是否可觀看此類別
+    const canWatchType = await checkCategoryAccess(userId, courseId);
+    if (!canWatchType) throw generateError(403, "未訂閱該課程類別");
+
     // 確認是否已收藏過此課程
     const exist = await favoriteRepo.findOneBy({
       user_id: userId,
@@ -257,11 +266,14 @@ async function deleteUnlike(req, res, next) {
     if (isNotValidUUID(courseId)) {
       return next(generateError(400, "課程 ID 格式不正確"));
     }
-    //確認該使用者是否有訂閱此課程的類別
-    const result = await checkCategoryAccess(userId, courseId);
-    if (!result) {
-      throw generateError(403, "未訂閱該課程類別");
+    //判斷訂閱是否有效
+    const isActive = await hasActiveSubscription(userId);
+    if (!isActive) {
+      return next(generateError(403, "尚未訂閱或訂閱已失效，無可觀看課程類別"));
     }
+    //若訂閱有效，判斷此人是否可觀看此類別
+    const canWatchType = await checkCategoryAccess(userId, courseId);
+    if (!canWatchType) throw generateError(403, "未訂閱該課程類別");
     // 確認是否已收藏過此課程
     const exist = await favoriteRepo.findOneBy({
       user_id: userId,
@@ -284,31 +296,18 @@ async function getCourseType(req, res, next) {
     let isEagerness = false;
     let result = [];
 
-    //判斷是否有訂閱
-    const user = await userRepo.findOneBy({ id: userId });
-    if (!user.is_subscribed) {
-      return next(generateError(403, "未訂閱，無可觀看課程類別"));
+    //判斷訂閱是否有效
+    const isActive = await hasActiveSubscription(userId);
+    if (!isActive) {
+      return next(generateError(403, "尚未訂閱或訂閱已失效，無可觀看課程類別"));
     }
 
     //取得此人最新的訂閱紀錄
-    const latestSubscription = await subscriptionRepo.findOne({
-      where: { user_id: userId },
-      order: { end_at: "DESC" },
-      relations: ["Plan"],
-    });
+    const latestSubscription = await getLatestSubscription(userId);
 
     //如果是eagerness方案,取得所有類別
     if (Number(latestSubscription.Plan.sports_choice) === 0) {
-      {
-        result = await skillRepo
-          .createQueryBuilder("s") // s = Skill資料表
-          .innerJoin("s.Course", "c") // c = Course資料表
-          .select(["s.id AS skill_id", "s.name AS course_type"]) // 選擇 skill.id 和 skill.name 欄位
-          .addSelect("SUM(c.student_amount) AS student_count") // 計算該類別學生
-          .groupBy("s.id") // 聚合相同課程類別，這樣可以計算每個類別下有多少學生
-          .orderBy("student_count", "DESC") // 按學生人數排序，讓熱門課程類別排在前面
-          .getRawMany();
-      }
+      result = await getTypeByStudentCount();
       isEagerness = true;
     } else {
       //若非eagerness,取得類別的id、名稱、學生人數（依照學生人數排序）
@@ -408,7 +407,7 @@ async function postSubscription(req, res, next) {
     const newSubscription = subscriptionRepo.create({
       user_id: userId,
       order_number: orderNumber,
-      plan_id: plan.id, 
+      plan_id: plan.id,
       price: plan.pricing,
     });
 
