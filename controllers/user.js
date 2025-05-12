@@ -402,6 +402,17 @@ async function postSubscription(req, res, next) {
       .toString()
       .padStart(4, "0")}`;
 
+    // 建立訂閱日期
+    const now = new Date(); // 獲取當前時間
+    const startAt = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // 只保留年月日
+    const purchasedAt = new Date(startAt); // 複製 startAt 作為基準
+    const endAt = new Date(startAt); // 複製 startAt 作為基準
+
+    // 設置結束日期為下個月的同一天
+    // JavaScript 的 Date 會自動處理「月底」的情況
+    // 如果目標月份沒有該日期，會自動調整到該月最後一天
+    endAt.setMonth(endAt.getMonth() + 1);
+
     // 建立訂閱資料
     const subscriptionRepo = AppDataSource.getRepository("Subscription");
     const newSubscription = subscriptionRepo.create({
@@ -409,6 +420,9 @@ async function postSubscription(req, res, next) {
       order_number: orderNumber,
       plan_id: plan.id,
       price: plan.pricing,
+      purchased_at: purchasedAt,
+      start_at: startAt,
+      end_at: endAt,
     });
 
     // 儲存訂閱紀錄
@@ -440,7 +454,7 @@ async function postSubscription(req, res, next) {
     }
 
     user.subscription_id = savedSubscription.id; // 設定訂閱 ID
-    user.is_subscribed = true; // 更新訂閱狀態為已訂閱
+    user.is_renewal = true; // 更新訂閱狀態為自動續訂
 
     // 儲存更新後的使用者資料
     await userRepo.save(user);
@@ -457,6 +471,9 @@ async function postSubscription(req, res, next) {
           course_type: course_type,
           order_number: savedSubscription.order_number,
           price: savedSubscription.price,
+          purchased_at: formatDate(savedSubscription.purchased_at),
+          start_at: formatDate(savedSubscription.start_at),
+          end_at: formatDate(savedSubscription.end_at),
         },
       },
     });
