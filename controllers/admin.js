@@ -1,6 +1,7 @@
 const AppDataSource = require("../db/data-source");
 const planRepo = AppDataSource.getRepository("Plan");
 const skillRepo = AppDataSource.getRepository("Skill");
+const coachRepo = AppDataSource.getRepository("Coach");
 const generateError = require("../utils/generateError");
 const {
   isUndefined,
@@ -87,7 +88,43 @@ async function postSportsType(req, res, next) {
   }
 }
 
+//取得教練列表
+async function getCoaches(req, res, next) {
+  try {
+    const coaches = await coachRepo.find({
+      relations: ["CoachSkills", "CoachSkills.Skill"], // 加入 CoachSkills 和 Skill 的關聯
+    });
+
+    if (!coaches || coaches.length === 0) {
+      // 如果找不到教練，回傳 400 錯誤
+      return res.status(400).json({
+        status: false,
+        message: "發生錯誤",
+      });
+    }  
+    
+    const formattedCoaches = coaches.map(coach => ({
+      id: coach.id,
+      name: coach.nickname, // 確認是否需要使用 nickname 或其他欄位作為名字
+      email: coach.email,
+      category: coach.CoachSkills.map(cs => cs.Skill.name).join(", "), // 將技能名稱組合為逗號分隔的字串
+      createdAt: coach.created_at,
+    }));
+    console.log(coaches[1].CoachSkills);
+    
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: formattedCoaches, // 回傳格式化後的陣列
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+
 module.exports = {
   postPlan,
   postSportsType,
+  getCoaches,
 };

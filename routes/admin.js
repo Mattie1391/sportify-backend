@@ -15,5 +15,6 @@ router.get(
 
 router.post("/add-plan", auth, isAdmin, adminController.postPlan);
 router.post("/add-sports-type", auth, isAdmin, adminController.postSportsType);
+router.get("/coaches", auth, isAdmin, adminController.getCoaches);
 
 module.exports = router;
