@@ -61,6 +61,12 @@ module.exports = new EntitySchema({
       type: "int",
       nullable: false,
     },
+    // 付款狀態   
+    is_paid: {
+      type: "boolean",
+      nullable: false,
+      default: false,
+    },
   },
 
   // === 關聯定義 ===
