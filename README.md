@@ -8,7 +8,7 @@
 
 # Sportify Backend
 
-![專案封面圖](![image](https://firebasestorage.googleapis.com/v0/b/coffeeshop-4ac57.firebasestorage.app/o/images%2F%E6%88%AA%E5%9C%96%202025-05-13%20%E5%87%8C%E6%99%A81.52.39.png?alt=media&token=b5a6d53d-47fe-4ba1-ab71-98720b070d09))
+![專案封面圖](https://firebasestorage.googleapis.com/v0/b/coffeeshop-4ac57.firebasestorage.app/o/images%2F%E5%A4%A7%E6%88%AA%E5%9C%96%202025-05-13%20%E5%87%8C%E6%99%A81.52.39.png?alt=media&token=e6c702a9-04d6-42c8-b048-6a11aa165820)
 
 > Sportify Backend 提供應用程式的資料處理與伺服器邏輯，支援完整的後端功能。
 
@@ -34,8 +34,6 @@
 ---
 
 ## 畫面
-
-> 提供 1~3 張圖片，讓觀看者快速了解專案畫面。
 
 ![範例圖片 1](https://firebasestorage.googleapis.com/v0/b/coffeeshop-4ac57.firebasestorage.app/o/images%2F%E6%88%AA%E5%9C%96%202025-05-13%20%E5%87%8C%E6%99%A81.54.27.png?alt=media&token=a035711c-4acf-4344-8ded-4b5973d44be8 )
 ![範例圖片 2](https://firebasestorage.googleapis.com/v0/b/coffeeshop-4ac57.firebasestorage.app/o/images%2F%E6%88%AA%E5%9C%96%202025-05-13%20%E5%87%8C%E6%99%A81.54.59.png?alt=media&token=7e231eee-8bfd-42d7-bcb2-825141bdfce0)
