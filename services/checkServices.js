@@ -1,5 +1,6 @@
 const AppDataSource = require("../db/data-source");
 const userRepo = AppDataSource.getRepository("User");
+const planRepo = AppDataSource.getRepository("Plan");
 const courseRepo = AppDataSource.getRepository("Course");
 const subscriptionRepo = AppDataSource.getRepository("Subscription");
 const subscriptionSkillRepo = AppDataSource.getRepository("Subscription_Skill");
@@ -15,7 +16,7 @@ const getLatestSubscription = async (userId) => {
 };
 
 //判斷訂閱是否有效
-const hasActiveSubscription = async (userId) => {
+const checkActiveSubscription = async (userId) => {
   //取得此人最新的訂閱紀錄
   const latestSubscription = await getLatestSubscription(userId);
   // 沒有訂閱紀錄就直接回傳 false
@@ -50,8 +51,20 @@ const checkCategoryAccess = async (userId, courseId) => {
   return !!result; //若查有此資料，回傳true,否則回傳false
 };
 
+//判斷此人是否有試用資格
+const checkHasTrial = async (userId) => {
+  const plan = await planRepo.findOneBy({ name: "Eagerness方案-7天試用" });
+  const trialPlan_id = plan.id;
+  //從此人的訂閱紀錄中查找是否有方案名為"Eagerness方案-7天試用"
+  const result = await subscriptionRepo.findOneBy({ user_id: userId, plan_id: trialPlan_id });
+  //有試用紀錄回傳false（已無試用資格）
+  //沒使用記錄回傳true （尚有試用資格）
+  return !result;
+};
+
 module.exports = {
   checkCategoryAccess,
-  hasActiveSubscription,
+  checkActiveSubscription,
   getLatestSubscription,
+  checkHasTrial,
 };
