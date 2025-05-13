@@ -78,16 +78,14 @@ module.exports = async (req, res, next) => {
 
     //判斷此人是否有試用資格
     const hasTrial = await checkHasTrial(userId);
-
     //判斷此人最新一筆訂閱是否仍有效
     const hasActiveSubscription = await checkActiveSubscription(userId);
-
     //設定要回傳的使用者資料內容
     if (role !== "USER") {
       req.user = {
         id: userId, //id
         role: role, //角色
-        name: displayName, //顯示名稱
+        displayName: displayName, //顯示名稱
       };
     } else {
       req.user = {
