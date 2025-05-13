@@ -1,0 +1,37 @@
+name: Notify Discord on PR or Merge
+
+on:
+  pull_request:
+    types: [opened, reopened, closed]
+  push:
+    branches:
+      - main
+
+jobs:
+  notify-discord:
+    name: Notify Discord
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Send Discord Notification
+      env:
+        DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          PR_ACTION=${{ github.event.action }}
+          PR_URL=${{ github.event.pull_request.html_url }}
+          PR_TITLE=${{ github.event.pull_request.title }}
+          AUTHOR=${{ github.event.pull_request.user.login }}
+          curl -X POST -H "Content-Type: application/json" \
+          -d "{\"content\": \"Pull Request **${PR_TITLE}** by **${AUTHOR}** has been ${PR_ACTION}. Link: ${PR_URL}\"}" \
+          $DISCORD_WEBHOOK_URL
+        elif [ "${{ github.event_name }}" = "push" ]; then
+          BRANCH=${{ github.ref_name }}
+          if [ "$BRANCH" = "main" ]; then
+            COMMIT_MESSAGE=${{ github.event.head_commit.message }}
+            COMMIT_AUTHOR=${{ github.event.head_commit.author.name }}
+            curl -X POST -H "Content-Type: application/json" \
+            -d "{\"content\": \"A commit has been pushed to the **main** branch by **${COMMIT_AUTHOR}**. Message: **${COMMIT_MESSAGE}**\"}" \
+            $DISCORD_WEBHOOK_URL
+          fi
+        fi
