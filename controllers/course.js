@@ -136,6 +136,10 @@ async function getRecommandCourses(req, res, next) {
     if (isNotValidUUID(courseId)) {
       return next(generateError(400, "課程 ID 格式不正確"));
     }
+    const course = await courseRepo.findOneBy({ id: courseId });
+    if (!course) {
+      return next(generateError(404, "查無此課程"));
+    }
 
     //排序設定
     const sort = "DESC"; //後端寫死
@@ -175,6 +179,10 @@ async function getCoachCourses(req, res, next) {
     const coachId = req.params.coachId;
     if (isNotValidUUID(coachId)) {
       return next(generateError(400, "教練 ID 格式不正確"));
+    }
+    const coach = await coachRepo.findOneBy({ id: coachId });
+    if (!coach) {
+      return next(generateError(404, "查無此教練"));
     }
 
     //排序設定
