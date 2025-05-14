@@ -8,6 +8,7 @@ const subscriptionRepo = AppDataSource.getRepository("Subscription");
 const { checkCourseAccess, checkSkillAccess } = require("../services/checkServices");
 const { getViewableCourseTypes } = require("../services/typeServices");
 const { filterByCategory } = require("../services/filterServices");
+const { fullCourseFields } = require("../services/courseSelectFields");
 
 //utils
 const {
@@ -333,15 +334,9 @@ async function getCourses(req, res, next) {
     const rawCourses = await AppDataSource.getRepository("Course")
       .createQueryBuilder("c")
       .innerJoin("c.Skill", "s")
+      .innerJoin("c.Coach", "coach")
       .where("s.id IN (:...ids)", { ids: typeIds }) //取出skill_id包含在可觀看類別id的課程
-      .select([
-        "c.id AS course_id", //課程id
-        "c.name AS course_name", //課程名稱
-        "c.image_url", //課程封面
-        "s.id AS type_id", //課程類別id
-        "s.name AS course_type", //課程類別名稱
-        "c.student_amount AS student_amount", //課程學生人數
-      ])
+      .select(fullCourseFields)
       .orderBy("c.student_amount", "DESC")
       .getRawMany();
 
