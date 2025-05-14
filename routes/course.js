@@ -21,5 +21,7 @@ router.get("/:courseId/ratings", ratingController.getRatings);
 router.get("/coaches/:coachId", courseController.getCoachDetails);
 //取得課程詳細資訊
 router.get("/:courseId/details", courseController.getCourseDetails);
+//取得你可能會喜歡課程
+router.get("/:courseId/recommend", courseController.getRecommandCourses);
 
 module.exports = router;

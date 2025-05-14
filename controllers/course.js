@@ -140,6 +140,55 @@ async function getCourses(req, res, next) {
   }
 }
 
+//取得你可能會喜歡課程
+async function getRecommandCourses(req, res, next) {
+  try {
+    const courseId = req.params.courseId;
+
+    //排序設定
+    const sort = "DESC"; //後端寫死
+    const sortBy = "popular"; //後端寫死
+
+    //取得課程資料
+    const rawCourses = await AppDataSource.getRepository("Course")
+      .createQueryBuilder("c") //c=Course
+      .innerJoin("c.Skill", "s") //s=Skill
+      .innerJoin("c.Coach", "coach")
+      .select([
+        "c.id AS course_id", //課程id
+        "c.name AS course_name", //課程名稱
+        "c.description AS course_description", //課程介紹
+        "c.score AS course_score", //課程評分
+        "c.total_hours AS total_hours", //課程總時長
+        "c.image_url AS course_image_url", //課程封面
+        "s.id AS type_id", //課程類別id
+        "s.name AS course_type", //課程類別名稱
+        "c.student_amount AS student_amount", //課程學生人數
+        "coach.nickname AS coach_name", //教練名稱
+        "coach.job_title AS coach_title", //教練title
+      ])
+      .orderBy("c.student_amount", "DESC") //按照課程學生人數排序
+      .getRawMany();
+
+    //只取前三筆推薦課程，且不包含當前頁面的課程
+    const recommandCourses = rawCourses
+      .filter((course) => course.course_id !== courseId)
+      .slice(0, 3);
+
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: recommandCourses,
+      meta: {
+        sort,
+        sortBy,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 //取得教練資訊
 async function getCoachDetails(req, res, next) {
   try {
@@ -249,6 +298,7 @@ module.exports = {
   getCourseType,
   getCoachType,
   getCourses,
+  getRecommandCourses,
   getCoachDetails,
   getCourseDetails,
 };
