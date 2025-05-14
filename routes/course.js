@@ -9,7 +9,7 @@ router.get("/course-type", courseController.getCourseType);
 //取得教練類別
 router.get("/coach-type", courseController.getCoachType);
 //取得課程評價
-router.get("/:courseId/ratings", auth, ratingController.getRatings);
+router.get("/:courseId/ratings", ratingController.getRatings);
 //取得教練詳細資訊
 router.get("/coaches/:coachId", courseController.getCoachDetails);
 //取得課程詳細資訊
