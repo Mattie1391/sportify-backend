@@ -40,7 +40,7 @@ const checkCourseAccess = async (userId, courseId) => {
 
   //取得此人目前訂閱方案
   const planId = latestSubscription.plan_id;
-  const plan = await userRepo.findOneBy({ id: planId });
+  const plan = await planRepo.findOneBy({ id: planId });
   if (plan.sports_choice === 0) return true; //若為eagerness方案，回傳true（無論類別可觀看）
 
   //若非eagerness方案，查找subscription_skill資料表內，是否有對應資料
@@ -59,7 +59,7 @@ const checkSkillAccess = async (userId, skillId) => {
 
   //取得此人目前訂閱方案
   const planId = latestSubscription.plan_id;
-  const plan = await userRepo.findOneBy({ id: planId });
+  const plan = await planRepo.findOneBy({ id: planId });
   if (plan.sports_choice === 0) return true; //若為eagerness方案，回傳true（無論類別可觀看）
 
   //若非eagerness方案，查找subscription_skill資料表內，是否有對應資料

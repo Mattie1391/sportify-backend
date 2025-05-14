@@ -5,7 +5,7 @@ const favoriteRepo = AppDataSource.getRepository("User_Course_Favorite");
 const subscriptionRepo = AppDataSource.getRepository("Subscription");
 
 //services
-const { checkCourseAccess } = require("../services/checkServices");
+const { checkCourseAccess, checkSkillAccess } = require("../services/checkServices");
 const { getViewableCourseTypes } = require("../services/typeServices");
 const { filterByCategory } = require("../services/filterServices");
 
@@ -338,7 +338,7 @@ async function getCourses(req, res, next) {
         "c.id AS course_id", //課程id
         "c.name AS course_name", //課程名稱
         "c.image_url", //課程封面
-        "s.id AS type_id", //課程類別名稱
+        "s.id AS type_id", //課程類別id
         "s.name AS course_type", //課程類別名稱
         "c.student_amount AS student_amount", //課程學生人數
       ])
@@ -359,8 +359,21 @@ async function getCourses(req, res, next) {
 
     //分類設定
     const category = req.query.category || "all"; //當前顯示類別，預設顯示所有類別
-    const skillId = req.query.id; //若category="skill"，前端再回傳一個參數skillId
-    const filteredCourses = await filterByCategory(courses, category, skillId, userId);
+    const validCategories = ["all", "favorite", "skill"]; //所有類別、已收藏、特定類別（如：瑜伽）
+    if (!validCategories.includes(category)) return next(generateError(400, "無此類別"));
+    let filteredCourses;
+    if (category === "skill") {
+      const skillId = req.query.skillId; //若category="skill"，前端再回傳一個參數skillId
+      const canWatch = await checkSkillAccess(userId, skillId);
+      if (!canWatch) throw generateError(403, "未訂閱該課程類別");
+      if (!skillId || isNotValidUUID(skillId))
+        return next(generateError(400, "類別為 skill 時必須提供合法的 skillId"));
+      //取得對應分類的資料
+      filteredCourses = await filterByCategory(courses, category, skillId);
+    } else {
+      //取得對應分類的資料
+      filteredCourses = await filterByCategory(courses, category);
+    }
 
     //分頁設定
     const page = parseInt(req.query.page) || 1; //當前頁數
@@ -368,7 +381,9 @@ async function getCourses(req, res, next) {
     if (isNaN(page) || page < 1 || !Number.isInteger(page)) {
       return next(generateError(400, "分頁參數格式不正確，頁數需為正整數"));
     }
+    //取得當前分頁資料，以及分頁資訊
     const { paginatedData, pagination } = await paginate(filteredCourses, page, limit);
+    //若頁數超出範圍，回傳錯誤
     const totalPages = pagination.total_pages;
     if (page > totalPages && totalPages !== 0) {
       return next(generateError(400, "頁數超出範圍"));
