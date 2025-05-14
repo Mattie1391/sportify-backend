@@ -356,6 +356,7 @@ async function getCourses(req, res, next) {
     const category = req.query.category || "all"; //當前顯示類別，預設顯示所有類別
     const validCategories = ["all", "favorite", "skill"]; //所有類別、已收藏、特定類別（如：瑜伽）
     if (!validCategories.includes(category)) return next(generateError(400, "無此類別"));
+    //依照分類篩選課程資料
     let filteredCourses;
     if (category === "skill") {
       const skillId = req.query.skillId; //若category="skill"，前端再回傳一個參數skillId
@@ -371,8 +372,9 @@ async function getCourses(req, res, next) {
     }
 
     //分頁設定
-    const page = parseInt(req.query.page) || 1; //當前頁數
-    const limit = 8; //每頁最多顯示8堂課程
+    const rawPage = req.query.page; //當前頁數
+    const page = rawPage === undefined ? 1 : parseInt(rawPage); //如果rawPage===undefined，page為1，否則為parseInt(rawPage)
+    const limit = 8; //每頁最多顯示9堂課程
     if (isNaN(page) || page < 1 || !Number.isInteger(page)) {
       return next(generateError(400, "分頁參數格式不正確，頁數需為正整數"));
     }
@@ -584,7 +586,8 @@ async function patchSubscription(req, res, next) {
 async function getSubscriptions(req, res, next) {
   try {
     //分頁設定
-    const page = parseInt(req.query.page) || 1; //當前頁數
+    const rawPage = req.query.page; //當前頁數
+    const page = rawPage === undefined ? 1 : parseInt(rawPage); //如果rawPage===undefined，page為1，否則為parseInt(rawPage)
     const limit = 20;
     const skip = (page - 1) * limit; // 要跳過的資料筆數
 
