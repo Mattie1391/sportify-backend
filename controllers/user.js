@@ -11,11 +11,7 @@ const {
   isNotValidUrl,
 } = require("../utils/validators");
 const generateError = require("../utils/generateError");
-const {
-  checkCategoryAccess,
-  hasActiveSubscription,
-  getLatestSubscription,
-} = require("../services/checkServices");
+const { checkCategoryAccess, getLatestSubscription } = require("../services/checkServices");
 const { getTypeByStudentCount } = require("../services/getTypeByStudentCount");
 const formatDate = require("../utils/formatDate"); // 引入日期格式化工具函數
 const bcrypt = require("bcryptjs");
@@ -293,12 +289,12 @@ async function deleteUnlike(req, res, next) {
 async function getCourseType(req, res, next) {
   try {
     const userId = req.user.id;
+    const hasActiveSubscription = req.user.hasActiveSubscription;
     let isEagerness = false;
     let result = [];
 
     //判斷訂閱是否有效
-    const isActive = await hasActiveSubscription(userId);
-    if (!isActive) {
+    if (!hasActiveSubscription) {
       return next(generateError(403, "尚未訂閱或訂閱已失效，無可觀看課程類別"));
     }
 
