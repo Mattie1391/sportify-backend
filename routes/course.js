@@ -19,6 +19,8 @@ router.get("/", courseController.getCourses);
 router.get("/:courseId/ratings", ratingController.getRatings);
 //取得教練詳細資訊
 router.get("/coaches/:coachId", courseController.getCoachDetails);
+//取得教練已開設課程
+router.get("/:coachId", courseController.getCoachCourses);
 //取得課程詳細資訊
 router.get("/:courseId/details", courseController.getCourseDetails);
 //取得你可能會喜歡課程

@@ -4,6 +4,7 @@ const courseRepo = AppDataSource.getRepository("Course");
 const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
 const { getAllCourseTypes } = require("../services/typeServices");
 const { filterByCategory } = require("../services/filterServices");
+const { fullCourseFields } = require("../services/courseSelectFields");
 const generateError = require("../utils/generateError");
 const paginate = require("../utils/paginate");
 const { isNotValidUUID } = require("../utils/validators"); // 引入驗證工具函數
@@ -76,19 +77,7 @@ async function getCourses(req, res, next) {
       .createQueryBuilder("c") //c=Course
       .innerJoin("c.Skill", "s") //s=Skill
       .innerJoin("c.Coach", "coach")
-      .select([
-        "c.id AS course_id", //課程id
-        "c.name AS course_name", //課程名稱
-        "c.description AS course_description", //課程介紹
-        "c.score AS course_score", //課程評分
-        "c.total_hours AS total_hours", //課程總時長
-        "c.image_url AS course_image_url", //課程封面
-        "s.id AS type_id", //課程類別id
-        "s.name AS course_type", //課程類別名稱
-        "c.student_amount AS student_amount", //課程學生人數
-        "coach.nickname AS coach_name", //教練名稱
-        "coach.job_title AS coach_title", //教練title
-      ])
+      .select(fullCourseFields)
       .orderBy(sortParam, "DESC") //根據前端參數，載入排序設定
       .getRawMany();
 
@@ -140,10 +129,13 @@ async function getCourses(req, res, next) {
   }
 }
 
-//取得你可能會喜歡課程
+//取得你可能會喜歡課程列表
 async function getRecommandCourses(req, res, next) {
   try {
     const courseId = req.params.courseId;
+    if (isNotValidUUID(courseId)) {
+      return next(generateError(400, "課程 ID 格式不正確"));
+    }
 
     //排序設定
     const sort = "DESC"; //後端寫死
@@ -154,19 +146,7 @@ async function getRecommandCourses(req, res, next) {
       .createQueryBuilder("c") //c=Course
       .innerJoin("c.Skill", "s") //s=Skill
       .innerJoin("c.Coach", "coach")
-      .select([
-        "c.id AS course_id", //課程id
-        "c.name AS course_name", //課程名稱
-        "c.description AS course_description", //課程介紹
-        "c.score AS course_score", //課程評分
-        "c.total_hours AS total_hours", //課程總時長
-        "c.image_url AS course_image_url", //課程封面
-        "s.id AS type_id", //課程類別id
-        "s.name AS course_type", //課程類別名稱
-        "c.student_amount AS student_amount", //課程學生人數
-        "coach.nickname AS coach_name", //教練名稱
-        "coach.job_title AS coach_title", //教練title
-      ])
+      .select(fullCourseFields)
       .orderBy("c.student_amount", "DESC") //按照課程學生人數排序
       .getRawMany();
 
@@ -179,6 +159,45 @@ async function getRecommandCourses(req, res, next) {
       status: true,
       message: "成功取得資料",
       data: recommandCourses,
+      meta: {
+        sort,
+        sortBy,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+//取得教練已開設課程列表
+async function getCoachCourses(req, res, next) {
+  try {
+    const coachId = req.params.coachId;
+    if (isNotValidUUID(coachId)) {
+      return next(generateError(400, "教練 ID 格式不正確"));
+    }
+
+    //排序設定
+    const sort = "DESC"; //後端寫死
+    const sortBy = "popular"; //後端寫死
+
+    //取得課程資料
+    const rawCourses = await AppDataSource.getRepository("Course")
+      .createQueryBuilder("c") //c=Course
+      .innerJoin("c.Skill", "s") //s=Skill
+      .innerJoin("c.Coach", "coach")
+      .select(fullCourseFields)
+      .where("coach.id = :coachId", { coachId })
+      .orderBy("c.student_amount", "DESC") //按照課程學生人數排序
+      .getRawMany();
+
+    //取出前三筆
+    const coachCourses = rawCourses.slice(0, 3);
+
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: coachCourses,
       meta: {
         sort,
         sortBy,
@@ -299,6 +318,7 @@ module.exports = {
   getCoachType,
   getCourses,
   getRecommandCourses,
+  getCoachCourses,
   getCoachDetails,
   getCourseDetails,
 };
