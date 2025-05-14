@@ -2,7 +2,7 @@ const AppDataSource = require("../db/data-source");
 const coachRepo = AppDataSource.getRepository("Coach");
 const courseRepo = AppDataSource.getRepository("Course");
 const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
-const { getAllCourseTypes } = require("../services/getTypeServices");
+const { getAllCourseTypes } = require("../services/typeServices");
 const generateError = require("../utils/generateError");
 const { isNotValidUUID } = require("../utils/validators"); // 引入驗證工具函數
 
