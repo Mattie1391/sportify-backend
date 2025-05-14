@@ -1,15 +1,15 @@
 const AppDataSource = require("../db/data-source");
-const { getTypeByStudentCount } = require("../services/getTypeByStudentCount");
 const coachRepo = AppDataSource.getRepository("Coach");
 const courseRepo = AppDataSource.getRepository("Course");
 const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
+const { getAllCourseTypes } = require("../services/typeServices");
 const generateError = require("../utils/generateError");
 const { isNotValidUUID } = require("../utils/validators"); // 引入驗證工具函數
-//取得課程類別（依照學生排序）
+
+//取得課程類別（依照學生總人數排序）
 async function getCourseType(req, res, next) {
   try {
-    const result = await getTypeByStudentCount();
-    console.log(result);
+    const result = await getAllCourseTypes();
     res.status(200).json({
       status: true,
       message: "成功取得資料",
@@ -24,10 +24,11 @@ async function getCourseType(req, res, next) {
     next(error);
   }
 }
-//取得教練類別（依照學生排序）
+
+//取得教練類別（依照學生總人數排序）
 async function getCoachType(req, res, next) {
   try {
-    const result = await getTypeByStudentCount();
+    const result = await getAllCourseTypes();
     res.status(200).json({
       status: true,
       message: "成功取得資料",
@@ -42,6 +43,7 @@ async function getCoachType(req, res, next) {
     next(error);
   }
 }
+
 //取得教練資訊
 async function getCoachDetails(req, res, next) {
   try {
@@ -76,6 +78,7 @@ async function getCoachDetails(req, res, next) {
     next(error);
   }
 }
+
 //取得課程資訊
 async function getCourseDetails(req, res, next) {
   try {

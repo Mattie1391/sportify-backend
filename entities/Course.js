@@ -123,5 +123,10 @@ module.exports = new EntitySchema({
       type: "many-to-many",
       inverseSide: "Course",
     },
+    User_Course_Favorite: {
+      target: "User_Course_Favorite", // 關聯到中介表
+      type: "one-to-many",
+      inverseSide: "Course", // 對方 entity 裡的欄位名
+    },
   },
 });
