@@ -1,10 +1,6 @@
 const bcrypt = require("bcryptjs");
 const nodemailer = require("nodemailer");
-const {
-  isUndefined,
-  isNotValidString,
-  isNotValidEmail,
-} = require("../utils/validators");
+const { isUndefined, isNotValidString, isNotValidEmail } = require("../utils/validators");
 const generateError = require("../utils/generateError");
 const AppDataSource = require("../db/data-source");
 const { generateJWT, verifyJWT } = require("../utils/jwtUtils");
@@ -17,11 +13,9 @@ const Coach = require("../entities/Coach");
 const Admin = require("../entities/Admin");
 const gmailUserName = config.get("email.gmailUserName");
 const gmailAppPassword = config.get("email.gmailAppPassword");
-const {
-  findRoleAndRepoByEmail,
-  findRepoByRole,
-} = require("../services/roleServices");
+const { findRoleAndRepoByEmail, findRepoByRole } = require("../services/roleServices");
 
+//使用者/教練註冊
 async function postSignup(req, res, next) {
   try {
     const { name, nickname, email, password, password_check } = req.body;
@@ -99,7 +93,7 @@ async function postSignup(req, res, next) {
     next(error);
   }
 }
-
+//管理員註冊
 async function postAdminSignup(req, res, next) {
   try {
     const { email, password, password_check } = req.body;
@@ -159,14 +153,13 @@ async function postAdminSignup(req, res, next) {
       data: {
         id: newAdmin.id,
         email: newAdmin.email,
-
       },
     });
   } catch (error) {
     next(error);
   }
 }
-
+//登入
 async function postLogin(req, res, next) {
   try {
     const { email, password } = req.body;
@@ -211,7 +204,7 @@ async function postLogin(req, res, next) {
     next(error);
   }
 }
-
+//忘記密碼
 async function postForgotPassword(req, res, next) {
   try {
     const { email } = req.body;
@@ -283,7 +276,7 @@ async function postForgotPassword(req, res, next) {
     next(error);
   }
 }
-
+//重設密碼
 async function patchResetPassword(req, res, next) {
   try {
     const { new_password, password_check } = req.body;
@@ -303,10 +296,7 @@ async function patchResetPassword(req, res, next) {
     const passwordPattern = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,16}/;
     if (!passwordPattern.test(new_password)) {
       return next(
-        generateError(
-          400,
-          "密碼不符合規則，需要包含英文數字大小寫，最短8個字，最長16個字"
-        )
+        generateError(400, "密碼不符合規則，需要包含英文數字大小寫，最短8個字，最長16個字")
       );
     }
 
@@ -348,10 +338,13 @@ async function patchResetPassword(req, res, next) {
     next(error);
   }
 }
-
-//回傳使用者資訊，方便前端判斷使用者登入狀態，調整右上角顯示狀態
+//驗證登入（回傳使用者資訊）
 async function getMe(req, res, next) {
-  res.json(req.user);
+  res.status(200).json({
+    status: true,
+    message: "成功取得資料",
+    data: req.user,
+  });
 }
 
 module.exports = {

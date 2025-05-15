@@ -11,6 +11,8 @@ const ratingController = require("../controllers/rating");
 
 //取得可觀看類別
 router.get("/course-type", auth, isUser, userController.getCourseType);
+//取得可觀看課程
+router.get("/courses", auth, isUser, userController.getCourses);
 //取得所有訂閱方案類別
 router.get("/plan-info", userController.getPlans);
 //取得所有運動類別

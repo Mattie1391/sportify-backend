@@ -1,8 +1,19 @@
+const bcrypt = require("bcryptjs");
 const AppDataSource = require("../db/data-source");
 const userRepo = AppDataSource.getRepository("User");
 const favoriteRepo = AppDataSource.getRepository("User_Course_Favorite");
 const subscriptionRepo = AppDataSource.getRepository("Subscription");
-const subscriptionSkillRepo = AppDataSource.getRepository("Subscription_Skill");
+
+//services
+const {
+  checkCourseAccess,
+  checkSkillAccess,
+} = require("../services/checkServices");
+const { getViewableCourseTypes } = require("../services/typeServices");
+const { filterByCategory } = require("../services/filterServices");
+const { fullCourseFields } = require("../services/courseSelectFields");
+
+//utils
 const {
   isUndefined,
   isNotValidString,
@@ -11,20 +22,20 @@ const {
   isNotValidUrl,
 } = require("../utils/validators");
 const generateError = require("../utils/generateError");
-const {
-  checkCategoryAccess,
-  hasActiveSubscription,
-  getLatestSubscription,
-} = require("../services/checkServices");
-const { getTypeByStudentCount } = require("../services/getTypeByStudentCount");
+const paginate = require("../utils/paginate");
 const formatDate = require("../utils/formatDate"); // 引入日期格式化工具函數
-const bcrypt = require("bcryptjs");
+const { MoreThan } = require("typeorm");
 
 //取得使用者資料
 async function getProfile(req, res, next) {
   try {
     const userId = req.params.userId;
-    if (!userId || isNotValidString(userId) || userId.length === 0 || isNotValidUUID(userId)) {
+    if (
+      !userId ||
+      isNotValidString(userId) ||
+      userId.length === 0 ||
+      isNotValidUUID(userId)
+    ) {
       return next(generateError(400, "使用者 ID 格式不正確"));
     }
     const user = await userRepo.findOneBy({ id: userId });
@@ -46,7 +57,9 @@ async function getProfile(req, res, next) {
       email: user.email,
       profile_image_url: user.profile_image_url,
     };
-    res.status(200).json({ status: true, message: "成功取得資料", data: userData });
+    res
+      .status(200)
+      .json({ status: true, message: "成功取得資料", data: userData });
   } catch (error) {
     next(error);
   }
@@ -55,7 +68,9 @@ async function getProfile(req, res, next) {
 //取得所有訂閱方案類別
 async function getPlans(req, res, next) {
   try {
-    const plans = await AppDataSource.getRepository("Plan").find();
+    const plans = await AppDataSource.getRepository("Plan").find({
+      where: { pricing: MoreThan(0) },
+    });
     res.status(200).json({
       status: true,
       message: "成功取得資料",
@@ -91,13 +106,24 @@ async function getAllCourseType(req, res, next) {
 async function patchProfile(req, res, next) {
   try {
     const userId = req.params.userId;
-    if (!userId || isNotValidString(userId) || userId.length === 0 || isNotValidUUID(userId))
+    if (
+      !userId ||
+      isNotValidString(userId) ||
+      userId.length === 0 ||
+      isNotValidUUID(userId)
+    )
       return next(generateError(400, "使用者 ID 格式不正確"));
 
     const user = await userRepo.findOneBy({ id: userId });
 
     // email及使用者ID無法修改,前端email欄位同步寫死，不能輸入
-    const { name, profile_image_url, oldPassword, newPassword, newPassword_check } = req.body;
+    const {
+      name,
+      profile_image_url,
+      oldPassword,
+      newPassword,
+      newPassword_check,
+    } = req.body;
 
     //目前暫無email驗證功能，禁止修改email
     if ("email" in req.body) {
@@ -207,7 +233,9 @@ async function patchProfile(req, res, next) {
       profile_image_url: user.profile_image_url,
       updated_at: user.updated_at,
     };
-    res.status(200).json({ status: true, message: "成功更新資料", data: userData });
+    res
+      .status(200)
+      .json({ status: true, message: "成功更新資料", data: userData });
   } catch (error) {
     next(error);
   }
@@ -225,12 +253,12 @@ async function postLike(req, res, next) {
       return next(generateError(400, "課程 ID 格式不正確"));
     }
     //判斷訂閱是否有效
-    const isActive = await hasActiveSubscription(userId);
-    if (!isActive) {
+    const hasActiveSubscription = req.user.hasActiveSubscription;
+    if (!hasActiveSubscription) {
       return next(generateError(403, "尚未訂閱或訂閱已失效，無可觀看課程類別"));
     }
     //若訂閱有效，判斷此人是否可觀看此類別
-    const canWatchType = await checkCategoryAccess(userId, courseId);
+    const canWatchType = await checkCourseAccess(userId, courseId);
     if (!canWatchType) throw generateError(403, "未訂閱該課程類別");
 
     // 確認是否已收藏過此課程
@@ -267,12 +295,12 @@ async function deleteUnlike(req, res, next) {
       return next(generateError(400, "課程 ID 格式不正確"));
     }
     //判斷訂閱是否有效
-    const isActive = await hasActiveSubscription(userId);
-    if (!isActive) {
+    const hasActiveSubscription = req.user.hasActiveSubscription;
+    if (!hasActiveSubscription) {
       return next(generateError(403, "尚未訂閱或訂閱已失效，無可觀看課程類別"));
     }
     //若訂閱有效，判斷此人是否可觀看此類別
-    const canWatchType = await checkCategoryAccess(userId, courseId);
+    const canWatchType = await checkCourseAccess(userId, courseId);
     if (!canWatchType) throw generateError(403, "未訂閱該課程類別");
     // 確認是否已收藏過此課程
     const exist = await favoriteRepo.findOneBy({
@@ -293,35 +321,13 @@ async function deleteUnlike(req, res, next) {
 async function getCourseType(req, res, next) {
   try {
     const userId = req.user.id;
-    let isEagerness = false;
-    let result = [];
-
+    const hasActiveSubscription = req.user.hasActiveSubscription;
     //判斷訂閱是否有效
-    const isActive = await hasActiveSubscription(userId);
-    if (!isActive) {
+    if (!hasActiveSubscription) {
       return next(generateError(403, "尚未訂閱或訂閱已失效，無可觀看課程類別"));
     }
-
-    //取得此人最新的訂閱紀錄
-    const latestSubscription = await getLatestSubscription(userId);
-
-    //如果是eagerness方案,取得所有類別
-    if (Number(latestSubscription.Plan.sports_choice) === 0) {
-      result = await getTypeByStudentCount();
-      isEagerness = true;
-    } else {
-      //若非eagerness,取得類別的id、名稱、學生人數（依照學生人數排序）
-      result = await subscriptionSkillRepo
-        .createQueryBuilder("ss") // s = SubscriptionSkill資料表
-        .innerJoin("ss.Skill", "sk") // sk = Skill資料表
-        .innerJoin("sk.Course", "c") // c = Course資料表
-        .select(["sk.id AS skill_id", "sk.name AS course_type"]) // 選擇 skill.id 和 skill.name 欄位
-        .addSelect("SUM(c.student_amount) AS student_count") // 計算該類別學生
-        .where("ss.subscription_id = :Id", { Id: latestSubscription.id }) //關聯最新訂閱紀錄
-        .groupBy("sk.id") // 聚合相同課程類別，這樣可以計算每個類別下有多少學生
-        .orderBy("student_count", "DESC") // 按學生人數排序，讓熱門課程類別排在前面
-        .getRawMany();
-    }
+    //取得此人可觀看的類別id、名稱、該類別學生總人數以及是否為eagerness
+    const { isEagerness, result } = await getViewableCourseTypes(userId);
     res.status(200).json({
       status: true,
       message: "成功取得資料",
@@ -330,6 +336,100 @@ async function getCourseType(req, res, next) {
       meta: {
         sort: "desc",
         sort_by: "popular",
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+//取得可觀看的課程
+async function getCourses(req, res, next) {
+  try {
+    const userId = req.user.id;
+    //判斷訂閱是否有效
+    const hasActiveSubscription = req.user.hasActiveSubscription;
+    if (!hasActiveSubscription) {
+      return next(generateError(403, "尚未訂閱或訂閱已失效，無可觀看課程類別"));
+    }
+
+    //取得所有可觀看類別ID陣列
+    const { typeIds } = await getViewableCourseTypes(userId);
+
+    //取得可觀看課程資料
+    const rawCourses = await AppDataSource.getRepository("Course")
+      .createQueryBuilder("c")
+      .innerJoin("c.Skill", "s")
+      .innerJoin("c.Coach", "coach")
+      .where("s.id IN (:...ids)", { ids: typeIds }) //取出skill_id包含在可觀看類別id的課程
+      .select(fullCourseFields)
+      .orderBy("c.student_amount", "DESC")
+      .getRawMany();
+
+    //取得已收藏的課程ID陣列
+    const favoritedCourses = await favoriteRepo.find({
+      where: { user_id: userId },
+      select: ["course_id"],
+    });
+    const favoritedCourseIds = favoritedCourses.map((f) => f.course_id);
+    //在資料中加入 isFavorited 欄位
+    const courses = rawCourses.map((course) => ({
+      ...course,
+      isFavorited: favoritedCourseIds.includes(course.course_id),
+    }));
+
+    //分類設定
+    const category = req.query.category || "all"; //當前顯示類別，預設顯示所有類別
+    const validCategories = ["all", "favorite", "skill"]; //所有類別、已收藏、特定類別（如：瑜伽）
+    if (!validCategories.includes(category))
+      return next(generateError(400, "無此類別"));
+    //依照分類篩選課程資料
+    let filteredCourses;
+    if (category === "skill") {
+      const skillId = req.query.skillId; //若category="skill"，前端再回傳一個參數skillId
+      const canWatch = await checkSkillAccess(userId, skillId);
+      if (!canWatch) throw generateError(403, "未訂閱該課程類別");
+      if (!skillId || isNotValidUUID(skillId))
+        return next(
+          generateError(400, "類別為 skill 時必須提供合法的 skillId")
+        );
+      //取得對應分類的資料
+      filteredCourses = await filterByCategory(courses, category, skillId);
+    } else {
+      //取得對應分類的資料
+      filteredCourses = await filterByCategory(courses, category);
+    }
+
+    //分頁設定
+    const rawPage = req.query.page; //當前頁數
+    const page = rawPage === undefined ? 1 : parseInt(rawPage); //如果rawPage===undefined，page為1，否則為parseInt(rawPage)
+    const limit = 8; //每頁最多顯示9堂課程
+    if (isNaN(page) || page < 1 || !Number.isInteger(page)) {
+      return next(generateError(400, "分頁參數格式不正確，頁數需為正整數"));
+    }
+    //取得當前分頁資料，以及分頁資訊
+    const { paginatedData, pagination } = await paginate(
+      filteredCourses,
+      page,
+      limit
+    );
+    //若頁數超出範圍，回傳錯誤
+    const totalPages = pagination.total_pages;
+    if (page > totalPages && totalPages !== 0) {
+      return next(generateError(400, "頁數超出範圍"));
+    }
+
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: paginatedData,
+      meta: {
+        filter: {
+          category: category, //篩選類別
+          sort: "desc", //後端寫死
+          sort_by: "popular", //依照學生人數排序，後端寫死
+        },
+        pagination,
       },
     });
   } catch (error) {
@@ -368,7 +468,13 @@ async function postSubscription(req, res, next) {
     }
 
     // 驗證 course_type 是否為字串陣列，且數量為 0、1 或 3
-    if (!(course_type.length === 0 || course_type.length === 1 || course_type.length === 3)) {
+    if (
+      !(
+        course_type.length === 0 ||
+        course_type.length === 1 ||
+        course_type.length === 3
+      )
+    ) {
       return next(generateError(400, "課程類別格式不正確"));
     }
 
@@ -433,7 +539,8 @@ async function postSubscription(req, res, next) {
 
     // 建立與技能的關聯
     if (validSkills.length > 0) {
-      const subscriptionSkillRepo = AppDataSource.getRepository("Subscription_Skill");
+      const subscriptionSkillRepo =
+        AppDataSource.getRepository("Subscription_Skill");
       const newSubscriptionSkills = validSkills.map((skill) => {
         return subscriptionSkillRepo.create({
           subscription_id: savedSubscription.id,
@@ -519,7 +626,8 @@ async function patchSubscription(req, res, next) {
 async function getSubscriptions(req, res, next) {
   try {
     //分頁設定
-    const page = parseInt(req.query.page) || 1; //當前頁數
+    const rawPage = req.query.page; //當前頁數
+    const page = rawPage === undefined ? 1 : parseInt(rawPage); //如果rawPage===undefined，page為1，否則為parseInt(rawPage)
     const limit = 20;
     const skip = (page - 1) * limit; // 要跳過的資料筆數
 
@@ -602,6 +710,7 @@ module.exports = {
   postLike,
   deleteUnlike,
   getCourseType,
+  getCourses,
   postSubscription,
   patchSubscription,
   getSubscriptions,
