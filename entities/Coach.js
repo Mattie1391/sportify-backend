@@ -126,12 +126,11 @@ module.exports = new EntitySchema({
   // === 關聯定義 ===
   relations: {
     // 一位教練可以擁有多個技能（透過 CoachSkill 中介表連結）
-    CoachSkills: {
+    Coach_Skill: {
       target: "Coach_Skill",
       type: "one-to-many", // 一對多關聯：一位教練對應多個技能連結
       inverseSide: "Coach", // 對方 entity（CoachSkill）中定義的關聯欄位名
     },
-
     // 一位教練可以有多筆轉帳記錄（薪水）
     PaymentTransfers: {
       target: "Payment_Transfer",
@@ -144,6 +143,12 @@ module.exports = new EntitySchema({
       target: "Rating",
       type: "one-to-many", // 一對多關聯：一位教練對應多個評價
       inverseSide: "Coach", // 對方 entity（Rating）中定義的關聯欄位名
+    },
+    // 一位教練可以開設多門課程
+    Course: {
+      target: "Course",
+      type: "one-to-many", // 一對多關聯：一位教練對應多個課程
+      inverseSide: "Coach", // 對方 entity（Course）中定義的關聯欄位名
     },
   },
 });

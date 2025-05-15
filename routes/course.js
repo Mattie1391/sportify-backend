@@ -13,6 +13,8 @@ router.get("/course-type", courseController.getCourseType);
 router.get("/coach-type", courseController.getCoachType);
 //取得課程列表
 router.get("/", courseController.getCourses);
+//取得教練列表
+router.get("/coaches", courseController.getCoaches);
 
 //動態路由
 //取得課程評價
