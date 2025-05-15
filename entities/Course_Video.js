@@ -14,12 +14,12 @@ module.exports = new EntitySchema({
       length: 64,
       nullable: false,
     },
-    chapter_section_id: {
-      type: "varchar", //使用serial編排章節-小節。如1-1、1-2、2-1
+    chapter_subtitle_set_id: {
+      type: "uuid", //fk，對應Course_Chapter表的主鍵，此主鍵代表了"一門課程id、章節與副標題(小節)編號三者組合的唯一識別碼"
       nullable: false,
     },
     duration: {
-      type: "int",
+      type: "float",
       nullable: true,
     },
     status: {
@@ -27,36 +27,22 @@ module.exports = new EntitySchema({
       length: 32,
       default: "waiting",
     },
-    resolution_tier: {
-      type: "varchar",
-      length: 16,
-      nullable: true,
-    },
-    position: {
-      type: "int",
-      default: 1,
-    },
-    thumbnail_url: {
-      type: "varchar",
-      length: 2048,
-      nullable: true,
-    },
+    // position: {
+    //   type: "int",
+    //   default: 1,
+    // },
     created_at: {
       type: "timestamp",
       createDate: true,
     },
-    updated_at: {
-      type: "timestamp",
-      updateDate: true,
-    },
   },
   relations: {
-    Chapter: {
+    Course_Chapter: {
       target: "Course_Chapter",
       type: "many-to-one",
       joinColumn: {
-        name: "chapter_id",
-        referencedColumnName: "id",
+        name: "chapter_subtitle_set_id", //本表的欄位
+        referencedColumnName: "id", //對方表的主鍵名稱
         foreignKeyConstraintName: "fk_video_chapter_id",
       },
       onDelete: "CASCADE",

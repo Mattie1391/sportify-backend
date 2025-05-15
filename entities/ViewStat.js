@@ -32,10 +32,10 @@ module.exports = new EntitySchema({
       nullable: true,
     },
     //截至計算日此asset(影片)的總觀看數
-    total_views: {
-      type: "int",
-      nullable: true,
-    },
+    // total_views: {
+    //   type: "int",
+    //   nullable: true,
+    // },
   },
   // === 關聯設定 ===
   relations: {
@@ -50,7 +50,7 @@ module.exports = new EntitySchema({
       },
       onDelete: "CASCADE", // 若課程被刪除，對應的觀看次數資料也被刪除
     },
-    Course_Chapter: {
+    Course_Video: {
       target: "Course_Video",
       type: "many-to-many",
       joinColumn: {
