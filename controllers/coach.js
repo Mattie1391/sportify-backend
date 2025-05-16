@@ -1,15 +1,29 @@
-const { isUndefined, isNotValidString } = require("../utils/validators");
-const { isNotValidUUID } = require("../utils/validators"); // 引入驗證工具函數
-const generateError = require("../utils/generateError");
 const AppDataSource = require("../db/data-source");
 const courseRepo = AppDataSource.getRepository("Course");
 const viewRepo = AppDataSource.getRepository("View_Stat");
 
+//utils
+const {
+  isUndefined,
+  isNotValidString,
+  isNotValidUUID,
+} = require("../utils/validators"); // 引入驗證工具函數
+const generateError = require("../utils/generateError");
+
 //教練取得所有課程(可以限制特定一門課程)的每月觀看次數、總計觀看次數
 async function getCoachViewStats(req, res, next) {
   try {
+    //禁止前端亂輸入參數，如banana=999
+    const validQuery = ["courseId"];
+    const queryKeys = Object.keys(req.query);
+    const invalidQuery = queryKeys.filter((key) => !validQuery.includes(key));
+    if (invalidQuery.length > 0) {
+      return next(
+        generateError(400, `不允許的參數：${invalidQuery.join(", ")}`)
+      );
+    }
     const coachId = req.user.id;
-    const courseId = req.query.course_id || null;
+    const courseId = req.query.courseId || null;
     if (
       courseId !== null &&
       (isNotValidString(courseId) || isNotValidUUID(courseId))
