@@ -5,24 +5,6 @@ const AppDataSource = require("../db/data-source");
 const courseRepo = AppDataSource.getRepository("Course");
 const viewRepo = AppDataSource.getRepository("View_Stat");
 
-const { In } = require("typeorm");
-
-//教練取得其一門課程的觀看次數(月度、加總)
-async function getCoachViewStat(req, res, next) {
-  try {
-    const courseId = req.params.courseId;
-    const viewStats = await viewRepo.find({ where: { course_id: courseId } });
-
-    res.status(200).json({
-      status: true,
-      message: "成功取得資料",
-      data: "",
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
 //教練取得所有課程(可以限制特定一門課程)的每月觀看次數、總計觀看次數
 async function getCoachViewStats(req, res, next) {
   try {
@@ -48,10 +30,10 @@ async function getCoachViewStats(req, res, next) {
       .select("v.course_id", "course_id") //選取課程id，將回傳的欄位命名為course_id
       .addSelect("c.name", "course_name") //選取課程名稱，欄位命名為course_name
       .addSelect(`DATE_TRUNC('month', v.date)`, "period") //用PostgesSQL函數DATE_TRUNC擷取timestamp到月份(到當月1號00:00:00)
-      .addSelect("SUM(view_count)", "view_counts") //總計觀看次數，並命名欄位為"view_counts
+      .addSelect("SUM(view_count)", "view_counts") //加總月度觀看次數，並命名欄位為"view_counts
       .groupBy("v.course_id") //依課程id排序(如果未指定課程的話)
-      .addGroupBy("c.name") //依課程名稱
-      .addGroupBy("period") //再依月份區分統計
+      .addGroupBy("c.name") //依課程名稱分組
+      .addGroupBy("period") //再依月份分組
       .orderBy("period", "ASC"); //採月份舊在前新在後
 
     //邏輯判斷，若前端有傳入course id，就只能查該門課程的觀看次數，若未傳入(else)，則是該教練所有課程的觀看次數加總
@@ -73,10 +55,10 @@ async function getCoachViewStats(req, res, next) {
       (sum, row) => sum + parseInt(row.view_counts),
       0
     );
-    //整理資料格式
+    //整理資料格式，創建一個空白陣列，並用reduce、push將每筆row資料加入陣列當中。累加過程會儲存在acc變數中。
     const result = rawData.reduce((acc, row) => {
       const key = row.course_id;
-      const course = acc.find((item) => item.course_id === key);
+      const course = acc.find((item) => item.course_id === key); //在acc中找尋對應課程id的統計資料，
 
       //轉換為台灣時區當日8點
       const raw = new Date(row.period);
@@ -89,6 +71,7 @@ async function getCoachViewStats(req, res, next) {
         month: `${year}年${month}月`,
         view_counts: parseInt(row.view_counts),
       };
+      //若有未加入過的課程在加總，適用if條件新建一個物件，若是已有課程的新的月份資料，就分類到該課程的物件裡
       if (!course) {
         acc.push({
           course_id: row.course_id,
@@ -111,6 +94,5 @@ async function getCoachViewStats(req, res, next) {
 }
 
 module.exports = {
-  getCoachViewStat,
   getCoachViewStats,
 };
