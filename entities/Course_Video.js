@@ -37,7 +37,7 @@ module.exports = new EntitySchema({
     },
   },
   relations: {
-    Course_Chapter: {
+    CourseChapter: {
       target: "Course_Chapter",
       type: "many-to-one",
       joinColumn: {
@@ -49,7 +49,7 @@ module.exports = new EntitySchema({
     },
     ViewStat: {
       target: "View_Stat",
-      type: "many-to-many",
+      type: "one-to-many",
       inverseSide: "Course_Video",
     },
   },
