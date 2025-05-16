@@ -23,8 +23,8 @@ module.exports = new EntitySchema({
     },
     // 採計觀看次數的日期
     date: {
-      type: "date",
-      nullable: true,
+      type: "timestamp",
+      createDate: true,
     },
     //當日此asset(影片)的觀看次數
     view_count: {

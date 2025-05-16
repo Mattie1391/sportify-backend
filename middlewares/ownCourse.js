@@ -10,7 +10,7 @@ module.exports = async (req, res, next) => {
     if (isNotValidUUID(courseId)) {
       return next(generateError(400, "課程ID格式錯誤"));
     }
-    const course = await courseRepo.findOne({ where: { id: courseId } });
+    const course = await courseRepo.findOneBy({ id: courseId });
     if (!course) {
       return next(generateError(404, "查無此課程"));
     }
