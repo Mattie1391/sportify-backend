@@ -1,13 +1,16 @@
 const AppDataSource = require("../db/data-source");
 const planRepo = AppDataSource.getRepository("Plan");
 const skillRepo = AppDataSource.getRepository("Skill");
-const coachRepo = AppDataSource.getRepository("Coach");
+const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
 const generateError = require("../utils/generateError");
 const {
   isUndefined,
   isNotValidString,
   isNotValidInteger,
+  isNotValidUUID,
 } = require("../utils/validators");
+const { coachFilterByCategory } = require("../services/filterServices");
+const paginate = require("../utils/paginate");
 
 //新增訂閱方案，目前沒有畫管理員相應UI的線稿
 async function postPlan(req, res, next) {
@@ -33,7 +36,7 @@ async function postPlan(req, res, next) {
     const existingPlan = await planRepo.find({
       where: { name },
     });
-    console.log(existingPlan);
+   
     if (existingPlan.length > 0) {
       return next(generateError(409, "方案名稱不可重覆"));
     }
@@ -91,37 +94,107 @@ async function postSportsType(req, res, next) {
 //取得教練列表
 async function getCoaches(req, res, next) {
   try {
-    const coaches = await coachRepo.find({
-      relations: ["CoachSkills", "CoachSkills.Skill"], // 加入 CoachSkills 和 Skill 的關聯
+    // 禁止前端亂輸入參數，如 banana=999
+    const validQuerys = ["page", "category", "skillId", "coachId"];
+    const queryKeys = Object.keys(req.query);
+    const invalidQuerys = queryKeys.filter((key) => !validQuerys.includes(key));
+    if (invalidQuerys.length > 0) {
+      return next(generateError(400, `不允許的參數：${invalidQuerys.join(", ")}`));
+    }
+
+    // 排序設定
+    const sort = "DESC"; // 後端寫死
+    const sortBy = "popular"; // 後端寫死
+
+    // 取得教練資料
+    const rawCoaches = await AppDataSource.getRepository("Coach")
+      .createQueryBuilder("c")
+      .innerJoin("c.Course", "course")
+      .select([
+        "c.id AS coach_id",
+        "c.nickname AS coach_name",
+        "c.job_title AS coach_title",
+        "c.about_me AS coach_about_me",
+        "SUM(course.student_amount) AS student_amount",
+      ])
+      .groupBy("c.id")
+      .orderBy("student_amount", sort)
+      .getRawMany();
+
+    // 取得所有教練對應技能的資料
+    const coachSkills = await coachSkillRepo.find({
+      select: ["coach_id", "skill_id", "Skill.name"],
+      relations: ["Skill"],
     });
 
-    if (!coaches || coaches.length === 0) {
-      // 如果找不到教練，回傳 400 錯誤
-      return res.status(400).json({
-        status: false,
-        message: "發生錯誤",
-      });
-    }  
-    
-    const formattedCoaches = coaches.map(coach => ({
-      id: coach.id,
-      name: coach.nickname, // 確認是否需要使用 nickname 或其他欄位作為名字
-      email: coach.email,
-      category: coach.CoachSkills.map(cs => cs.Skill.name).join(", "), // 將技能名稱組合為逗號分隔的字串
-      createdAt: coach.created_at,
-    }));
-    console.log(coaches[1].CoachSkills);
-    
+    const coaches = rawCoaches.map((coach) => {
+      const skills = coachSkills
+        .filter((cs) => cs.coach_id === coach.coach_id)
+        .map((cs) => ({
+          skill_id: cs.skill_id,
+          skill_name: cs.Skill.name,
+        }));
+      return {
+        ...coach,
+        coach_skills: skills,
+      };
+    });
+
+    // 分類設定
+    const category = req.query.category || "all";
+    const validCategories = ["all", "skill"];
+    if (!validCategories.includes(category)) return next(generateError(400, "無此類別"));
+
+    // 依照分類篩選課程資料
+    let filteredCoaches;
+    if (category === "skill") {
+      const skillId = req.query.skillId;
+      if (!skillId || isNotValidUUID(skillId))
+        return next(generateError(400, "類別為 skill 時必須提供合法的 skillId"));
+      filteredCoaches = await coachFilterByCategory(coaches, category, skillId);
+    } else {
+      filteredCoaches = await coachFilterByCategory(coaches, category);
+    }
+
+    // coachId 篩選
+    if (req.query.coachId) {
+      const coachId = req.query.coachId;
+      if (isNotValidUUID(coachId)) return next(generateError(400, "coachId 格式不正確"));
+      filteredCoaches = filteredCoaches.filter((coach) => coach.coach_id === coachId);
+    }
+
+    // 分頁設定
+    const rawPage = req.query.page;
+    const page = rawPage === undefined ? 1 : parseInt(rawPage);
+    const limit = 9;
+    if (isNaN(page) || page < 1 || !Number.isInteger(page)) {
+      return next(generateError(400, "分頁參數格式不正確，頁數需為正整數"));
+    }
+
+    const { paginatedData, pagination } = await paginate(filteredCoaches, page, limit);
+    const totalPages = pagination.total_pages;
+    if (page > totalPages && totalPages !== 0) {
+      return next(generateError(400, "頁數超出範圍"));
+    }
+
     res.status(200).json({
       status: true,
       message: "成功取得資料",
-      data: formattedCoaches, // 回傳格式化後的陣列
+      data: paginatedData,
+      meta: {
+        filter: {
+          category,
+          sort,
+          sortBy,
+          coachId: req.query.coachId || null,
+        },
+        pagination,
+      },
     });
   } catch (error) {
     next(error);
   }
 }
-
 
 module.exports = {
   postPlan,
