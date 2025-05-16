@@ -5,12 +5,9 @@ const favoriteRepo = AppDataSource.getRepository("User_Course_Favorite");
 const subscriptionRepo = AppDataSource.getRepository("Subscription");
 
 //services
-const {
-  checkCourseAccess,
-  checkSkillAccess,
-} = require("../services/checkServices");
+const { checkCourseAccess, checkSkillAccess } = require("../services/checkServices");
 const { getViewableCourseTypes } = require("../services/typeServices");
-const { filterByCategory } = require("../services/filterServices");
+const { courseFilterByCategory } = require("../services/filterServices");
 const { fullCourseFields } = require("../services/courseSelectFields");
 
 //utils
@@ -30,12 +27,7 @@ const { MoreThan } = require("typeorm");
 async function getProfile(req, res, next) {
   try {
     const userId = req.params.userId;
-    if (
-      !userId ||
-      isNotValidString(userId) ||
-      userId.length === 0 ||
-      isNotValidUUID(userId)
-    ) {
+    if (!userId || isNotValidString(userId) || userId.length === 0 || isNotValidUUID(userId)) {
       return next(generateError(400, "使用者 ID 格式不正確"));
     }
     const user = await userRepo.findOneBy({ id: userId });
@@ -57,9 +49,7 @@ async function getProfile(req, res, next) {
       email: user.email,
       profile_image_url: user.profile_image_url,
     };
-    res
-      .status(200)
-      .json({ status: true, message: "成功取得資料", data: userData });
+    res.status(200).json({ status: true, message: "成功取得資料", data: userData });
   } catch (error) {
     next(error);
   }
@@ -106,24 +96,13 @@ async function getAllCourseType(req, res, next) {
 async function patchProfile(req, res, next) {
   try {
     const userId = req.params.userId;
-    if (
-      !userId ||
-      isNotValidString(userId) ||
-      userId.length === 0 ||
-      isNotValidUUID(userId)
-    )
+    if (!userId || isNotValidString(userId) || userId.length === 0 || isNotValidUUID(userId))
       return next(generateError(400, "使用者 ID 格式不正確"));
 
     const user = await userRepo.findOneBy({ id: userId });
 
     // email及使用者ID無法修改,前端email欄位同步寫死，不能輸入
-    const {
-      name,
-      profile_image_url,
-      oldPassword,
-      newPassword,
-      newPassword_check,
-    } = req.body;
+    const { name, profile_image_url, oldPassword, newPassword, newPassword_check } = req.body;
 
     //目前暫無email驗證功能，禁止修改email
     if ("email" in req.body) {
@@ -233,9 +212,7 @@ async function patchProfile(req, res, next) {
       profile_image_url: user.profile_image_url,
       updated_at: user.updated_at,
     };
-    res
-      .status(200)
-      .json({ status: true, message: "成功更新資料", data: userData });
+    res.status(200).json({ status: true, message: "成功更新資料", data: userData });
   } catch (error) {
     next(error);
   }
@@ -346,6 +323,13 @@ async function getCourseType(req, res, next) {
 //取得可觀看的課程
 async function getCourses(req, res, next) {
   try {
+    //禁止前端亂輸入參數，如banana=999
+    const validQuerys = ["page", "category", "skillId"];
+    const queryKeys = Object.keys(req.query);
+    const invalidQuerys = queryKeys.filter((key) => !validQuerys.includes(key));
+    if (invalidQuerys.length > 0) {
+      return next(generateError(400, `不允許的參數：${invalidQuerys.join(", ")}`));
+    }
     const userId = req.user.id;
     //判斷訂閱是否有效
     const hasActiveSubscription = req.user.hasActiveSubscription;
@@ -381,23 +365,25 @@ async function getCourses(req, res, next) {
     //分類設定
     const category = req.query.category || "all"; //當前顯示類別，預設顯示所有類別
     const validCategories = ["all", "favorite", "skill"]; //所有類別、已收藏、特定類別（如：瑜伽）
-    if (!validCategories.includes(category))
-      return next(generateError(400, "無此類別"));
+    if (!validCategories.includes(category)) return next(generateError(400, "無此類別"));
     //依照分類篩選課程資料
     let filteredCourses;
+    if (category === "all") {
+      if (req.query.skillId) {
+        return next(generateError(400, "當類別為 all 時，請勿帶入skillId"));
+      }
+    }
     if (category === "skill") {
       const skillId = req.query.skillId; //若category="skill"，前端再回傳一個參數skillId
       const canWatch = await checkSkillAccess(userId, skillId);
       if (!canWatch) throw generateError(403, "未訂閱該課程類別");
       if (!skillId || isNotValidUUID(skillId))
-        return next(
-          generateError(400, "類別為 skill 時必須提供合法的 skillId")
-        );
+        return next(generateError(400, "類別為 skill 時必須提供合法的 skillId"));
       //取得對應分類的資料
-      filteredCourses = await filterByCategory(courses, category, skillId);
+      filteredCourses = await courseFilterByCategory(courses, category, skillId);
     } else {
       //取得對應分類的資料
-      filteredCourses = await filterByCategory(courses, category);
+      filteredCourses = await courseFilterByCategory(courses, category);
     }
 
     //分頁設定
@@ -408,11 +394,7 @@ async function getCourses(req, res, next) {
       return next(generateError(400, "分頁參數格式不正確，頁數需為正整數"));
     }
     //取得當前分頁資料，以及分頁資訊
-    const { paginatedData, pagination } = await paginate(
-      filteredCourses,
-      page,
-      limit
-    );
+    const { paginatedData, pagination } = await paginate(filteredCourses, page, limit);
     //若頁數超出範圍，回傳錯誤
     const totalPages = pagination.total_pages;
     if (page > totalPages && totalPages !== 0) {
@@ -468,13 +450,7 @@ async function postSubscription(req, res, next) {
     }
 
     // 驗證 course_type 是否為字串陣列，且數量為 0、1 或 3
-    if (
-      !(
-        course_type.length === 0 ||
-        course_type.length === 1 ||
-        course_type.length === 3
-      )
-    ) {
+    if (!(course_type.length === 0 || course_type.length === 1 || course_type.length === 3)) {
       return next(generateError(400, "課程類別格式不正確"));
     }
 
@@ -539,8 +515,7 @@ async function postSubscription(req, res, next) {
 
     // 建立與技能的關聯
     if (validSkills.length > 0) {
-      const subscriptionSkillRepo =
-        AppDataSource.getRepository("Subscription_Skill");
+      const subscriptionSkillRepo = AppDataSource.getRepository("Subscription_Skill");
       const newSubscriptionSkills = validSkills.map((skill) => {
         return subscriptionSkillRepo.create({
           subscription_id: savedSubscription.id,

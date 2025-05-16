@@ -105,6 +105,11 @@ async function getCoaches(req, res, next) {
     if (!validCategories.includes(category)) return next(generateError(400, "無此類別"));
     //依照分類篩選課程資料
     let filteredCoaches;
+    if (category === "all") {
+      if (req.query.skillId) {
+        return next(generateError(400, "當類別為 all 時，請勿帶入skillId"));
+      }
+    }
     if (category === "skill") {
       const skillId = req.query.skillId; //若category="skill"，前端再回傳一個參數skillId
       if (!skillId || isNotValidUUID(skillId))
@@ -189,6 +194,11 @@ async function getCourses(req, res, next) {
     if (!validCategories.includes(category)) return next(generateError(400, "無此類別"));
     //依照分類篩選課程資料
     let filteredCourses;
+    if (category === "all") {
+      if (req.query.skillId) {
+        return next(generateError(400, "當類別為 all 時，請勿帶入skillId"));
+      }
+    }
     if (category === "skill") {
       const skillId = req.query.skillId; //若category="skill"，前端再回傳一個參數skillId
       if (!skillId || isNotValidUUID(skillId))
