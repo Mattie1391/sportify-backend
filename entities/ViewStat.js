@@ -23,26 +23,26 @@ module.exports = new EntitySchema({
     },
     // 採計觀看次數的日期
     date: {
-      type: "date",
-      nullable: true,
+      type: "timestamp",
+      createDate: true,
     },
     //當日此asset(影片)的觀看次數
     view_count: {
       type: "int",
-      nullable: true,
+      nullable: true, //不確定是否有取得觀看次數null的狀況，先設true
     },
     //截至計算日此asset(影片)的總觀看數
-    total_views: {
-      type: "int",
-      nullable: true,
-    },
+    // total_views: {
+    //   type: "int",
+    //   nullable: true,
+    // },
   },
   // === 關聯設定 ===
   relations: {
-    //多門課程能有多筆觀看紀錄
+    //一門課程有多筆觀看資料，一筆觀看資料只屬於一門課程
     Course: {
-      target: "Course",
-      type: "many-to-many",
+      target: () => "Course",
+      type: "many-to-one",
       joinColumn: {
         name: "course_id", //本表中的欄位名
         referencedColumnName: "id",
@@ -50,9 +50,10 @@ module.exports = new EntitySchema({
       },
       onDelete: "CASCADE", // 若課程被刪除，對應的觀看次數資料也被刪除
     },
-    Course_Chapter: {
+    //一支影片有多筆觀看資料，一筆觀看資料只屬於一支影片
+    CourseVideo: {
       target: "Course_Video",
-      type: "many-to-many",
+      type: "many-to-one",
       joinColumn: {
         name: "asset_id", //本表中的欄位名
         referencedColumnName: "mux_asset_id", //Course_Video表的主鍵

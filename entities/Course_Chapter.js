@@ -76,7 +76,7 @@ module.exports = new EntitySchema({
     },
     ViewStat: {
       target: "View_Stat",
-      type: "many-to-many",
+      type: "one-to-many",
       inverseSide: "course_chapter",
     },
   },

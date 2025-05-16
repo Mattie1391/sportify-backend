@@ -5,12 +5,16 @@ const cookieParser = require("cookie-parser");
 const logger = require("morgan");
 const AppDataSource = require("./db/data-source");
 const generateError = require("./utils/generateError");
+// const { muxData } = require("./services/viewStatsCatcher");
+// const { fetchMuxViewStats } = require("./services/viewStatsCatcher");
+// fetchMuxViewStats();
 
 const indexRouter = require("./routes/index");
 const userRouter = require("./routes/user");
 const authRouter = require("./routes/auth");
 const courseRouter = require("./routes/course");
 const adminRouter = require("./routes/admin");
+const coachRouter = require("./routes/coach");
 
 const app = express();
 
@@ -30,6 +34,7 @@ app.use("/api/v1/users", userRouter);
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/courses", courseRouter);
 app.use("/api/v1/admin", adminRouter);
+app.use("/api/v1/coaches", coachRouter);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
