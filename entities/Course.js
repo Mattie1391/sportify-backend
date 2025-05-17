@@ -120,7 +120,7 @@ module.exports = new EntitySchema({
     },
     ViewStat: {
       target: "View_Stat",
-      type: "many-to-many",
+      type: "one-to-many",
       inverseSide: "Course",
     },
     User_Course_Favorite: {

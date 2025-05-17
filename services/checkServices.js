@@ -75,7 +75,10 @@ const checkHasTrial = async (userId) => {
   const plan = await planRepo.findOneBy({ name: "Eagerness方案-7天試用" });
   const trialPlan_id = plan.id;
   //從此人的訂閱紀錄中查找是否有方案名為"Eagerness方案-7天試用"
-  const result = await subscriptionRepo.findOneBy({ user_id: userId, plan_id: trialPlan_id });
+  const result = await subscriptionRepo.findOneBy({
+    user_id: userId,
+    plan_id: trialPlan_id,
+  });
   //有試用紀錄回傳false（已無試用資格）
   //沒使用記錄回傳true （尚有試用資格）
   return !result;
