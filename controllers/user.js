@@ -7,7 +7,7 @@ const subscriptionRepo = AppDataSource.getRepository("Subscription");
 //services
 const { checkCourseAccess, checkSkillAccess } = require("../services/checkServices");
 const { getViewableCourseTypes } = require("../services/typeServices");
-const { courseFilterByCategory } = require("../services/filterServices");
+const { courseFilter } = require("../services/filterServices");
 const { fullCourseFields } = require("../services/courseSelectFields");
 
 //utils
@@ -380,10 +380,10 @@ async function getCourses(req, res, next) {
       if (!skillId || isNotValidUUID(skillId))
         return next(generateError(400, "類別為 skill 時必須提供合法的 skillId"));
       //取得對應分類的資料
-      filteredCourses = await courseFilterByCategory(courses, category, skillId);
+      filteredCourses = await courseFilter(courses, category, skillId);
     } else {
       //取得對應分類的資料
-      filteredCourses = await courseFilterByCategory(courses, category);
+      filteredCourses = await courseFilter(courses, category);
     }
 
     //分頁設定

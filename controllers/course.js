@@ -1,10 +1,11 @@
 const AppDataSource = require("../db/data-source");
+const skillRepo = AppDataSource.getRepository("Skill");
 const coachRepo = AppDataSource.getRepository("Coach");
 const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
 const courseRepo = AppDataSource.getRepository("Course");
 const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
 const { getAllCourseTypes } = require("../services/typeServices");
-const { courseFilterByCategory, coachFilterByCategory } = require("../services/filterServices");
+const { courseFilter, coachFilter } = require("../services/filterServices");
 const { fullCourseFields } = require("../services/courseSelectFields");
 const generateError = require("../utils/generateError");
 const paginate = require("../utils/paginate");
@@ -52,7 +53,7 @@ async function getCoachType(req, res, next) {
 async function getCoaches(req, res, next) {
   try {
     //禁止前端亂輸入參數，如banana=999
-    const validQuerys = ["page", "category", "skillId"];
+    const validQuerys = ["page", "skillId"];
     const queryKeys = Object.keys(req.query);
     const invalidQuerys = queryKeys.filter((key) => !validQuerys.includes(key));
     if (invalidQuerys.length > 0) {
@@ -99,26 +100,18 @@ async function getCoaches(req, res, next) {
       };
     });
 
-    //分類設定
-    const category = req.query.category || "all"; //當前顯示類別，預設顯示所有類別
-    const validCategories = ["all", "skill"]; //所有類別、特定類別（如：瑜伽）
-    if (!validCategories.includes(category)) return next(generateError(400, "無此類別"));
     //依照分類篩選課程資料
-    let filteredCoaches;
-    if (category === "all") {
-      if (req.query.skillId) {
-        return next(generateError(400, "當類別為 all 時，請勿帶入skillId"));
+    let filteredCoaches = coaches;
+    const skillId = req.query.skillId;
+    //若有回傳skillId,取得對應分類的資料
+    if (skillId) {
+      if (isNotValidUUID(skillId)) return next(generateError(400, "類別 ID 格式不正確"));
+      // 確認 skillId 是否存在於資料庫
+      const skill = await skillRepo.findOneBy({ id: skillId });
+      if (!skill) {
+        return next(generateError(404, "查無此課程類別"));
       }
-    }
-    if (category === "skill") {
-      const skillId = req.query.skillId; //若category="skill"，前端再回傳一個參數skillId
-      if (!skillId || isNotValidUUID(skillId))
-        return next(generateError(400, "類別為 skill 時必須提供合法的 skillId"));
-      //取得對應分類的資料
-      filteredCoaches = await coachFilterByCategory(coaches, category, skillId);
-    } else {
-      //取得對應分類的資料
-      filteredCoaches = await coachFilterByCategory(coaches, category);
+      filteredCoaches = await coachFilter(coaches, skillId);
     }
 
     //分頁設定
@@ -142,7 +135,6 @@ async function getCoaches(req, res, next) {
       data: paginatedData,
       meta: {
         filter: {
-          category, //篩選類別
           sort, //排序（desc/asc）
           sortBy, //排序方式
         },
@@ -158,7 +150,7 @@ async function getCoaches(req, res, next) {
 async function getCourses(req, res, next) {
   try {
     //禁止前端亂輸入參數，如banana=999
-    const validQuerys = ["page", "sortBy", "category", "skillId"];
+    const validQuerys = ["page", "sortBy", "skillId"];
     const queryKeys = Object.keys(req.query);
     const invalidQuerys = queryKeys.filter((key) => !validQuerys.includes(key));
     if (invalidQuerys.length > 0) {
@@ -168,7 +160,8 @@ async function getCourses(req, res, next) {
     const sort = "DESC"; //後端寫死
     const sortBy = req.query.sortBy || "popular"; //預設按照熱門程度排序
     const validSortBy = ["popular", "score"];
-    if (!validSortBy.includes(sortBy)) return next(generateError(400, "無此排序方式"));
+    if (!validSortBy.includes(sortBy))
+      return next(generateError(400, `無此排序方式：${sortBy}，可用值為 popular 或 score`));
     //在撈資料前預先設定排序方式對應的參數
     const validSortParams = {
       popular: "c.student_amount",
@@ -188,28 +181,19 @@ async function getCourses(req, res, next) {
       .orderBy(sortParam, "DESC") //根據前端參數，載入排序設定
       .getRawMany();
 
-    //分類設定
-    const category = req.query.category || "all"; //當前顯示類別，預設顯示所有類別
-    const validCategories = ["all", "skill"]; //所有類別、已收藏、特定類別（如：瑜伽）
-    if (!validCategories.includes(category)) return next(generateError(400, "無此類別"));
     //依照分類篩選課程資料
-    let filteredCourses;
-    if (category === "all") {
-      if (req.query.skillId) {
-        return next(generateError(400, "當類別為 all 時，請勿帶入skillId"));
+    let filteredCourses = rawCourses;
+    const skillId = req.query.skillId;
+    //若有回傳skillId,取得對應分類的資料
+    if (skillId) {
+      if (isNotValidUUID(skillId)) return next(generateError(400, "類別 ID 格式不正確"));
+      // 確認 skillId 是否存在於資料庫
+      const skill = await skillRepo.findOneBy({ id: skillId });
+      if (!skill) {
+        return next(generateError(404, "查無此課程類別"));
       }
+      filteredCourses = await courseFilter(rawCourses, skillId);
     }
-    if (category === "skill") {
-      const skillId = req.query.skillId; //若category="skill"，前端再回傳一個參數skillId
-      if (!skillId || isNotValidUUID(skillId))
-        return next(generateError(400, "類別為 skill 時必須提供合法的 skillId"));
-      //取得對應分類的資料
-      filteredCourses = await courseFilterByCategory(rawCourses, category, skillId);
-    } else {
-      //取得對應分類的資料
-      filteredCourses = await courseFilterByCategory(rawCourses, category);
-    }
-
     //分頁設定
     const rawPage = req.query.page; //當前頁數
     const page = rawPage === undefined ? 1 : parseInt(rawPage); //如果rawPage===undefined，page為1，否則為parseInt(rawPage)
@@ -231,7 +215,6 @@ async function getCourses(req, res, next) {
       data: paginatedData,
       meta: {
         filter: {
-          category, //篩選類別
           sort, //排序（desc/asc）
           sortBy, //排序方式
         },
