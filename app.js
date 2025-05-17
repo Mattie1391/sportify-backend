@@ -5,9 +5,6 @@ const cookieParser = require("cookie-parser");
 const logger = require("morgan");
 const AppDataSource = require("./db/data-source");
 const generateError = require("./utils/generateError");
-// const { muxData } = require("./services/viewStatsCatcher");
-// const { fetchMuxViewStats } = require("./services/viewStatsCatcher");
-// fetchMuxViewStats();
 
 const indexRouter = require("./routes/index");
 const userRouter = require("./routes/user");

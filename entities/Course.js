@@ -119,7 +119,7 @@ module.exports = new EntitySchema({
       onDelete: "RESTRICT", // 或 CASCADE，看你邏輯決定
     },
     ViewStat: {
-      target: () => "View_Stat",
+      target: "View_Stat",
       type: "one-to-many",
       inverseSide: "Course",
     },

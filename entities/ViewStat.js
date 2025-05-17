@@ -41,7 +41,7 @@ module.exports = new EntitySchema({
   relations: {
     //一門課程有多筆觀看資料，一筆觀看資料只屬於一門課程
     Course: {
-      target: () => "Course",
+      target: "Course",
       type: "many-to-one",
       joinColumn: {
         name: "course_id", //本表中的欄位名
