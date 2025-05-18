@@ -144,11 +144,6 @@ async function getCoaches(req, res, next) {
       };
     });
 
-    // 分類設定
-    const category = req.query.category || "all";
-    const validCategories = ["all", "skill"];
-    if (!validCategories.includes(category)) return next(generateError(400, "無此類別"));
-
     // 依照分類篩選課程資料
     let filteredCoaches = coaches;
     const skillId = req.query.skillId;
@@ -170,6 +165,10 @@ async function getCoaches(req, res, next) {
       filteredCoaches = filteredCoaches.filter((coach) => coach.coach_id === coachId);
     }
 
+    // 若沒有符合的教練，回傳 400
+    if (filteredCoaches.length === 0) {
+      return next(generateError(400, "查無此教練"));
+    }
     // 分頁設定
     const rawPage = req.query.page;
     const page = rawPage === undefined ? 1 : parseInt(rawPage);
