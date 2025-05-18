@@ -9,14 +9,13 @@ const {
   isNotValidInteger,
   isNotValidUUID,
 } = require("../utils/validators");
-const { coachFilterByCategory } = require("../services/filterServices");
+const { coachFilter } = require("../services/filterServices");
 const paginate = require("../utils/paginate");
 
 //新增訂閱方案，目前沒有畫管理員相應UI的線稿
 async function postPlan(req, res, next) {
   try {
-    const { name, intro, pricing, max_resolution, livestream, sports_choice } =
-      req.body;
+    const { name, intro, pricing, max_resolution, livestream, sports_choice } = req.body;
     if (
       isUndefined(name) ||
       isNotValidString(name) ||
@@ -36,7 +35,7 @@ async function postPlan(req, res, next) {
     const existingPlan = await planRepo.find({
       where: { name },
     });
-   
+
     if (existingPlan.length > 0) {
       return next(generateError(409, "方案名稱不可重覆"));
     }
@@ -151,9 +150,9 @@ async function getCoaches(req, res, next) {
       const skillId = req.query.skillId;
       if (!skillId || isNotValidUUID(skillId))
         return next(generateError(400, "類別為 skill 時必須提供合法的 skillId"));
-      filteredCoaches = await coachFilterByCategory(coaches, category, skillId);
+      filteredCoaches = await coachFilter(coaches, category, skillId);
     } else {
-      filteredCoaches = await coachFilterByCategory(coaches, category);
+      filteredCoaches = await coachFilter(coaches, category);
     }
 
     // coachId 篩選
