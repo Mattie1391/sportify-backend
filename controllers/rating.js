@@ -7,14 +7,10 @@ const userRepo = AppDataSource.getRepository("User");
 const courseRepo = AppDataSource.getRepository("Course");
 
 //services
-const { checkCourseAccess } = require("../services/checkServices");
+const { checkActiveSubscription, checkCourseAccess } = require("../services/checkServices");
 
 //utils
-const {
-  isNotValidUUID,
-  isUndefined,
-  isNotValidString,
-} = require("../utils/validators"); // 引入驗證工具函數
+const { isNotValidUUID, isUndefined, isNotValidString } = require("../utils/validators"); // 引入驗證工具函數
 const generateError = require("../utils/generateError"); // 引入自定義的錯誤生成器
 const formatDate = require("../utils/formatDate"); // 引入日期格式化工具函數
 
@@ -118,6 +114,11 @@ async function postRating(req, res, next) {
     const course = await courseRepo.findOneBy({ id: courseId });
     if (!course) {
       return next(generateError(404, "找不到該課程"));
+    }
+    //判斷訂閱是否有效
+    const isSubscribed = await checkActiveSubscription(userId);
+    if (!isSubscribed) {
+      return next(generateError(403, "尚未訂閱或訂閱已失效，無可觀看課程類別"));
     }
     //驗證是否訂閱該課程
     const canWatchType = await checkCourseAccess(userId, courseId);
