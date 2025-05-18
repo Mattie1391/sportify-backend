@@ -6,6 +6,9 @@ const userRepo = AppDataSource.getRepository("User");
 //取得 Course 表的資料表操作實例
 const courseRepo = AppDataSource.getRepository("Course");
 
+//services
+const { checkCourseAccess } = require("../services/checkServices");
+
 //utils
 const {
   isNotValidUUID,
@@ -102,25 +105,67 @@ async function getRatings(req, res, next) {
 }
 async function postRating(req, res, next) {
   try {
+    //驗證user id、course id格式
+    const { courseId, userId } = req.params;
     if (!userId || isNotValidString(userId) || isNotValidUUID(userId)) {
       return next(generateError(400, "使用者 ID 格式不正確"));
     }
-    const { courseId, userId } = req.params;
+
     if (!courseId || isNotValidString(courseId) || isNotValidUUID(courseId)) {
       return next(generateError(400, "課程 ID 格式不正確"));
     }
-    const course = courseRepo.findOneBy({ where: { id: courseId } });
+    //驗證課程是否存在
+    const course = await courseRepo.findOneBy({ id: courseId });
+    if (!course) {
+      return next(generateError(404, "找不到該課程"));
+    }
+    //驗證是否訂閱該課程
+    const canWatchType = await checkCourseAccess(userId, courseId);
+    if (!canWatchType) throw generateError(403, "未訂閱該課程類別");
 
-    //無權對該課程打分錯誤
+    //驗證是否對該課程評過分
+    const hasRating = await ratingRepo.findOne({
+      where: { user_id: userId, course_id: courseId },
+    });
+    if (hasRating) {
+      return next(generateError(400, "已有評價資料"));
+    }
+    //通過身分驗證，開始驗證request body內容
+    const { score, comment } = req.body;
 
-    //分數超出範圍錯誤
-    //comment無效錯誤
-    //要加已打過評價錯誤
-
+    //驗證分數格式
+    if (
+      typeof score !== "number" ||
+      isUndefined(score) ||
+      isNaN(score) ||
+      score % 1 !== 0 ||
+      score < 0 ||
+      score > 5
+    ) {
+      return next(generateError(400, "評分格式錯誤，請填入0~5間的整數顆星"));
+    }
+    //驗證評論comment格式
+    if (isNotValidString(comment) || comment.length == 0) {
+      return next(generateError(400, "評論格式錯誤，請填寫內容"));
+    }
+    if (comment.length > 100) {
+      return next(generateError(400, "評論字數以100字為限"));
+    }
+    //通過驗證，組成資料並存入Rating資料庫
+    const newRating = await ratingRepo.create({
+      user_id: userId,
+      course_id: courseId,
+      score,
+      comment,
+    });
+    const data = await ratingRepo.save(newRating);
     res.status(201).json({
       status: true,
       message: "成功新增課程評價",
-      data: "",
+      data: {
+        score: data.score,
+        comment: data.comment,
+      },
     });
   } catch (error) {
     next(error);

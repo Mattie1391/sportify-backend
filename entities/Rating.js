@@ -21,10 +21,10 @@ module.exports = new EntitySchema({
       nullable: false,
     },
 
-    // 星星數（1.0 ~ 5.0，浮點數）
+    // 星星數（0~5，整數）
     score: {
-      type: "float",
-      nullable: false,
+      type: "int",
+      nullable: true,
     },
 
     // 評價者（使用者）ID
