@@ -94,11 +94,16 @@ async function postSportsType(req, res, next) {
 async function getCoaches(req, res, next) {
   try {
     // 禁止前端亂輸入參數，如 banana=999
-    const validQuerys = ["page", "category", "skillId", "coachId"];
+    const validQuerys = ["page", "skillId", "coachId"];
     const queryKeys = Object.keys(req.query);
     const invalidQuerys = queryKeys.filter((key) => !validQuerys.includes(key));
     if (invalidQuerys.length > 0) {
       return next(generateError(400, `不允許的參數：${invalidQuerys.join(", ")}`));
+    }
+
+    // 先篩選skillId才能篩選coachId
+    if (req.query.coachId && !req.query.skillId) {
+      return next(generateError(400, "請先選擇技能類別"));
     }
 
     // 排序設定
@@ -139,20 +144,18 @@ async function getCoaches(req, res, next) {
       };
     });
 
-    // 分類設定
-    const category = req.query.category || "all";
-    const validCategories = ["all", "skill"];
-    if (!validCategories.includes(category)) return next(generateError(400, "無此類別"));
-
     // 依照分類篩選課程資料
-    let filteredCoaches;
-    if (category === "skill") {
-      const skillId = req.query.skillId;
-      if (!skillId || isNotValidUUID(skillId))
-        return next(generateError(400, "類別為 skill 時必須提供合法的 skillId"));
-      filteredCoaches = await coachFilter(coaches, category, skillId);
-    } else {
-      filteredCoaches = await coachFilter(coaches, category);
+    let filteredCoaches = coaches;
+    const skillId = req.query.skillId;
+    //若有回傳skillId,取得對應分類的資料
+    if (skillId) {
+      if (isNotValidUUID(skillId)) return next(generateError(400, "類別 ID 格式不正確"));
+      // 確認 skillId 是否存在於資料庫
+      const skill = await skillRepo.findOneBy({ id: skillId });
+      if (!skill) {
+        return next(generateError(404, "查無此課程類別"));
+      }
+      filteredCoaches = await coachFilter(coaches, skillId);
     }
 
     // coachId 篩選
@@ -162,6 +165,10 @@ async function getCoaches(req, res, next) {
       filteredCoaches = filteredCoaches.filter((coach) => coach.coach_id === coachId);
     }
 
+    // 若沒有符合的教練，回傳 400
+    if (filteredCoaches.length === 0) {
+      return next(generateError(400, "查無此教練"));
+    }
     // 分頁設定
     const rawPage = req.query.page;
     const page = rawPage === undefined ? 1 : parseInt(rawPage);
@@ -182,7 +189,6 @@ async function getCoaches(req, res, next) {
       data: paginatedData,
       meta: {
         filter: {
-          category,
           sort,
           sortBy,
           coachId: req.query.coachId || null,
