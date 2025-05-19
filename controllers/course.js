@@ -396,7 +396,7 @@ async function getCourseDetails(req, res, next) {
         hours: course.total_hours,
         image_url: course.image_url,
         trailer_url: course.trailer_url, //TODO:待確認網址格式，所有課程的第一部影片皆需設為公開
-        intro: course.intro,
+        description: course.description,
       },
       coach: {
         name: coach.nickname,
