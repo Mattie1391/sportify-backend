@@ -704,8 +704,7 @@ async function getCourseDetails(req, res, next) {
     //取得教練資訊
     const coachId = course.coach_id;
     const coach = await coachRepo.findOneBy({ id: coachId });
-    //取得章節資訊
-    const chaptersData = await getChapters(courseId);
+    if (!coach) return next(generateError(404, "查無此教練"));
     //禁止前端亂輸入參數，如banana=999
     const validQuerys = ["chapterId"];
     const queryKeys = Object.keys(req.query);
@@ -713,10 +712,13 @@ async function getCourseDetails(req, res, next) {
     if (invalidQuerys.length > 0) {
       return next(generateError(400, `不允許的參數：${invalidQuerys.join(", ")}`));
     }
+    //取得章節資訊
+    const { chapters, firstChapterId } = await getChapters(courseId);
+    if (!chapters || chapters.length === 0) {
+      return next(generateError(404, "查無章節"));
+    }
     //若未回傳參數chapterId，則預設顯示第一個章節的第一小節標題
-    const firstChapterSubtitle = chaptersData[0].subtitles[0];
-    const firstChapter = await courseChapterRepo.findOneBy({ subtitle: firstChapterSubtitle });
-    const chapterId = req.query.chapterId || firstChapter.id;
+    let chapterId = req.query.chapterId || firstChapterId;
     if (isNotValidUUID(chapterId)) {
       return next(generateError(400, "章節 ID 格式不正確"));
     }
@@ -747,7 +749,7 @@ async function getCourseDetails(req, res, next) {
         profile_image_url: coach.profile_image_url,
         coachPage_Url: `https://example.com/courses/coaches/${coachId}/details`, //TODO:待跟前端確認
       },
-      chapters: chaptersData,
+      chapters: chapters,
     };
 
     res.status(200).json({
