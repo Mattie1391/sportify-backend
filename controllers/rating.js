@@ -99,6 +99,7 @@ async function getRatings(req, res, next) {
     next(error);
   }
 }
+//新增課程評價 API
 async function postRating(req, res, next) {
   try {
     //驗證user id、course id格式
@@ -172,7 +173,83 @@ async function postRating(req, res, next) {
     next(error);
   }
 }
+//修改課程評價 API
+async function patchRating(req, res, next) {
+  try {
+    //驗證user id、course id格式
+    const { courseId, userId } = req.params;
+    if (!userId || isNotValidString(userId) || isNotValidUUID(userId)) {
+      return next(generateError(400, "使用者 ID 格式不正確"));
+    }
+    if (!courseId || isNotValidString(courseId) || isNotValidUUID(courseId)) {
+      return next(generateError(400, "課程 ID 格式不正確"));
+    }
+    //驗證課程是否存在
+    const course = await courseRepo.findOneBy({ id: courseId });
+    if (!course) {
+      return next(generateError(404, "找不到該課程"));
+    }
+    //驗證對該課程的評論是否存在
+    const rating = await ratingRepo.findOneBy({ course_id: courseId });
+    if (!rating) {
+      return next(generateError(404, "找不到您對該課程的評論紀錄"));
+    }
+
+    //通過身分驗證，開始驗證request body內容
+    const { score, comment } = req.body;
+    //驗證分數格式
+    if (
+      typeof score !== "number" ||
+      isUndefined(score) ||
+      isNaN(score) ||
+      score % 1 !== 0 ||
+      score < 0 ||
+      score > 5
+    ) {
+      return next(generateError(400, "評分格式錯誤，請填入0~5間的整數顆星"));
+    }
+    //驗證評論comment格式
+    if (isNotValidString(comment) || comment.length == 0) {
+      return next(generateError(400, "評論格式錯誤，請填寫內容"));
+    }
+    if (comment.length > 100) {
+      return next(generateError(400, "評論字數以100字為限"));
+    }
+    const updateRating = await ratingRepo.update(
+      {
+        score: rating.score,
+        comment: rating.comment,
+      },
+      {
+        score: score,
+        comment: comment,
+      }
+    );
+    //檢查是否更新成功
+    if (updateRating.affected === 0) {
+      next(generateError(400, "更新評價失敗"));
+    }
+    //取得更新後的結果並組裝成response資料
+    const data = await ratingRepo.findOne({
+      select: ["id", "score", "comment", "updated_at"],
+      where: { course_id: courseId },
+    });
+    res.status(201).json({
+      status: true,
+      message: "課程評價已更新",
+      data: {
+        id: data.id,
+        score: data.score,
+        comment: data.comment,
+        updated_at: data.updated_at,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
 module.exports = {
   getRatings,
   postRating,
+  patchRating,
 }; // 將路由導出以供主應用程序使用
