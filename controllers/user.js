@@ -1,6 +1,9 @@
 const bcrypt = require("bcryptjs");
 const AppDataSource = require("../db/data-source");
 const userRepo = AppDataSource.getRepository("User");
+const coachRepo = AppDataSource.getRepository("Coach");
+const courseRepo = AppDataSource.getRepository("Course");
+const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
 const favoriteRepo = AppDataSource.getRepository("User_Course_Favorite");
 const subscriptionRepo = AppDataSource.getRepository("Subscription");
 
@@ -9,6 +12,7 @@ const { checkCourseAccess, checkSkillAccess } = require("../services/checkServic
 const { getViewableCourseTypes } = require("../services/typeServices");
 const { courseFilter } = require("../services/filterServices");
 const { fullCourseFields } = require("../services/courseSelectFields");
+const { getChapters } = require("../services/chapterServices");
 
 //utils
 const {
@@ -419,7 +423,7 @@ async function getCourses(req, res, next) {
   }
 }
 
-// 新增訂閱紀錄
+//新增訂閱紀錄
 async function postSubscription(req, res, next) {
   try {
     const userId = req.user.id; // 從驗證中獲取使用者 ID
@@ -564,7 +568,7 @@ async function postSubscription(req, res, next) {
   }
 }
 
-// 取消訂閱方案
+//取消訂閱方案
 async function patchSubscription(req, res, next) {
   try {
     const userId = req.user.id; // 從驗證中獲取使用者 ID
@@ -677,6 +681,85 @@ async function getSubscriptions(req, res, next) {
   }
 }
 
+//取得上課頁面詳細資訊
+async function getCourseDetails(req, res, next) {
+  try {
+    const courseId = req.params.courseId;
+    if (isNotValidUUID(courseId)) {
+      return next(generateError(400, "課程 ID 格式不正確"));
+    }
+    const course = await courseRepo.findOneBy({ id: courseId });
+    if (!course) {
+      return next(generateError(404, "查無此課程"));
+    }
+    //判斷訂閱是否有效
+    const hasActiveSubscription = req.user.hasActiveSubscription;
+    if (!hasActiveSubscription) {
+      return next(generateError(403, "尚未訂閱或訂閱已失效，無可觀看課程類別"));
+    }
+    //若訂閱有效，判斷此人是否可觀看此類別
+    const userId = req.user.id;
+    const canWatchType = await checkCourseAccess(userId, courseId);
+    if (!canWatchType) throw generateError(403, "未訂閱該課程類別");
+    //取得教練資訊
+    const coachId = course.coach_id;
+    const coach = await coachRepo.findOneBy({ id: coachId });
+    //取得章節資訊
+    const chaptersData = await getChapters(courseId);
+    //禁止前端亂輸入參數，如banana=999
+    const validQuerys = ["chapterId"];
+    const queryKeys = Object.keys(req.query);
+    const invalidQuerys = queryKeys.filter((key) => !validQuerys.includes(key));
+    if (invalidQuerys.length > 0) {
+      return next(generateError(400, `不允許的參數：${invalidQuerys.join(", ")}`));
+    }
+    //若未回傳參數chapterId，則預設顯示第一個章節的第一小節標題
+    const firstChapterSubtitle = chaptersData[0].subtitles[0];
+    const firstChapter = await courseChapterRepo.findOneBy({ subtitle: firstChapterSubtitle });
+    const chapterId = req.query.chapterId || firstChapter.id;
+    if (isNotValidUUID(chapterId)) {
+      return next(generateError(400, "章節 ID 格式不正確"));
+    }
+    const currentChapter = await courseChapterRepo.findOneBy({ id: chapterId });
+    if (!currentChapter) {
+      return next(generateError(404, "查無此章節"));
+    }
+    //整理回傳資料
+    const data = {
+      course: {
+        id: course.id,
+        name: course.name,
+        chapterId: currentChapter.id,
+        chapterTitle: currentChapter.title,
+        chapterSubtitle: currentChapter.subtitle,
+        score: course.score,
+        student_amount: course.student_amount,
+        hours: course.total_hours,
+        image_url: course.image_url,
+        video_url: course.trailer_url, //TODO:待確認網址格式，所有課程的第一部影片皆需設為公開
+        description: course.description,
+      },
+      coach: {
+        id: coach.id,
+        name: coach.nickname,
+        title: coach.job_title,
+        intro: coach.about_me,
+        profile_image_url: coach.profile_image_url,
+        coachPage_Url: `https://example.com/courses/coaches/${coachId}/details`, //TODO:待跟前端確認
+      },
+      chapters: chaptersData,
+    };
+
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getProfile,
   getPlans,
@@ -689,4 +772,5 @@ module.exports = {
   postSubscription,
   patchSubscription,
   getSubscriptions,
+  getCourseDetails,
 };

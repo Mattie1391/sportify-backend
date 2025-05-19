@@ -4,12 +4,17 @@ const coachRepo = AppDataSource.getRepository("Coach");
 const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
 const courseRepo = AppDataSource.getRepository("Course");
 const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
+
+//services
 const { getAllCourseTypes } = require("../services/typeServices");
 const { courseFilter, coachFilter } = require("../services/filterServices");
 const { fullCourseFields } = require("../services/courseSelectFields");
+const { getChapters } = require("../services/chapterServices");
+
+//utils
 const generateError = require("../utils/generateError");
 const paginate = require("../utils/paginate");
-const { isNotValidUUID } = require("../utils/validators"); // 引入驗證工具函數
+const { isNotValidUUID } = require("../utils/validators");
 
 //取得課程類別（依照學生總人數排序）
 async function getCourseType(req, res, next) {
@@ -359,37 +364,15 @@ async function getCourseDetails(req, res, next) {
     if (!course) {
       return next(generateError(404, "查無此課程"));
     }
+    //取得教練資訊
     const coachId = course.coach_id;
     const coach = await coachRepo.findOneBy({ id: coachId });
-    const chapters = await courseChapterRepo.find({
-      where: { course_id: courseId },
-      order: {
-        chapter_number: "ASC",
-        id: "ASC", // 若 subtitle 有數字順序也可用它
-      },
-    });
-    const chaptersData = [];
-    chapters
-      .sort((a, b) => {
-        // 確保排序順序正確：先比大章節，再比副章節
-        if (a.chapter_number === b.chapter_number) {
-          return a.sub_chapter_number - b.sub_chapter_number;
-        }
-        return a.chapter_number - b.chapter_number;
-      })
-      .forEach((chapter) => {
-        // 嘗試找到該 title 的物件
-        let group = chaptersData.find((g) => g.title === chapter.title);
-        if (!group) {
-          // 如果沒有這個 title，就建立一個新的物件
-          group = { title: chapter.title, subtitles: [] };
-          chaptersData.push(group);
-        }
-        group.subtitles.push(chapter.subtitle);
-      });
+    //取得章節資訊
+    const chaptersData = await getChapters(courseId);
 
     const data = {
       course: {
+        id: course.id,
         name: course.name,
         score: course.score,
         student_amount: course.student_amount,
@@ -399,6 +382,7 @@ async function getCourseDetails(req, res, next) {
         description: course.description,
       },
       coach: {
+        id: coach.id,
         name: coach.nickname,
         title: coach.job_title,
         intro: coach.about_me,
