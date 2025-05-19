@@ -31,10 +31,35 @@ router.get("/:userId", auth, isUser, isSelf, userController.getProfile);
 //編輯使用者資料
 router.patch("/:userId", auth, isUser, isSelf, userController.patchProfile);
 //收藏課程
-router.post("/:userId/favorites/:courseId", auth, isUser, isSelf, userController.postLike);
+router.post(
+  "/:userId/favorites/:courseId",
+  auth,
+  isUser,
+  isSelf,
+  userController.postLike
+);
 //取消收藏課程
-router.delete("/:userId/favorites/:courseId", auth, isUser, isSelf, userController.deleteUnlike);
+router.delete(
+  "/:userId/favorites/:courseId",
+  auth,
+  isUser,
+  isSelf,
+  userController.deleteUnlike
+);
 //取得課程評價
-router.get("/courses/:courseId/ratings", auth, isUser, ratingController.getRatings);
+router.get(
+  "/courses/:courseId/ratings",
+  auth,
+  isUser,
+  ratingController.getRatings
+);
+//新增課程評價
+router.post(
+  "/:userId/ratings/:courseId",
+  auth,
+  isUser,
+  isSelf,
+  ratingController.postRating
+);
 
 module.exports = router;
