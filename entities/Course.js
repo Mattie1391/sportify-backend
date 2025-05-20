@@ -57,6 +57,7 @@ module.exports = new EntitySchema({
     score: {
       type: "float",
       nullable: false,
+      default: 0.0,
     },
     // 觀看次數
     numbers_of_view: {

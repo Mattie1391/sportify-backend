@@ -8,11 +8,13 @@ const courseRepo = AppDataSource.getRepository("Course");
 
 //services
 const { checkActiveSubscription, checkCourseAccess } = require("../services/checkServices");
+const { updateCourseScore } = require("../services/ratingServices");
 
 //utils
 const { isNotValidUUID, isUndefined, isNotValidString } = require("../utils/validators"); // 引入驗證工具函數
 const generateError = require("../utils/generateError"); // 引入自定義的錯誤生成器
 const formatDate = require("../utils/formatDate"); // 引入日期格式化工具函數
+const paginate = require("../utils/paginate"); // 引入分頁工具函數
 
 // 取得課程評價 API
 async function getRatings(req, res, next) {
@@ -65,33 +67,24 @@ async function getRatings(req, res, next) {
       })
     );
 
-    // 計算總頁數（總數 / 每頁筆數，向上取整）
-    const totalPages = Math.ceil(totalRatings / itemsPerPage);
-
-    if (pageNumber > totalPages) {
-      return next(generateError(400, "頁數超出範圍")); // 若頁數超出範圍，返回 400 錯誤
+    //取得當前分頁資料，以及分頁資訊
+    const { paginatedData, pagination } = await paginate(ratingsWithUserNames, pageNumber, itemsPerPage);
+    //若頁數超出範圍，回傳錯誤
+    const totalPages = pagination.total_pages;
+    if (pageNumber > totalPages && totalPages !== 0) {
+      return next(generateError(400, "頁數超出範圍"));
     }
-
-    // 判斷是否有上一頁或下一頁
-    const hasPrevious = pageNumber > 1; // 如果當前頁數大於 1，則有上一頁
-    const hasNext = pageNumber < totalPages; // 如果當前頁數小於總頁數，則有下一頁
 
     // 返回成功響應，包含整理後的評價數據
     res.status(200).json({
       status: true, // 請求狀態
       message: "成功取得資料", // 請求成功訊息
       data: {
-        ratingsWithUserNames, // 評價列表
+        paginatedData, // 評價列表
         meta: {
           sort: "desc", // 後端預設寫死，不寫在query
           sort_by: "time", // 留言時間新到舊排序，後端預設寫死，不寫在query
-          page: pageNumber, // 當前頁數
-          limit: itemsPerPage, // 每頁筆數
-          total: totalRatings, // 總評價數
-          total_pages: totalPages, // 總頁數
-          has_previous: hasPrevious, // 是否有上一頁
-          has_next: hasNext, // 是否有下一頁
-        },
+          pagination,        },
       },
     });
   } catch (error) {
@@ -160,6 +153,10 @@ async function postRating(req, res, next) {
       comment,
     });
     const data = await ratingRepo.save(newRating);
+
+    //更新課程評分
+    await updateCourseScore(courseId);
+
     res.status(201).json({
       status: true,
       message: "成功新增課程評價",
@@ -196,6 +193,9 @@ async function deleteRating(req, res, next) {
 
     // 刪除評價
     await ratingRepo.delete({ id: ratingId });
+
+    // 更新課程評分
+    await updateCourseScore(courseId);
 
     // 回傳成功訊息
     res.status(204).json({
