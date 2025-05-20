@@ -6,31 +6,29 @@ const getChapters = async (courseId) => {
   const chapters = await courseChapterRepo.find({
     where: { course_id: courseId },
     order: {
-      chapter_number: "ASC",
-      id: "ASC", // 若 subtitle 有數字順序也可用它
+      chapter_number: "ASC", //先按照主標題排序
+      sub_chapter_number: "ASC", //按照副標題排序
     },
   });
   const chaptersData = [];
-  chapters
-    .sort((a, b) => {
-      // 確保排序順序正確：先比大章節，再比副章節
-      if (a.chapter_number === b.chapter_number) {
-        return a.sub_chapter_number - b.sub_chapter_number;
-      }
-      return a.chapter_number - b.chapter_number;
-    })
-    .forEach((chapter) => {
-      // 嘗試找到該 title 的物件
-      let group = chaptersData.find((g) => g.title === chapter.title);
-      if (!group) {
-        // 如果沒有這個 title，就建立一個新的物件
-        group = { title: chapter.title, subtitles: [] };
-        chaptersData.push(group);
-      }
-      group.subtitles.push(chapter.subtitle);
-    });
+  chapters.forEach((chapter) => {
+    // 嘗試找到該 title 的物件
+    let group = chaptersData.find((g) => g.title === chapter.title);
+    if (!group) {
+      // 如果沒有這個 title，就建立一個新的物件
+      group = { title: chapter.title, subtitles: [] };
+      chaptersData.push(group);
+    }
+    group.subtitles.push(chapter.subtitle);
+  });
 
-  return chaptersData;
+  //回傳第一章節的第一小節id
+  const firstChapterId = chapters[0].id;
+
+  return {
+    chapters: chaptersData,
+    firstChapterId,
+  };
 };
 
 module.exports = {

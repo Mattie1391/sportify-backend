@@ -367,8 +367,13 @@ async function getCourseDetails(req, res, next) {
     //取得教練資訊
     const coachId = course.coach_id;
     const coach = await coachRepo.findOneBy({ id: coachId });
+    if (!coach) return next(generateError(404, "查無此教練"));
+
     //取得章節資訊
-    const chaptersData = await getChapters(courseId);
+    const { chapters } = await getChapters(courseId);
+    if (!chapters || chapters.length === 0) {
+      return next(generateError(404, "查無章節"));
+    }
 
     const data = {
       course: {
@@ -389,7 +394,7 @@ async function getCourseDetails(req, res, next) {
         profile_image_url: coach.profile_image_url,
         coachPage_Url: `https://example.com/courses/coaches/${coachId}/details`, //TODO:待跟前端確認
       },
-      chapters: chaptersData,
+      chapters: chapters,
     };
 
     res.status(200).json({
