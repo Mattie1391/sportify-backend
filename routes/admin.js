@@ -16,5 +16,7 @@ router.get(
 router.post("/add-plan", auth, isAdmin, adminController.postPlan);
 router.post("/add-sports-type", auth, isAdmin, adminController.postSportsType);
 router.get("/coaches", auth, isAdmin, adminController.getCoaches);
+//管理者刪除課程評價
+router.delete("/courses/:courseId/ratings/:ratingId", auth, isAdmin, ratingController.deleteRating);
 
 module.exports = router;

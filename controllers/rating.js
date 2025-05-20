@@ -173,6 +173,41 @@ async function postRating(req, res, next) {
     next(error);
   }
 }
+// Admin 刪除課程評價 API
+async function deleteRating(req, res, next) {
+  try {
+    const { courseId, ratingId } = req.params;
+
+    // 驗證參數是否有效
+    if (!courseId || isNotValidUUID(courseId) || !ratingId || isNotValidUUID(ratingId)) {
+      return next(generateError(400, "課程 ID 或 評價 ID 不正確"));
+    }
+
+    // 確認課程是否存在
+    const course = await courseRepo.findOne({ where: { id: courseId } });
+    if (!course) {
+      return next(generateError(400, "找不到對應的課程"));
+    }
+
+    // 確認評價是否存在
+    const rating = await ratingRepo.findOne({ where: { id: ratingId, course_id: courseId } });
+    if (!rating) {
+      return next(generateError(400, "找不到對應的評價"));
+    }
+
+    // 刪除評價
+    await ratingRepo.delete({ id: ratingId });
+
+    // 回傳成功訊息
+    res.status(204).json({
+      status: true,
+      message: "此評價已成功刪除",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 //修改課程評價 API
 async function patchRating(req, res, next) {
   try {
@@ -252,4 +287,5 @@ module.exports = {
   getRatings,
   postRating,
   patchRating,
+  deleteRating,
 }; // 將路由導出以供主應用程序使用
