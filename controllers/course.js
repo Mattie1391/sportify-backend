@@ -197,7 +197,7 @@ async function getCourses(req, res, next) {
       if (!skill) {
         return next(generateError(404, "查無此課程類別"));
       }
-      filteredCourses = await courseFilter(rawCourses, skillId);
+      filteredCourses = await courseFilter(rawCourses, null, skillId);
     }
     //分頁設定
     const rawPage = req.query.page; //當前頁數
