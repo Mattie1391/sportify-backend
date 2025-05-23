@@ -40,5 +40,8 @@ router.get("/courses/:courseId/ratings", auth, isUser, ratingController.getRatin
 router.post("/:userId/ratings/:courseId", auth, isUser, isSelf, ratingController.postRating);
 //取得上課頁面詳細資訊
 router.get("/courses/:courseId/details", auth, isUser, userController.getCourseDetails);
+router.post("/:userId/ratings/:courseId", auth, isUser, isSelf, ratingController.postRating);
+//修改課程評價
+router.patch("/:userId/rating/:courseId", auth, isUser, isSelf, ratingController.patchRating);
 
 module.exports = router;

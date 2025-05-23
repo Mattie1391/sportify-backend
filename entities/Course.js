@@ -129,5 +129,10 @@ module.exports = new EntitySchema({
       type: "one-to-many",
       inverseSide: "Course", // 對方 entity 裡的欄位名
     },
+    Rating: {
+      target: "Rating",
+      type: "one-to-many",
+      inverseSide: "Course",
+    },
   },
 });
