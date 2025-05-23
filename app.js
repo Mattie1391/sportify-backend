@@ -21,7 +21,9 @@ app.set("view engine", "ejs");
 
 app.use(logger("dev"));
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// 處理來自 HTML form 的 application/x-www-form-urlencoded 資料格式
+// 設定 extended: true 可支援巢狀物件（例如 user[name]=Jenni）
+app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));

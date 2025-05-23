@@ -3,7 +3,6 @@ const skillRepo = AppDataSource.getRepository("Skill");
 const coachRepo = AppDataSource.getRepository("Coach");
 const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
 const courseRepo = AppDataSource.getRepository("Course");
-const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
 
 //services
 const { getAllCourseTypes } = require("../services/typeServices");
