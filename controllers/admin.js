@@ -201,8 +201,56 @@ async function getCoaches(req, res, next) {
   }
 }
 
+//審核課程是否上架
+async function patchReviewCourse(req, res, next) {
+  try {
+    //取得 route param courseId 並驗證
+    const { courseId } = req.params;
+    if (!courseId || isNotValidUUID(courseId)) {
+      return next(generateError(400, "課程 ID 格式不正確"));
+    }
+
+    //檢查 body 參數
+    const { status, reviewComment } = req.body;
+    const allowedStatus = ["approved", "rejected"];
+    if (!status || !allowedStatus.includes(status)) {
+      return next(generateError(400, "status 參數錯誤，必須為 approved 或 rejected"));
+    }
+
+    //取得課程資料
+    const course = await courseRepo.findOneBy({ id: courseId });
+    if (!course) {
+      return next(generateError(404, "查無此課程"));
+    }
+
+    //更新課程審核狀態
+    course.is_approved = status === "approved";
+    if (status === "approved") {
+      course.approved_at = new Date(); // 只有審核通過才更新 approved_at
+    }
+
+    await courseRepo.save(course);
+
+    //回傳訊息
+    if (status === "approved") {
+      return res.status(200).json({
+        status: true,
+        message: "課程審核成功，狀態已更新為 approved"
+      });
+    } else {
+      return res.status(200).json({
+        status: true,
+        message: "課程審核未通過，狀態已更新為 rejected"
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   postPlan,
   postSportsType,
   getCoaches,
+  patchReviewCourse,
 };
