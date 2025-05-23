@@ -225,7 +225,7 @@ async function patchRating(req, res, next) {
       return next(generateError(404, "找不到該課程"));
     }
     //驗證對該課程的評論是否存在
-    const rating = await ratingRepo.findOneBy({ course_id: courseId });
+    const rating = await ratingRepo.findOneBy({ course_id: courseId, user_id: userId});
     if (!rating) {
       return next(generateError(404, "找不到您對該課程的評論紀錄"));
     }
@@ -251,15 +251,10 @@ async function patchRating(req, res, next) {
       return next(generateError(400, "評論字數以100字為限"));
     }
     const updateRating = await ratingRepo.update(
-      {
-        score: rating.score,
-        comment: rating.comment,
-      },
-      {
-        score: score,
-        comment: comment,
-      }
-    );
+      { course_id: courseId, user_id: userId },
+      { score, comment }
+      );
+
     //檢查是否更新成功
     if (updateRating.affected === 0) {
       next(generateError(400, "更新評價失敗"));
@@ -267,8 +262,12 @@ async function patchRating(req, res, next) {
     //取得更新後的結果並組裝成response資料
     const data = await ratingRepo.findOne({
       select: ["id", "score", "comment", "updated_at"],
-      where: { course_id: courseId },
+      where: { course_id: courseId, user_id: userId  },
     });
+
+    //更新課程評分
+     await updateCourseScore(courseId); 
+
     res.status(201).json({
       status: true,
       message: "課程評價已更新",
