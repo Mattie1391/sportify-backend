@@ -9,11 +9,16 @@ const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
 const favoriteRepo = AppDataSource.getRepository("User_Course_Favorite");
 const subscriptionRepo = AppDataSource.getRepository("Subscription");
 //services
-const { checkCourseAccess, checkSkillAccess } = require("../services/checkServices");
+const {
+  getLatestSubscription,
+  checkCourseAccess,
+  checkSkillAccess,
+} = require("../services/checkServices");
 const { getViewableCourseTypes } = require("../services/typeServices");
 const { courseFilter } = require("../services/filterServices");
 const { fullCourseFields } = require("../services/courseSelectFields");
 const { getChapters } = require("../services/chapterServices");
+const { checkValidQuerys } = require("../services/queryServices");
 //utils
 const {
   isUndefined,
@@ -326,10 +331,8 @@ async function getCourseType(req, res, next) {
 //取得可觀看的課程
 async function getCourses(req, res, next) {
   try {
-    //禁止前端亂輸入參數，如banana=999
-    const validQuerys = ["page", "category", "skillId"];
-    const queryKeys = Object.keys(req.query);
-    const invalidQuerys = queryKeys.filter((key) => !validQuerys.includes(key));
+    // 禁止前端亂輸入參數，如 banana=999
+    const invalidQuerys = checkValidQuerys(req.query, ["page", "category", "skillId"]);
     if (invalidQuerys.length > 0) {
       return next(generateError(400, `不允許的參數：${invalidQuerys.join(", ")}`));
     }
@@ -558,7 +561,7 @@ async function postSubscription(req, res, next) {
 }
 
 //取消訂閱方案
-//TODO:金流端先取消成功，平台資料庫才會修改訂閱紀錄，待討論是否直接跟綠界webhookAPI合併
+//TODO:金流端先取消成功，平台資料庫才會修改訂閱紀錄，待討論是否直接跟postCancelConfirm API合併
 async function patchSubscription(req, res, next) {
   try {
     const userId = req.user.id; // 從驗證中獲取使用者 ID
@@ -594,6 +597,12 @@ async function patchSubscription(req, res, next) {
 //取得訂閱紀錄
 async function getSubscriptions(req, res, next) {
   try {
+    // 禁止前端亂輸入參數，如 banana=999
+    const invalidQuerys = checkValidQuerys(req.query, ["page"]);
+    if (invalidQuerys.length > 0) {
+      return next(generateError(400, `不允許的參數：${invalidQuerys.join(", ")}`));
+    }
+
     //分頁設定
     const rawPage = req.query.page; //當前頁數
     const page = rawPage === undefined ? 1 : parseInt(rawPage); //如果rawPage===undefined，page為1，否則為parseInt(rawPage)
@@ -627,6 +636,14 @@ async function getSubscriptions(req, res, next) {
         message: "尚未訂閱，暫無訂閱紀錄",
       });
     }
+    //判斷是否有下一次扣款日期
+    let nextPaymentDate;
+    const latestSubscription = await getLatestSubscription(userId);
+    if (latestSubscription.is_renewal === false) {
+      nextPaymentDate = null; //若已取消訂閱，則不會有下一次扣款日期
+    } else {
+      nextPaymentDate = formatDate(addDays(latestSubscription.end_at, 1));
+    }
 
     //扣款日期為訂閱結束日順延一日
     function addDays(date, days) {
@@ -647,11 +664,10 @@ async function getSubscriptions(req, res, next) {
         payment_method: s.payment_method,
         invoice_image_url: s.invoice_image_url,
         price: s.price,
-        next_payment: formatDate(addDays(s.end_at, 1)), //TODO:需新增判斷，若已取消訂閱，不會顯示此欄位
+        next_payment: nextPaymentDate,
       };
     });
 
-    //TODO:改用paginate
     res.status(200).json({
       status: true,
       message: "成功取得資料",
@@ -696,10 +712,8 @@ async function getCourseDetails(req, res, next) {
     const coachId = course.coach_id;
     const coach = await coachRepo.findOneBy({ id: coachId });
     if (!coach) return next(generateError(404, "查無此教練"));
-    //禁止前端亂輸入參數，如banana=999
-    const validQuerys = ["chapterId"];
-    const queryKeys = Object.keys(req.query);
-    const invalidQuerys = queryKeys.filter((key) => !validQuerys.includes(key));
+    // 禁止前端亂輸入參數，如 banana=999
+    const invalidQuerys = checkValidQuerys(req.query, ["chapterId"]);
     if (invalidQuerys.length > 0) {
       return next(generateError(400, `不允許的參數：${invalidQuerys.join(", ")}`));
     }

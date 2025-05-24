@@ -141,7 +141,7 @@ async function postPaymentConfirm(req, res, next) {
     next(error);
   }
 }
-// 接收取消結果的通知（從前端導回通知並再次檢查）
+//接收取消結果的通知（從前端導回通知並再次檢查）
 async function postCancelConfirm(req, res, next) {
   try {
     const { CheckMacValue, ...data } = req.body; //把CMV欄位單獨取出

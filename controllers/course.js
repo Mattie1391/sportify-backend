@@ -9,6 +9,7 @@ const { getAllCourseTypes } = require("../services/typeServices");
 const { courseFilter, coachFilter } = require("../services/filterServices");
 const { fullCourseFields } = require("../services/courseSelectFields");
 const { getChapters } = require("../services/chapterServices");
+const { checkValidQuerys } = require("../services/queryServices");
 
 //utils
 const generateError = require("../utils/generateError");
@@ -56,10 +57,8 @@ async function getCoachType(req, res, next) {
 //取得教練列表
 async function getCoaches(req, res, next) {
   try {
-    //禁止前端亂輸入參數，如banana=999
-    const validQuerys = ["page", "skillId"];
-    const queryKeys = Object.keys(req.query);
-    const invalidQuerys = queryKeys.filter((key) => !validQuerys.includes(key));
+    // 禁止前端亂輸入參數，如 banana=999
+    const invalidQuerys = checkValidQuerys(req.query, ["page", "skillId"]);
     if (invalidQuerys.length > 0) {
       return next(generateError(400, `不允許的參數：${invalidQuerys.join(", ")}`));
     }
@@ -153,10 +152,8 @@ async function getCoaches(req, res, next) {
 //取得課程列表
 async function getCourses(req, res, next) {
   try {
-    //禁止前端亂輸入參數，如banana=999
-    const validQuerys = ["page", "sortBy", "skillId"];
-    const queryKeys = Object.keys(req.query);
-    const invalidQuerys = queryKeys.filter((key) => !validQuerys.includes(key));
+    // 禁止前端亂輸入參數，如 banana=999
+    const invalidQuerys = checkValidQuerys(req.query, ["page", "sortBy", "skillId"]);
     if (invalidQuerys.length > 0) {
       return next(generateError(400, `不允許的參數：${invalidQuerys.join(", ")}`));
     }
