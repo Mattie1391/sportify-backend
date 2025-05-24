@@ -5,7 +5,6 @@ const { generateCMV } = require("../services/ecPayServices");
 const generateError = require("../utils/generateError");
 const AppDataSource = require("../db/data-source");
 const subscriptionRepo = AppDataSource.getRepository("Subscription");
-const uuid16 = require("uuid").v4().replace(/-/g, "").slice(0, 16); //取uuid前16位並移除dash
 
 //新增付款
 async function postCreatePayment(req, res, next) {
@@ -18,6 +17,7 @@ async function postCreatePayment(req, res, next) {
 
     // 設定金流特店訂單編號，非訂閱紀錄的訂單編號
     // 如ORD9c6ca7aa19bd401d，綠界要求特店訂單編號不可重複，英數字大小寫混合
+    const uuid16 = require("uuid").v4().replace(/-/g, "").slice(0, 16); //取uuid前16位並移除dash
     const merchantTradeNo = `ORD${uuid16}`;
     // 將 merchantTradeNo 寫入當前訂閱紀錄
     subscription.merchant_trade_no = merchantTradeNo;
