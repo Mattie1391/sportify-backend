@@ -1,6 +1,7 @@
 const AppDataSource = require("../db/data-source");
 const courseRepo = AppDataSource.getRepository("Course");
 const viewRepo = AppDataSource.getRepository("View_Stat");
+const coachRepo = AppDataSource.getRepository("Coach")
 
 //utils
 const {
@@ -106,7 +107,23 @@ async function getCoachViewStats(req, res, next) {
 		next(error);
 	}
 }
+//教練修改個人檔案
+async function patchProfile(req,res,next){
+	try{
+		
+
+		// const coachProfile = coachRepo
+
+		res.status(201).json({
+			status:true,
+			message:"成功更新資料",
+			data:{}
+		})
+
+	}catch(error){next(error)}
+}
 
 module.exports = {
 	getCoachViewStats,
+	patchProfile
 };
