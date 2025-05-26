@@ -442,7 +442,7 @@ async function postSubscription(req, res, next) {
 
     //檢查是否存在尚未到期的訂閱紀錄(上面已檢查過is_renewal，所以這邊如果有撈到資料代表訂閱已取消但尚未到期)
     let availableCanceledSubscription;
-    if(checkActiveSubscription(userId)) {
+    if (checkActiveSubscription(userId)) {
       availableCanceledSubscription = await getLatestSubscription(userId);
     }
 
@@ -510,11 +510,11 @@ async function postSubscription(req, res, next) {
     // 從資料庫撈出今天的訂單（order_number 開頭是今天的日期），照 order_number 做遞減排序，取最大值
     const todayMaxOrder = await subscriptionRepo.findOne({
       where: { order_number: Like(`${todayStr}%`) }, // 前 8 碼為今天日期
-      order: { order_number: "DESC" },// 照字串遞減排序（越大的越前面）
+      order: { order_number: "DESC" }, // 照字串遞減排序（越大的越前面）
       take: 1, // 只取最新的一筆
     });
     // 若有訂單，就用該最大訂單號；否則給預設值
-    const startingOrderNumber = todayMaxOrder ?.order_number || todayStr + "0000";
+    const startingOrderNumber = todayMaxOrder?.order_number || todayStr + "0000";
 
     // 產生新的訂單號
     const orderNumber = generateOrderNumber(startingOrderNumber);
@@ -651,11 +651,11 @@ async function getSubscriptions(req, res, next) {
     });
 
     // 計算總頁數
-    const totalPages = Math.ceil(total / limit); 
+    const totalPages = Math.ceil(total / limit);
     if (page > totalPages) {
       return next(generateError(400, "頁數超出範圍"));
     }
-    
+
     //若查無訂閱紀錄
     if (!subscriptions || subscriptions.length === 0) {
       return res.status(200).json({
@@ -673,18 +673,25 @@ async function getSubscriptions(req, res, next) {
 
     //取出回傳資料
     const data = subscriptions.map((s) => {
+      // 格式化日期（若尚未付款，不會產生以下時間參數，值為null）
+      const purchasedAt = s.purchased_at ? formatDate(s.purchased_at) : null;
+      const startAt = s.start_at ? formatDate(s.start_at) : null;
+      const endAt = s.end_at ? formatDate(s.end_at) : null;
       return {
         id: s.id,
-        purchased_at: formatDate(s.purchased_at),
-        order_number: s.order_number,
-        plan: s.Plan.name,
-        period: `${formatDate(s.start_at)} - ${formatDate(s.end_at)}`,
-        end_at: formatDate(s.end_at),
-        payment_method: s.payment_method,
-        invoice_image_url: s.invoice_image_url,
-        price: s.price,
-        //若未取消訂閱，則下一次扣款日期為訂閱結束日順延一日，若已取消訂閱則為null
-        next_payment: s.is_renewal ? formatDate(addDays(s.end_at, 1)) : null,
+        order_number: s.order_number, //訂單編號
+        plan: s.Plan.name, //方案名稱
+        price: s.price, //價格
+        purchased_at: purchasedAt, //購買日期
+        end_at: endAt, //訂閱到期時間
+        period: `${startAt} - ${endAt}`, //訂閱期間
+        payment_method: s.payment_method, //付款方式
+        invoice_image_url: s.invoice_image_url, //發票網址
+        is_paid: s.is_paid, //是否已付款
+        is_renewal: s.is_renewal, //是否續訂
+        next_payment: s.is_renewal && s.end_at ? formatDate(addDays(s.end_at, 1)) : null, //下次付款日期（若有開啟續訂）
+        created_at: formatDate(s.created_at), //訂單創建時間
+        updated_at: formatDate(s.updated_at), //訂單更新時間
       };
     });
 
@@ -703,7 +710,6 @@ async function getSubscriptions(req, res, next) {
         has_previous: page > 1, //是否有前一頁
       },
     });
-
   } catch (error) {
     next(error);
   }
