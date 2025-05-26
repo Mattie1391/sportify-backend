@@ -1,5 +1,5 @@
 const bcrypt = require("bcryptjs");
-const { MoreThan } = require("typeorm");
+const { MoreThan, Like } = require("typeorm");
 //repo
 const AppDataSource = require("../db/data-source");
 const userRepo = AppDataSource.getRepository("User");
@@ -11,6 +11,7 @@ const subscriptionRepo = AppDataSource.getRepository("Subscription");
 //services
 const {
   getLatestSubscription,
+  checkActiveSubscription,
   checkCourseAccess,
   checkSkillAccess,
 } = require("../services/checkServices");
@@ -29,7 +30,8 @@ const {
 } = require("../utils/validators");
 const generateError = require("../utils/generateError");
 const paginate = require("../utils/paginate");
-const formatDate = require("../utils/formatDate"); // 引入日期格式化工具函數
+const { formatDate, formatYYYYMMDD } = require("../utils/formatDate"); // 引入日期格式化工具函數
+const generateOrderNumber = require("../utils/generateOrderNumber"); // 引入生成訂單編號的工具函數
 
 //取得使用者資料
 async function getProfile(req, res, next) {
@@ -430,8 +432,19 @@ async function postSubscription(req, res, next) {
   try {
     const userId = req.user.id; // 從驗證中獲取使用者 ID
 
-    //TODO：需先判斷使用者是否有權限新增訂閱紀錄，若現有訂閱未取消，應禁止使用者新增訂閱
-    //TODO：若使用者已取消現有訂閱紀錄，且前筆訂閱仍有效，應先終止前筆訂閱的效期，並確認所有訂閱紀錄的is_renewal欄位都是false，再創建新的訂閱紀錄
+    //檢查是否訂閱中
+    const validSubscription = await subscriptionRepo.findOne({
+      where: { user_id: userId, is_renewal: true },
+    });
+    if (validSubscription) {
+      return next(generateError(400, "已存在有效的訂閱紀錄，請先取消訂閱"));
+    }
+
+    //檢查是否存在尚未到期的訂閱紀錄(上面已檢查過is_renewal，所以這邊如果有撈到資料代表訂閱已取消但尚未到期)
+    let availableCanceledSubscription;
+    if(checkActiveSubscription(userId)) {
+      availableCanceledSubscription = await getLatestSubscription(userId);
+    }
 
     const { subscription_name, course_type } = req.body;
 
@@ -490,13 +503,23 @@ async function postSubscription(req, res, next) {
     }
 
     // 建立訂單編號（假設格式為：年份月份日+遞增數字）
-    // TODO：日期為當前時間，遞增數字要根據資料庫訂單紀錄判斷,可寫在utils
-    const orderNumber = `20250501${Math.floor(Math.random() * 10000)
-      .toString()
-      .padStart(4, "0")}`;
+    // 從subscriptionRepo中取得今天購買的所有order_number並找出最大的數字
+    // 今天的日期字串 YYYYMMDD
+    const today = new Date();
+    const todayStr = formatYYYYMMDD(today);
+    // 從資料庫撈出今天的訂單（order_number 開頭是今天的日期），照 order_number 做遞減排序，取最大值
+    const todayMaxOrder = await subscriptionRepo.findOne({
+      where: { order_number: Like(`${todayStr}%`) }, // 前 8 碼為今天日期
+      order: { order_number: "DESC" },// 照字串遞減排序（越大的越前面）
+      take: 1, // 只取最新的一筆
+    });
+    // 若有訂單，就用該最大訂單號；否則給預設值
+    const startingOrderNumber = todayMaxOrder ?.order_number || todayStr + "0000";
+
+    // 產生新的訂單號
+    const orderNumber = generateOrderNumber(startingOrderNumber);
 
     // 建立訂閱資料
-    const subscriptionRepo = AppDataSource.getRepository("Subscription");
     const newSubscription = subscriptionRepo.create({
       user_id: userId,
       order_number: orderNumber,
@@ -509,6 +532,12 @@ async function postSubscription(req, res, next) {
     const savedSubscription = await subscriptionRepo.save(newSubscription);
     if (!savedSubscription) {
       return next(generateError(400, "更新資料失敗"));
+    }
+
+    // 成功儲存訂閱紀錄後，如果有未到期的已取消訂閱紀錄，將其到期日設為當前時間，強制結束
+    if (availableCanceledSubscription) {
+      availableCanceledSubscription.end_at = new Date();
+      await subscriptionRepo.save(availableCanceledSubscription);
     }
 
     // 建立與技能的關聯
@@ -526,7 +555,6 @@ async function postSubscription(req, res, next) {
     }
 
     // 更新 User 資料表的 subscription_id 和 is_subscribed 欄位
-    const userRepo = AppDataSource.getRepository("User");
     const user = await userRepo.findOneBy({ id: userId });
     if (!user) {
       return next(generateError(400, "使用者不存在"));
@@ -574,9 +602,8 @@ async function patchSubscription(req, res, next) {
       return next(generateError(400, "找不到訂閱資料或已取消"));
     }
 
-    // 更新使用者資料：清空 subscription_id 並將 is_subscribed 設為 false
+    // 更新使用者資料：清空 subscription_id
     user.subscription_id = null;
-    user.is_subscribed = false; //TODO：此欄位已移除,subscription.is_renewal改為false
 
     // 儲存更新後的使用者資料
     const updatedUser = await userRepo.save(user);
@@ -617,32 +644,24 @@ async function getSubscriptions(req, res, next) {
     const userId = req.user.id;
     const [subscriptions, total] = await subscriptionRepo.findAndCount({
       where: { user_id: userId },
-      order: { purchased_at: "DESC" },
+      order: { order_number: "DESC" },
       relations: ["Plan"],
       skip: skip, // 要跳過的資料筆數
       take: limit, // 取得的資料筆數
     });
 
     // 計算總頁數
-    const totalPages = Math.ceil(total / limit);
+    const totalPages = Math.ceil(total / limit); 
     if (page > totalPages) {
       return next(generateError(400, "頁數超出範圍"));
     }
-
+    
     //若查無訂閱紀錄
     if (!subscriptions || subscriptions.length === 0) {
       return res.status(200).json({
         status: true,
         message: "尚未訂閱，暫無訂閱紀錄",
       });
-    }
-    //判斷是否有下一次扣款日期
-    let nextPaymentDate;
-    const latestSubscription = await getLatestSubscription(userId);
-    if (latestSubscription.is_renewal === false) {
-      nextPaymentDate = null; //若已取消訂閱，則不會有下一次扣款日期
-    } else {
-      nextPaymentDate = formatDate(addDays(latestSubscription.end_at, 1));
     }
 
     //扣款日期為訂閱結束日順延一日
@@ -664,7 +683,8 @@ async function getSubscriptions(req, res, next) {
         payment_method: s.payment_method,
         invoice_image_url: s.invoice_image_url,
         price: s.price,
-        next_payment: nextPaymentDate,
+        //若未取消訂閱，則下一次扣款日期為訂閱結束日順延一日，若已取消訂閱則為null
+        next_payment: s.is_renewal ? formatDate(addDays(s.end_at, 1)) : null,
       };
     });
 
@@ -683,6 +703,7 @@ async function getSubscriptions(req, res, next) {
         has_previous: page > 1, //是否有前一頁
       },
     });
+
   } catch (error) {
     next(error);
   }
