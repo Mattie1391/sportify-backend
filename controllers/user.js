@@ -11,6 +11,7 @@ const subscriptionRepo = AppDataSource.getRepository("Subscription");
 //services
 const {
   getLatestSubscription,
+  checkActiveSubscription,
   checkCourseAccess,
   checkSkillAccess,
 } = require("../services/checkServices");
@@ -18,7 +19,6 @@ const { getViewableCourseTypes } = require("../services/typeServices");
 const { courseFilter } = require("../services/filterServices");
 const { fullCourseFields } = require("../services/courseSelectFields");
 const { getChapters } = require("../services/chapterServices");
-const { checkActiveSubscription } = require("../services/checkServices");
 const { checkValidQuerys } = require("../services/queryServices");
 //utils
 const {
@@ -432,10 +432,18 @@ async function postSubscription(req, res, next) {
   try {
     const userId = req.user.id; // 從驗證中獲取使用者 ID
 
-    //檢查有效訂閱
-    const haSubscribed = await checkActiveSubscription(userId);
-    if (haSubscribed) {
-      return next(generateError(400, "已經有有效訂閱，無法重複訂閱"));
+    //檢查是否訂閱中
+    const validSubscription = await subscriptionRepo.findOne({
+      where: { user_id: userId, is_renewal: true },
+    });
+    if (validSubscription) {
+      return next(generateError(400, "已存在有效的訂閱紀錄，請先取消訂閱"));
+    }
+
+    //檢查是否存在尚未到期的訂閱紀錄(上面已檢查過is_renewal，所以這邊如果有撈到資料代表訂閱已取消但尚未到期)
+    let availableCanceledSubscription;
+    if(checkActiveSubscription(userId)) {
+      availableCanceledSubscription = await getLatestSubscription(userId);
     }
 
     const { subscription_name, course_type } = req.body;
@@ -524,6 +532,12 @@ async function postSubscription(req, res, next) {
     const savedSubscription = await subscriptionRepo.save(newSubscription);
     if (!savedSubscription) {
       return next(generateError(400, "更新資料失敗"));
+    }
+
+    // 成功儲存訂閱紀錄後，如果有未到期的已取消訂閱紀錄，將其到期日設為當前時間，強制結束
+    if (availableCanceledSubscription) {
+      availableCanceledSubscription.end_at = new Date();
+      await subscriptionRepo.save(availableCanceledSubscription);
     }
 
     // 建立與技能的關聯
@@ -617,7 +631,8 @@ async function getSubscriptions(req, res, next) {
     }
 
     //分頁設定
-    const { page = 1} = req.query; //從查詢參數中取得分頁數據，默認為第1頁，每頁10筆
+    const rawPage = req.query.page; //當前頁數
+    const page = rawPage === undefined ? 1 : parseInt(rawPage); //如果rawPage===undefined，page為1，否則為parseInt(rawPage)
     const limit = 20;
     const skip = (page - 1) * limit; // 要跳過的資料筆數
 
@@ -635,20 +650,18 @@ async function getSubscriptions(req, res, next) {
       take: limit, // 取得的資料筆數
     });
 
+    // 計算總頁數
+    const totalPages = Math.ceil(total / limit); 
+    if (page > totalPages) {
+      return next(generateError(400, "頁數超出範圍"));
+    }
+    
     //若查無訂閱紀錄
     if (!subscriptions || subscriptions.length === 0) {
       return res.status(200).json({
         status: true,
         message: "尚未訂閱，暫無訂閱紀錄",
       });
-    }
-    //判斷是否有下一次扣款日期
-    let nextPaymentDate;
-    const latestSubscription = await getLatestSubscription(userId);
-    if (latestSubscription.is_renewal === false) {
-      nextPaymentDate = null; //若已取消訂閱，則不會有下一次扣款日期
-    } else {
-      nextPaymentDate = formatDate(addDays(latestSubscription.end_at, 1));
     }
 
     //扣款日期為訂閱結束日順延一日
@@ -670,28 +683,27 @@ async function getSubscriptions(req, res, next) {
         payment_method: s.payment_method,
         invoice_image_url: s.invoice_image_url,
         price: s.price,
-        next_payment: nextPaymentDate,
+        //若未取消訂閱，則下一次扣款日期為訂閱結束日順延一日，若已取消訂閱則為null
+        next_payment: s.is_renewal ? formatDate(addDays(s.end_at, 1)) : null,
       };
     });
 
-    //取得當前分頁資料，以及分頁資訊
-    const { paginatedData, pagination } = await paginate(data, page, limit);
-    //若頁數超出範圍，回傳錯誤
-    const totalPages = pagination.total_pages;
-    if (page > totalPages && totalPages !== 0) {
-      return next(generateError(400, "頁數超出範圍"));
-    }
-
     res.status(200).json({
-    status: true,
-    message: "成功取得資料",
-    paginatedData,
-    meta: {
-      sort: "desc", //後端寫死，前端不可改
-      sort_by: "time", //後端寫死，前端不可改
-      pagination,
-    },
-  });
+      status: true,
+      message: "成功取得資料",
+      data,
+      meta: {
+        sort: "desc", //後端寫死，前端不可改
+        sort_by: "time", //後端寫死，前端不可改
+        page: page, //目前頁數
+        limit: limit, //每頁顯示筆數
+        total: total, //全部資料筆數
+        total_pages: totalPages, //總共頁數
+        has_next: page < totalPages, //是否有下一頁
+        has_previous: page > 1, //是否有前一頁
+      },
+    });
+
   } catch (error) {
     next(error);
   }
