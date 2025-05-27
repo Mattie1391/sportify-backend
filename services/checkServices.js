@@ -19,8 +19,8 @@ const getLatestSubscription = async (userId) => {
 const checkActiveSubscription = async (userId) => {
   //取得此人最新的訂閱紀錄
   const latestSubscription = await getLatestSubscription(userId);
-  // 沒有訂閱紀錄就直接回傳 false
-  if (!latestSubscription) return false;
+  if (!latestSubscription) return false; //查無訂閱紀錄
+  if (!latestSubscription.is_paid) return false; //尚未付款
 
   const now = new Date();
   const validDate = new Date(latestSubscription.end_at);

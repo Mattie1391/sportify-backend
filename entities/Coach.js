@@ -62,7 +62,7 @@ module.exports = new EntitySchema({
     },
     experience: {
       type: "varchar",
-      nullable: true, // 教學經驗年數
+      nullable: true, // 資歷自述，例如擁有國際皮拉提斯教學證照
     },
     favorite_words: {
       type: "varchar",
@@ -93,10 +93,23 @@ module.exports = new EntitySchema({
       type: "date",
       nullable: true, // 出生日期，可空
     },
+    license: {
+      type: "varchar",
+      length: 50,
+      nullable: true, //證照名稱，可空。如UCI認證教練、CPR證書
+    },
     license_url: {
       type: "varchar",
       length: 2048,
       nullable: true, // 技能證照圖片網址，可空
+    },
+    bank_code: {
+      type: "int",
+      nullable: true, //銀行代碼，可空
+    },
+    bank_account: {
+      type: "int",
+      nullable: true, //銀行帳號
     },
     bankbook_copy_url: {
       type: "varchar",

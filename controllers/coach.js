@@ -1,12 +1,13 @@
 const AppDataSource = require("../db/data-source");
 const courseRepo = AppDataSource.getRepository("Course");
 const viewRepo = AppDataSource.getRepository("View_Stat");
+const coachRepo = AppDataSource.getRepository("Coach");
 
 //utils
 const { isUndefined, isNotValidString, isNotValidUUID } = require("../utils/validators"); // 引入驗證工具函數
 const generateError = require("../utils/generateError");
 
-//教練取得所有課程(可以限制特定一門課程)的每月觀看次數、總計觀看次數
+//教練取得所有課程(可以限制特定一門課程)的每月觀看次數、總計觀看次數API
 async function getCoachViewStats(req, res, next) {
   try {
     //禁止前端亂輸入參數，如banana=999
@@ -91,9 +92,29 @@ async function getCoachViewStats(req, res, next) {
     next(error);
   }
 }
-//教練後台取得自己課程列表
-async function getCoachCourses(req, res, next) {
+//教練修改個人檔案API
+async function patchProfile(req, res, next) {
   try {
+    //驗證教練req params是否是適當的uuid格式、是否可找到此教練
+    const coachId = req.params.coachId;
+    if (isNotValidUUID(coachId)) {
+      return next(generateError(400, "教練 ID 格式不正確"));
+    }
+    const coach = await coachRepo.findOneBy({ id: coachId });
+    if (!coach) {
+      return next(generateError(404, "查無此教練"));
+    }
+    //取得request body內容
+    console.log(req.body);
+
+    //取得要被更新的教練資料
+    // let profileToUpdate = await coachRepo.find((el) => el.id === coachId);
+
+    res.status(200).json({
+      status: true,
+      message: "成功更新資料",
+      data: {},
+    });
   } catch (error) {
     next(error);
   }
@@ -101,5 +122,5 @@ async function getCoachCourses(req, res, next) {
 
 module.exports = {
   getCoachViewStats,
-  getCoachCourses,
+  patchProfile,
 };

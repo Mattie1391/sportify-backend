@@ -5,6 +5,7 @@ const isUser = require("../middlewares/isUser");
 const isSelf = require("../middlewares/isSelf");
 const userController = require("../controllers/user");
 const ratingController = require("../controllers/rating");
+const paymentController = require("../controllers/payment");
 
 //固定路由
 //固定路由順序要放在動態路由前，如:userId，否則會被/:userId的路由攔截
@@ -23,6 +24,14 @@ router.get("/subscriptions", auth, isUser, userController.getSubscriptions);
 router.post("/subscription", auth, isUser, userController.postSubscription);
 //取消訂閱方案
 router.patch("/subscription", auth, isUser, userController.patchSubscription);
+//新增付款
+router.post("/create-payment", auth, isUser, paymentController.postCreatePayment);
+//webhook回傳付款結果
+router.post("/payment-confirm", paymentController.postPaymentConfirm);
+//取消定期扣款
+router.post("/cancel-payment", auth, isUser, paymentController.postCancelPayment);
+// 接收取消結果的通知（從前端導回）
+router.post("/cancel-confirm", paymentController.postCancelConfirm);
 
 //動態路由
 
@@ -40,5 +49,8 @@ router.get("/courses/:courseId/ratings", auth, isUser, ratingController.getRatin
 router.post("/:userId/ratings/:courseId", auth, isUser, isSelf, ratingController.postRating);
 //取得上課頁面詳細資訊
 router.get("/courses/:courseId/details", auth, isUser, userController.getCourseDetails);
+router.post("/:userId/ratings/:courseId", auth, isUser, isSelf, ratingController.postRating);
+//修改課程評價
+router.patch("/:userId/rating/:courseId", auth, isUser, isSelf, ratingController.patchRating);
 
 module.exports = router;

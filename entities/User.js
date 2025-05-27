@@ -49,13 +49,6 @@ module.exports = new EntitySchema({
       nullable: true,
     },
 
-    // 是否自動續訂方案
-    is_renewal: {
-      type: "boolean",
-      nullable: false,
-      default: false, // 預設為尚未訂閱
-    },
-
     // 頭像圖片網址
     profile_image_url: {
       type: "varchar",

@@ -24,27 +24,57 @@ module.exports = new EntitySchema({
       type: "uuid",
       nullable: false,
     },
-    // 訂閱購買時間
-    purchased_at: {
-      type: "timestamp",
-      nullable: false,
-    },
-    // 訂單編號（外部金流系統回傳的 ID）
+    // 訂單編號
     order_number: {
       type: "varchar",
       length: 20,
       nullable: false,
     },
+    // 價格（台幣金額）
+    price: {
+      type: "int",
+      nullable: false,
+    },
+    // 付款狀態(未付款/已付款)
+    is_paid: {
+      type: "boolean",
+      nullable: false,
+      default: false,
+    },
+    // 建立訂單時間
+    created_at: {
+      type: "timestamp",
+      createDate: true,
+    },
+    // 更新訂單時間
+    updated_at: {
+      type: "timestamp",
+      updateDate: true,
+    },
+
+    // 付款後才會新增以下欄位
+
+    // 綠界金流特店訂單編號
+    merchant_trade_no: {
+      type: "varchar",
+      length: 20,
+      nullable: true,
+    },
+    // 付款時間
+    purchased_at: {
+      type: "timestamp",
+      nullable: true,
+    },
     // 訂閱開始與結束時間
     start_at: {
       type: "timestamp",
-      nullable: false,
+      nullable: true,
     },
     end_at: {
       type: "timestamp",
-      nullable: false,
+      nullable: true,
     },
-    // 付款方式（例如信用卡、Apple Pay）
+    // 付款方式（如信用卡）
     payment_method: {
       type: "varchar",
       length: 20,
@@ -56,16 +86,11 @@ module.exports = new EntitySchema({
       length: 2048,
       nullable: true,
     },
-    // 價格（台幣金額）
-    price: {
-      type: "int",
-      nullable: false,
-    },
-    // 付款狀態   
-    is_paid: {
+    // 是否自動續訂方案
+    is_renewal: {
       type: "boolean",
       nullable: false,
-      default: false,
+      default: false, // 預設為尚未訂閱
     },
   },
 
