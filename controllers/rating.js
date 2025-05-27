@@ -13,7 +13,7 @@ const { updateCourseScore } = require("../services/ratingServices");
 //utils
 const { isNotValidUUID, isUndefined, isNotValidString } = require("../utils/validators"); // 引入驗證工具函數
 const generateError = require("../utils/generateError"); // 引入自定義的錯誤生成器
-const formatDate = require("../utils/formatDate"); // 引入日期格式化工具函數
+const { formatDate }= require("../utils/formatDate"); // 引入日期格式化工具函數
 const paginate = require("../utils/paginate"); // 引入分頁工具函數
 
 // 取得課程評價 API
