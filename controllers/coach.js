@@ -6,6 +6,7 @@ const coachRepo = AppDataSource.getRepository("Coach");
 //utils
 const { isUndefined, isNotValidString, isNotValidUUID } = require("../utils/validators"); // 引入驗證工具函數
 const generateError = require("../utils/generateError");
+const { validateField } = require("../utils/coachProfileValidators");
 
 //教練取得所有課程(可以限制特定一門課程)的每月觀看次數、總計觀看次數API
 async function getCoachViewStats(req, res, next) {
@@ -94,21 +95,113 @@ async function getCoachViewStats(req, res, next) {
 }
 //教練修改個人檔案API
 async function patchProfile(req, res, next) {
+  //設定patch request欄位的白名單
+  const allowedFields = [
+    "nickname",
+    "realname",
+    "birthday",
+    "id_number",
+    "phone_number",
+    "bank_code",
+    "bank_account",
+    "bankbook_copy_url",
+    "job_title",
+    "about_me",
+    "skill",
+    "skill_description",
+    "experience_years",
+    "experience",
+    "license",
+    "license_url",
+    "hobby",
+    "motto",
+    "favorite_words",
+    "profile_image_url",
+    "background_image_url",
+  ];
   try {
     //驗證教練req params是否是適當的uuid格式、是否可找到此教練
     const coachId = req.params.coachId;
     if (isNotValidUUID(coachId)) {
       return next(generateError(400, "教練 ID 格式不正確"));
     }
-    const coach = await coachRepo.findOneBy({ id: coachId });
-    if (!coach) {
-      return next(generateError(404, "查無此教練"));
+    //檢查該教練的資料內容，需取得skill才完整
+    const profile = await coachRepo
+      .createQueryBuilder("c")
+      .leftJoin("c.Coach_Skill", "cs") //將教練專長關聯表併入
+      .leftJoin("cs.Skill", "s") //再將skill表併入
+      .select([
+        "c.nickname",
+        "c.realname",
+        "c.birthday",
+        "c.id_number",
+        "c.phone_number",
+        "c.bank_code",
+        "c.bank_account",
+        "c.bankbook_copy_url",
+        "c.job_title",
+        "c.about_me",
+        "s.name as skill",
+        "c.skill_description",
+        "c.experience_years",
+        "c.experience",
+        "c.license",
+        "c.license_url",
+        "c.hobby",
+        "c.motto",
+        "c.favorite_words",
+        "c.profile_image_url",
+        "c.background_image_url",
+      ]) //選取要用的欄位
+      .where("c.id = :id", { id: coachId })
+      .getOne();
+    if (!profile) {
+      return next(generateError(404, "查無教練個人資料"));
     }
-    //取得request body內容
-    console.log(req.body);
 
-    //取得要被更新的教練資料
-    // let profileToUpdate = await coachRepo.find((el) => el.id === coachId);
+    //取得req.body資料，並篩選有填寫的欄位加入filteredData
+    const rawData = req.body;
+    const filteredData = {};
+
+    for (const key of allowedFields) {
+      if (rawData[key] !== undefined) {
+        filteredData[key] = rawData[key];
+      }
+    }
+    //集合資料有改變的
+    const updatedFields = [];
+
+    for (const key of Object.keys(filteredData)) {
+      const value = filteredData[key];
+      const error = validateField(key, value);
+      if (error) return next(generateError(400, `${key}${error}`));
+
+      //取得舊值
+      const oldVal = profile[key];
+      //取得(req.body)的新值，如是string，就去空白，若是其他型別，就取原值
+      const newVal = typeof value === "string" ? value.trim() : value;
+
+      //如果新舊值不全等，就改原資料(profile)，並紀錄已被修改。
+      if (!Object.is(oldVal, newVal)) {
+        profile[key] = newVal;
+        updatedFields.push(key);
+      }
+    }
+
+    // if ("nickname" in filteredData && filteredData.nickname.trim().length === 0) {
+    //   return next(generateError(400, "暱稱格式錯誤，且不可為空白"));
+    // }
+    const nicknameRegex = /^[^\d\s]+$/;
+    if (filteredData.nickname.length > 50 || !nicknameRegex.test(filteredData.nickname)) {
+      return next(generateError(400, "暱稱不可超過50字，且中間不能有空白"));
+    }
+    // storedProfile.nickname = filteredData.nickname;
+    // console.log(storedProfile.nickname);
+    //檢驗realname
+    if (isNotValidString(filteredData.realname) && filteredData.realname.trim() > 50) {
+      return next(generateError(400, "真實姓名格式錯誤"));
+    }
+    //檢驗所輸入的realname : 可改但不可從有變為無
 
     res.status(200).json({
       status: true,
