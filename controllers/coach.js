@@ -171,6 +171,7 @@ async function patchProfile(req, res, next) {
     //集合資料有改變的
     const updatedFields = [];
 
+    //以迴圈比對過濾出的欄位的值，判斷是否需改寫欄位，並儲存狀態
     for (const key of Object.keys(filteredData)) {
       const value = filteredData[key];
       const error = validateField(key, value);
@@ -181,27 +182,13 @@ async function patchProfile(req, res, next) {
       //取得(req.body)的新值，如是string，就去空白，若是其他型別，就取原值
       const newVal = typeof value === "string" ? value.trim() : value;
 
-      //如果新舊值不全等，就改原資料(profile)，並紀錄已被修改。
+      //比對req.body的新值(newVal)與資料庫的舊值(oldVal)不同，就讓原資料(profile)儲存新值，並紀錄已被修改。
       if (!Object.is(oldVal, newVal)) {
         profile[key] = newVal;
         updatedFields.push(key);
       }
     }
-
-    // if ("nickname" in filteredData && filteredData.nickname.trim().length === 0) {
-    //   return next(generateError(400, "暱稱格式錯誤，且不可為空白"));
-    // }
-    const nicknameRegex = /^[^\d\s]+$/;
-    if (filteredData.nickname.length > 50 || !nicknameRegex.test(filteredData.nickname)) {
-      return next(generateError(400, "暱稱不可超過50字，且中間不能有空白"));
-    }
-    // storedProfile.nickname = filteredData.nickname;
-    // console.log(storedProfile.nickname);
-    //檢驗realname
-    if (isNotValidString(filteredData.realname) && filteredData.realname.trim() > 50) {
-      return next(generateError(400, "真實姓名格式錯誤"));
-    }
-    //檢驗所輸入的realname : 可改但不可從有變為無
+    //若無任何更新，仍然算成功更新，只是告知無資料變更
 
     res.status(200).json({
       status: true,
