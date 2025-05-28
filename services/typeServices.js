@@ -3,7 +3,7 @@ const skillRepo = AppDataSource.getRepository("Skill");
 const subscriptionSkillRepo = AppDataSource.getRepository("Subscription_Skill");
 const { getLatestSubscription } = require("./checkServices");
 
-//取得所有類別（依照學生人數排序）
+//前台公開頁面取得所有類別（依照學生人數排序）
 //回傳id、類別名稱、該類別學生總人數
 const getAllCourseTypes = async () => {
   const result = await skillRepo
@@ -17,7 +17,7 @@ const getAllCourseTypes = async () => {
   return result;
 };
 
-//取得可觀看的課程類別（依照學生人數排序）
+//學員取得可觀看的課程類別（依照學生人數排序）
 const getViewableCourseTypes = async (userId) => {
   //取得此人最新的訂閱紀錄
   const latestSubscription = await getLatestSubscription(userId);

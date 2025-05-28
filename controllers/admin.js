@@ -1,16 +1,21 @@
 const AppDataSource = require("../db/data-source");
 const courseRepo = AppDataSource.getRepository("Course");
 const planRepo = AppDataSource.getRepository("Plan");
+const coachRepo = AppDataSource.getRepository("Coach");
 const skillRepo = AppDataSource.getRepository("Skill");
 const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
-const generateError = require("../utils/generateError");
+//services
+const { getAllCourseTypes } = require("../services/typeServices");
+const { courseFilter, coachFilter } = require("../services/filterServices");
+const { checkValidQuerys } = require("../services/queryServices");
+//utils
 const {
   isUndefined,
   isNotValidString,
   isNotValidInteger,
   isNotValidUUID,
 } = require("../utils/validators");
-const { courseFilter, coachFilter } = require("../services/filterServices");
+const generateError = require("../utils/generateError");
 const paginate = require("../utils/paginate");
 
 //新增訂閱方案，目前沒有畫管理員相應UI的線稿
@@ -85,6 +90,129 @@ async function postSportsType(req, res, next) {
       status: true,
       message: "成功新增資料",
       data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+//取得類別（教練列表）
+async function getCoachTypes(req, res, next) {
+  try {
+    // 禁止前端亂輸入參數，如 banana=999
+    const invalidQuerys = checkValidQuerys(req.query, ["skillId"]);
+    if (invalidQuerys.length > 0) {
+      return next(generateError(400, `不允許的參數：${invalidQuerys.join(", ")}`));
+    }
+    // 若沒有回傳skillId
+    let skillTypes = await getAllCourseTypes(); //預設取得所有技能類別（依照學生總人數排序）
+    let skilledCoaches = []; //預設技能對應的教練列表為空陣列
+    // 取得skillId並判斷是否為有效id
+    const skillId = req.query.skillId;
+    // 若有正確回傳skillId
+    if (skillId) {
+      if (isNotValidUUID(skillId)) return next(generateError(400, "類別 ID 格式不正確"));
+      // 確認 skillId 是否存在於資料庫
+      const skillId_exist = await skillRepo.findOneBy({ id: skillId });
+      if (!skillId_exist) {
+        return next(generateError(404, "查無此課程類別"));
+      }
+      // 取得對應分類的教練列表(id和nickname);
+      skilledCoaches = await coachSkillRepo
+        .createQueryBuilder("cs")
+        .innerJoin("cs.Coach", "c")
+        .where("cs.skill_id = :skillId", { skillId })
+        .select(["c.id AS coach_id", "c.nickname AS coach_nickname"])
+        .getRawMany();
+    }
+    // 回傳資料（技能類別和技能對應的教練列表）
+    const data = {
+      skillTypes,
+      skilledCoaches,
+    };
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: data,
+      meta: {
+        skillId: skillId || null, //回傳選擇的技能類別ID
+        type: "coach", //顯示的是教練資料的篩選類別
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+//取得類別（課程列表）
+async function getCourseTypes(req, res, next) {
+  try {
+    // 禁止前端亂輸入參數，如 banana=999
+    const invalidQuerys = checkValidQuerys(req.query, ["skillId", "coachId"]);
+    if (invalidQuerys.length > 0) {
+      return next(generateError(400, `不允許的參數：${invalidQuerys.join(", ")}`));
+    }
+    // 若沒有回傳skillId
+    let skillTypes = await getAllCourseTypes(); //預設取得所有技能類別（依照學生總人數排序）
+    let skilledCoaches = []; //預設技能對應的教練列表為空陣列
+    let allStatuses = []; //預設教練對應的課程狀態列表為空陣列
+
+    // 取得skillId並判斷是否為有效id
+    const skillId = req.query.skillId;
+    const coachId = req.query.coachId;
+
+    // 若有回傳skillId
+    if (skillId) {
+      if (isNotValidUUID(skillId)) return next(generateError(400, "類別 ID 格式不正確"));
+      // 確認 skillId 是否存在於資料庫
+      const skillId_exist = await skillRepo.findOneBy({ id: skillId });
+      if (!skillId_exist) {
+        return next(generateError(404, "查無此課程類別"));
+      }
+      // 取得對應分類的教練列表(id和nickname);
+      skilledCoaches = await coachSkillRepo
+        .createQueryBuilder("cs")
+        .innerJoin("cs.Coach", "c")
+        .where("cs.skill_id = :skillId", { skillId })
+        .select(["c.id AS coach_id", "c.nickname AS coach_nickname"])
+        .getRawMany();
+
+      //若有回傳coachId
+      if (coachId) {
+        if (isNotValidUUID(coachId)) return next(generateError(400, "教練 ID 格式不正確"));
+        // 確認 coachId 是否存在於資料庫
+        const coachId_exist = await coachRepo.findOneBy({ id: coachId });
+        if (!coachId_exist) {
+          return next(generateError(404, "查無此教練"));
+        }
+        // 若coachId包含在對應skillId的教練資料中，則為合格的教練ID
+        const isMatched = skilledCoaches.some((coach) => coach.coach_id === coachId);
+        if (!isMatched) {
+          return next(generateError(404, "該教練與選擇的技能類別不符"));
+        }
+        // 若有正確回傳coachId，取出該教練對應的課程資料
+        const coachCourses = await courseRepo.findBy({ coach_id: coachId });
+        // 取得所有課程的審核狀態，若課程已審核通過，則為上架中，否則為待審核
+        allStatuses = coachCourses.map((c) => (c.is_approved ? "上架中" : "待審核"));
+        // 移除重複的狀態
+        allStatuses = [...new Set(allStatuses)];
+      }
+    }
+    // 回傳資料（技能類別/技能對應的教練列表）
+    const data = {
+      skillTypes,
+      skilledCoaches,
+      allStatuses,
+    };
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: data,
+      meta: {
+        skillId: skillId || null, //回傳選擇的技能類別ID
+        coachId: coachId || null, //回傳選擇的教練ID
+        type: "course", //顯示的是課程資料的篩選類別
+      },
     });
   } catch (error) {
     next(error);
@@ -236,12 +364,12 @@ async function patchReviewCourse(req, res, next) {
     if (status === "approved") {
       return res.status(200).json({
         status: true,
-        message: "課程審核成功，狀態已更新為 approved"
+        message: "課程審核成功，狀態已更新為 approved",
       });
     } else {
       return res.status(200).json({
         status: true,
-        message: "課程審核未通過，狀態已更新為 rejected"
+        message: "課程審核未通過，狀態已更新為 rejected",
       });
     }
   } catch (error) {
@@ -355,12 +483,12 @@ async function getCourses(req, res, next) {
   }
 }
 
-
-
 module.exports = {
   postPlan,
   postSportsType,
   getCoaches,
   patchReviewCourse,
   getCourses,
+  getCoachTypes,
+  getCourseTypes,
 };
