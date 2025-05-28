@@ -1,4 +1,5 @@
 const AppDataSource = require("../db/data-source");
+const courseRepo = AppDataSource.getRepository("Course");
 const planRepo = AppDataSource.getRepository("Plan");
 const skillRepo = AppDataSource.getRepository("Skill");
 const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
@@ -9,7 +10,7 @@ const {
   isNotValidInteger,
   isNotValidUUID,
 } = require("../utils/validators");
-const { coachFilter } = require("../services/filterServices");
+const { courseFilter, coachFilter } = require("../services/filterServices");
 const paginate = require("../utils/paginate");
 
 //新增訂閱方案，目前沒有畫管理員相應UI的線稿
@@ -248,9 +249,118 @@ async function patchReviewCourse(req, res, next) {
   }
 }
 
+//取得課程列表
+async function getCourses(req, res, next) {
+  try {
+    // 僅允許的查詢參數
+    const validQuerys = ["page", "skillId", "coachId", "isApproved"];
+    const queryKeys = Object.keys(req.query);
+    const invalidQuerys = queryKeys.filter((key) => !validQuerys.includes(key));
+    if (invalidQuerys.length > 0) {
+      return next(generateError(400, `不允許的參數：${invalidQuerys.join(", ")}`));
+    }
+
+    // 參數依賴性檢查：先有 skillId 才能有 coachId，再來才能有 isApproved
+    if (req.query.coachId && !req.query.skillId) {
+      return next(generateError(400, "請先選擇技能類別"));
+    }
+    if (req.query.isApproved && (!req.query.skillId || !req.query.coachId)) {
+      return next(generateError(400, "請先選擇技能類別與教練"));
+    }
+
+    // 取得全部課程資料，並關聯教練與技能名稱
+    const rawCourses = await AppDataSource.getRepository("Course")
+      .createQueryBuilder("course")
+      .innerJoin("course.Coach", "coach")
+      .innerJoin("course.Skill", "skill")
+      .select([
+        "course.id AS id",
+        "course.name AS title",
+        "skill.name AS category",
+        "coach.nickname AS instructor",
+        "course.created_at AS created_at",
+        "course.is_approved AS is_active",
+        "course.type_id AS type_id", // 用於過濾
+        "course.coach_id AS coach_id", // 用於過濾
+      ])
+      .getRawMany();
+
+    let filteredCourses = rawCourses;
+
+    // skillId 篩選
+    const skillId = req.query.skillId;
+    if (skillId) {
+      if (isNotValidUUID(skillId)) {
+        return next(generateError(400, "類別 ID 格式不正確"));
+      }
+      const skill = await skillRepo.findOneBy({ id: skillId });
+      if (!skill) {
+        return next(generateError(400, "查無此課程類別"));
+      }
+      filteredCourses = await courseFilter(rawCourses, null, skillId);
+    }
+
+    // coachId 篩選
+    const coachId = req.query.coachId;
+    if (coachId) {
+      if (isNotValidUUID(coachId)) {
+        return next(generateError(400, "教練 ID 格式不正確"));
+      }
+      filteredCourses = filteredCourses.filter((course) => course.coach_id === coachId);
+    }
+
+    // isApproved 篩選
+    if (req.query.isApproved) {
+      const isApproved = req.query.isApproved === "true";
+      filteredCourses = filteredCourses.filter((course) => course.is_active === isApproved);
+    }
+
+    // 若無資料，回傳錯誤
+    if (filteredCourses.length === 0) {
+      return next(generateError(400, "查無課程資料"));
+    }
+
+    // 分頁處理
+    const rawPage = req.query.page;
+    const page = rawPage === undefined ? 1 : parseInt(rawPage);
+    const limit = 20;
+    if (isNaN(page) || page < 1 || !Number.isInteger(page)) {
+      return next(generateError(400, "分頁參數格式不正確，頁數需為正整數"));
+    }
+
+    const { paginatedData, pagination } = paginate(filteredCourses, page, limit);
+    const totalPages = pagination.total_pages;
+    if (page > totalPages && totalPages !== 0) {
+      return next(generateError(400, "頁數超出範圍"));
+    }
+
+    // 整理回傳資料格式
+    const formattedData = paginatedData.map((course) => ({
+      id: course.id,
+      title: course.title,
+      category: course.category,
+      instructor: course.instructor,
+      created_at: course.created_at,
+      is_active: course.is_active,
+    }));
+
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: formattedData,
+      pagination,
+    });
+  } catch (error) {
+    next(generateError(400, error.message || "伺服器錯誤"));
+  }
+}
+
+
+
 module.exports = {
   postPlan,
   postSportsType,
   getCoaches,
   patchReviewCourse,
+  getCourses,
 };
