@@ -74,6 +74,11 @@ module.exports = new EntitySchema({
     },
 
     //以下為驗證教練身分需要資料
+    is_verified: {
+      type: "boolean",
+      default: false, // 是否已驗證教練身分，預設為 false
+      nullable: true,
+    },
     realname: {
       type: "varchar",
       length: 50,

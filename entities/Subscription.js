@@ -29,6 +29,7 @@ module.exports = new EntitySchema({
       type: "varchar",
       length: 20,
       nullable: false,
+      unique: true, // 確保訂單編號唯一
     },
     // 價格（台幣金額）
     price: {
