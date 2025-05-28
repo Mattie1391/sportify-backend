@@ -49,11 +49,12 @@ module.exports = new EntitySchema({
     },
     job_title: {
       type: "varchar",
-      length: 100,
+      length: 12,
       nullable: true, // 頭銜，例如「資深健身教練」
     },
     about_me: {
       type: "varchar",
+      length: 512,
       nullable: true, // 自我介紹，可空
     },
     hobby: {
@@ -104,11 +105,13 @@ module.exports = new EntitySchema({
       nullable: true, // 技能證照圖片網址，可空
     },
     bank_code: {
-      type: "int",
+      type: "varchar",
+      length: 20,
       nullable: true, //銀行代碼，可空
     },
     bank_account: {
-      type: "int",
+      type: "varchar",
+      length: 20,
       nullable: true, //銀行帳號
     },
     bankbook_copy_url: {
@@ -118,6 +121,7 @@ module.exports = new EntitySchema({
     },
     skill_description: {
       type: "varchar",
+      length: 100,
       nullable: true, // 教練擅長的技能簡介
     },
     experience_years: {

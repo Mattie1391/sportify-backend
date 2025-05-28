@@ -4,7 +4,7 @@ const viewRepo = AppDataSource.getRepository("View_Stat");
 const coachRepo = AppDataSource.getRepository("Coach");
 
 //utils
-const { isUndefined, isNotValidString, isNotValidUUID } = require("../utils/validators"); // 引入驗證工具函數
+const { isNotValidString, isNotValidUUID } = require("../utils/validators"); // 引入驗證工具函數
 const generateError = require("../utils/generateError");
 const { validateField } = require("../utils/coachProfileValidators");
 
@@ -125,7 +125,7 @@ async function patchProfile(req, res, next) {
     if (isNotValidUUID(coachId)) {
       return next(generateError(400, "教練 ID 格式不正確"));
     }
-    //檢查該教練的資料內容，需取得skill才完整
+    //取得並檢查該教練的資料內容
     const profile = await coachRepo
       .createQueryBuilder("c")
       .leftJoin("c.Coach_Skill", "cs") //將教練專長關聯表併入
@@ -179,7 +179,7 @@ async function patchProfile(req, res, next) {
 
       //取得舊值
       const oldVal = profile[key];
-      //取得(req.body)的新值，如是string，就去空白，若是其他型別，就取原值
+      //取得(req.body)的新值，如是string，就去空白，若是其他type，就取原值
       const newVal = typeof value === "string" ? value.trim() : value;
 
       //比對req.body的新值(newVal)與資料庫的舊值(oldVal)不同，就讓原資料(profile)儲存新值，並紀錄已被修改。

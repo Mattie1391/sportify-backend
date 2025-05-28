@@ -3,7 +3,7 @@ const router = express.Router();
 const auth = require("../middlewares/auth");
 const isCoach = require("../middlewares/isCoach");
 const isSelf = require("../middlewares/isSelf");
-const ownCourse = require("../middlewares/ownCourse");
+// const ownCourse = require("../middlewares/ownCourse");
 const coachController = require("../controllers/coach");
 
 //固定路由
