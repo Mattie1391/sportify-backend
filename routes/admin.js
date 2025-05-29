@@ -20,6 +20,8 @@ router.get("/coach-type", auth, isAdmin, adminController.getCoachTypes);
 router.get("/courses", auth, isAdmin, adminController.getCourses);
 //取得教練列表
 router.get("/coaches", auth, isAdmin, adminController.getCoaches);
+//取得後台數據分析
+router.get("/data-analysis", auth, isAdmin, adminController.getDataAnalysis);
 
 //動態路由
 //取得課程評價

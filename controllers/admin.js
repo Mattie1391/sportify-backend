@@ -2,6 +2,8 @@ const AppDataSource = require("../db/data-source");
 const courseRepo = AppDataSource.getRepository("Course");
 const planRepo = AppDataSource.getRepository("Plan");
 const coachRepo = AppDataSource.getRepository("Coach");
+const subscriptionRepo = AppDataSource.getRepository("Subscription");
+const userRepo = AppDataSource.getRepository("User");
 const skillRepo = AppDataSource.getRepository("Skill");
 const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
 //services
@@ -17,6 +19,7 @@ const {
 } = require("../utils/validators");
 const generateError = require("../utils/generateError");
 const paginate = require("../utils/paginate");
+const { parseYYYYMMDD } = require("../utils/formatDate");
 
 //新增訂閱方案，目前沒有畫管理員相應UI的線稿
 async function postPlan(req, res, next) {
@@ -483,6 +486,109 @@ async function getCourses(req, res, next) {
   }
 }
 
+// 取得後台數據分析
+async function getDataAnalysis(req, res, next) {
+  try {
+    const { startDate, endDate } = req.query;
+
+    // 驗證查詢參數存在且為合法字串
+    if (
+      isUndefined(startDate) ||
+      isUndefined(endDate) ||
+      isNotValidString(startDate) ||
+      isNotValidString(endDate)
+    ) {
+      return next(generateError(400, "請正確提供 startDate 和 endDate 查詢參數"));
+    }
+
+    // 將 YYYYMMDD 轉為 Date
+    const start = parseYYYYMMDD(startDate);
+    const end = parseYYYYMMDD(endDate);
+    if (!start || !end || isNaN(start) || isNaN(end)) {
+      return next(generateError(400, "日期格式錯誤，請使用 YYYYMMDD"));
+    }
+
+    const currentMonth = new Date();
+    const currentMonthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+
+    // 查詢區間總收入
+    const totalIncomeResult = await subscriptionRepo
+      .createQueryBuilder("s") // 建立查詢，對 Subscription 表別名為 s
+      .select("SUM(s.price)", "total") // 選取 s.price 的總和，命名為 total
+      .where("s.created_at BETWEEN :start AND :end", { start, end }) // created_at 在 start 與 end 之間
+      .getRawOne(); // 回傳格式為 { total: '金額' }
+
+    // 查詢本月收入
+    const currentMonthIncomeResult = await subscriptionRepo
+      .createQueryBuilder("s")
+      .select("SUM(s.price)", "total") // 聚合本月收入
+      .where("s.created_at >= :currentMonthStart", { currentMonthStart }) // created_at 在本月初以後
+      .getRawOne();
+
+    // 查詢總會員數
+    const totalMembers = await userRepo.count();
+
+    // 查詢本月新增會員數
+    const newMembersThisMonth = await userRepo
+      .createQueryBuilder("u")
+      .where("u.created_at >= :currentMonthStart", { currentMonthStart }) // created_at >= 本月第一天
+      .getCount(); // 回傳符合條件的筆數
+
+    // 查詢總教練數
+    const totalCoaches = await coachRepo.count();
+
+    // 查詢總課程數
+    const totalCourses = await courseRepo.count();
+
+    // 查詢各訂閱方案的訂閱數量
+    const planCountsRaw = await subscriptionRepo
+      .createQueryBuilder("s") // s 是 Subscription 表
+      .select("p.name", "plan") // 取訂閱方案名稱
+      .addSelect("COUNT(*)", "count") // 聚合該方案的訂閱筆數
+      .innerJoin("s.Plan", "p") // 將 s.Plan 關聯到 Plan 表，p 是 Plan 的別名
+      .groupBy("p.name") // 依照訂閱方案名稱分組
+      .getRawMany(); // 回傳格式如：[{ plan: 'Fitness', count: '2' }, ...]
+ 
+    // 建立初始方案統計物件
+    const planCounts = {
+      Wellness: 0,
+      Fitness: 0,
+      Eagerness: 0,
+    };
+
+    // 將查詢結果統整進 planCounts
+    planCountsRaw.forEach((item) => {
+      if (item.plan.includes("試用")) return; // 排除含「試用」的方案
+    
+      if (item.plan.includes("Eagerness")) {
+        planCounts.Eagerness += parseInt(item.count);
+      } else if (item.plan.includes("Fitness")) {
+        planCounts.Fitness += parseInt(item.count);
+      } else if (item.plan.includes("Wellness")) {
+        planCounts.Wellness += parseInt(item.count);
+      }
+    });
+    
+
+    // 回傳統計資料
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: {
+        totalIncome: parseInt(totalIncomeResult.total) || 0,
+        currentMonthIncome: parseInt(currentMonthIncomeResult.total) || 0,
+        totalMembers,
+        newMembersThisMonth,
+        totalCoaches,
+        totalCourses,
+        planCounts,
+      },
+    });
+  } catch (error) {
+    next(generateError(500, error.message || "伺服器錯誤"));
+  }
+}
+
 module.exports = {
   postPlan,
   postSportsType,
@@ -491,4 +597,5 @@ module.exports = {
   getCourses,
   getCoachTypes,
   getCourseTypes,
+  getDataAnalysis,
 };
