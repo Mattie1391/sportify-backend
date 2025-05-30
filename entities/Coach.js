@@ -59,18 +59,22 @@ module.exports = new EntitySchema({
     },
     hobby: {
       type: "varchar",
+      length: 100,
       nullable: true, // 興趣愛好，可空
     },
     experience: {
       type: "varchar",
+      length: 512,
       nullable: true, // 資歷自述，例如擁有國際皮拉提斯教學證照
     },
     favorite_words: {
       type: "varchar",
+      length: 100,
       nullable: true, // 最喜歡的一句話，可空
     },
     motto: {
       type: "varchar",
+      length: 100,
       nullable: true, // 座右銘，可空
     },
 
@@ -94,16 +98,16 @@ module.exports = new EntitySchema({
       type: "date",
       nullable: true, // 出生日期，可空
     },
-    license: {
-      type: "varchar",
-      length: 50,
-      nullable: true, //證照名稱，可空。如UCI認證教練、CPR證書
-    },
-    license_url: {
-      type: "varchar",
-      length: 2048,
-      nullable: true, // 技能證照圖片網址，可空
-    },
+    // license: {
+    //   type: "varchar",
+    //   length: 50,
+    //   nullable: true, //證照名稱，可空。如UCI認證教練、CPR證書
+    // },
+    // license_url: {
+    //   type: "varchar",
+    //   length: 2048,
+    //   nullable: true, // 技能證照圖片網址，可空
+    // },
     bank_code: {
       type: "varchar",
       length: 20,
@@ -164,6 +168,12 @@ module.exports = new EntitySchema({
     // 一位教練可以開設多門課程
     Course: {
       target: "Course",
+      type: "one-to-many", // 一對多關聯：一位教練對應多個課程
+      inverseSide: "Coach", // 對方 entity（Course）中定義的關聯欄位名
+    },
+    // 一位教練可以有多個證照附件
+    Coach_License: {
+      target: "Coach_License",
       type: "one-to-many", // 一對多關聯：一位教練對應多個課程
       inverseSide: "Coach", // 對方 entity（Course）中定義的關聯欄位名
     },
