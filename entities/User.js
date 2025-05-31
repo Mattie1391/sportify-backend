@@ -56,6 +56,13 @@ module.exports = new EntitySchema({
       nullable: true,
     },
 
+    // 頭像圖片在cloudinary的public_id
+    profile_image_public_id: {
+      type: "varchar",
+      length: 2048,
+      nullable: true,
+    },
+
     // 資料建立時間（自動填入）
     created_at: {
       type: "timestamp",

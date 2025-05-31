@@ -5,6 +5,7 @@ const cookieParser = require("cookie-parser");
 const logger = require("morgan");
 const AppDataSource = require("./db/data-source");
 const generateError = require("./utils/generateError");
+const errorHandler = require("./middlewares/errorHandler");
 
 const indexRouter = require("./routes/index");
 const userRouter = require("./routes/user");
@@ -35,19 +36,11 @@ app.use("/api/v1/courses", courseRouter);
 app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/coaches", coachRouter);
 
-// catch 404 and forward to error handler
+// 錯誤處理中介軟體
 app.use(function (req, res, next) {
   next(generateError(404, "找不到該路由"));
 });
-
-// error handler
-app.use(function (err, req, res, next) {
-  const statusCode = err.statusCode || 500;
-  res.status(statusCode).json({
-    status: false,
-    message: err.message || "伺服器錯誤",
-  });
-});
+app.use(errorHandler);
 
 AppDataSource.initialize()
   .then(() => {
