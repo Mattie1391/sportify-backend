@@ -26,7 +26,7 @@ module.exports = new EntitySchema({
     },
     nickname: {
       type: "varchar",
-      length: 50,
+      length: 10,
       nullable: false, // 前端顯示的暱稱
     },
     // 重設密碼的 token，僅儲存一組最新有效的 token，避免使用者在時限內多次請求產生好幾組有效的 token
@@ -86,12 +86,12 @@ module.exports = new EntitySchema({
     },
     id_number: {
       type: "varchar",
-      length: 20,
+      length: 10,
       nullable: true, // 身分證號或居留證號碼
     },
     phone_number: {
       type: "varchar",
-      length: 30,
+      length: 10,
       nullable: true, // 聯絡用手機號碼
     },
     birthday: {
@@ -110,7 +110,7 @@ module.exports = new EntitySchema({
     // },
     bank_code: {
       type: "varchar",
-      length: 20,
+      length: 3,
       nullable: true, //銀行代碼，可空
     },
     bank_account: {
