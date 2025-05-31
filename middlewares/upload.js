@@ -3,25 +3,21 @@ const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const cloudinary = require("cloudinary").v2;
 const config = require("../config/index");
 const { cloud_name, api_key, api_secret } = config.get("cloudinary");
+
 // 引入配置檔
 cloudinary.config({
   cloud_name: cloud_name,
   api_key: api_key,
   api_secret: api_secret,
 });
+
 // 設定cloudinary的儲存配置
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: "user-avatars", // Cloudinary 資料夾
-    allowed_formats: ["jpg", "png", "jpeg"], // 允許的格式
-    transformation: [
-      { width: 500, height: 500, crop: "limit" }, // 自動調整大小
-    ],
-    public_id: (req, file) => {
-      // 自定義檔案名稱
-      return `avatar_${req.user.id}_${Date.now()}`;
-    },
+    format: async (req, file) => "jpg", //儲存格式
+    public_id: (req, file) => `avatar_${req.user.id}_${Date.now()}`, // 自定義檔案名稱
   },
 });
 
