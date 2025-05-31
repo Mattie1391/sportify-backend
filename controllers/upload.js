@@ -13,7 +13,8 @@ const uploadAvatar = (req, res, next) => {
   const data = {
     userId: req.user.id,
     filename: req.file.filename, // 檔案名稱
-    url: `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`,
+    publicId: req.file.public_id, // Cloudinary的public_id
+    url: req.file.path, // Cloudinary URL
     mimeType: req.file.mimetype, // 檔案類型
     size: req.file.size, // 檔案大小
   };

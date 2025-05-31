@@ -36,9 +36,6 @@ app.use("/api/v1/courses", courseRouter);
 app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/coaches", coachRouter);
 
-// 上傳檔案的靜態路由
-app.use("/uploads", express.static("uploads"));
-
 // 錯誤處理中介軟體
 app.use(function (req, res, next) {
   next(generateError(404, "找不到該路由"));

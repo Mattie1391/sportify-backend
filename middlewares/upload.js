@@ -1,16 +1,27 @@
 const multer = require("multer");
-const path = require("path");
-
-// 設定 multer 的儲存配置
-const storage = multer.diskStorage({
-  // 設定檔案儲存目錄
-  destination: function (req, file, cb) {
-    cb(null, "uploads/"); // 儲存到 uploads 資料夾
-  },
-  // 設定檔案命名規則
-  filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname); // 取得原始檔案的副檔名
-    cb(null, `${Date.now()}${ext}`); // 以時間戳命名，避免檔名重複
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const cloudinary = require("cloudinary").v2;
+const config = require("../config/index");
+const { cloud_name, api_key, api_secret } = config.get("cloudinary");
+// 引入配置檔
+cloudinary.config({
+  cloud_name: cloud_name,
+  api_key: api_key,
+  api_secret: api_secret,
+});
+// 設定cloudinary的儲存配置
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "user-avatars", // Cloudinary 資料夾
+    allowed_formats: ["jpg", "png", "jpeg"], // 允許的格式
+    transformation: [
+      { width: 500, height: 500, crop: "limit" }, // 自動調整大小
+    ],
+    public_id: (req, file) => {
+      // 自定義檔案名稱
+      return `avatar_${req.user.id}_${Date.now()}`;
+    },
   },
 });
 
@@ -26,7 +37,7 @@ const fileFilter = (req, file, cb) => {
 
 // 建立 upload 實例
 const upload = multer({
-  storage,
+  storage, // 使用 CloudinaryStorage
   fileFilter,
   limits: {
     fileSize: 2 * 1024 * 1024, // 2MB
