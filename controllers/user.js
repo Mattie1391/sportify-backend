@@ -1,5 +1,7 @@
 const bcrypt = require("bcryptjs");
 const { MoreThan, Like } = require("typeorm");
+const multer = require("multer");
+const path = require("path");
 //repo
 const AppDataSource = require("../db/data-source");
 const userRepo = AppDataSource.getRepository("User");
