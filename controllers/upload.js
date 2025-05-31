@@ -8,10 +8,12 @@ const uploadAvatar = (req, res, next) => {
   if (req.file.fieldname !== "avatar") {
     return next(generateError(400, `欄位名稱錯誤: ${req.file.fieldname}，應為 avatar`));
   }
+
   // 建立完整url路徑
   const data = {
     userId: req.user.id,
     filename: req.file.filename, // 檔案名稱
+    publicId: req.file.filename, // Cloudinary 的 public_id = 檔案名稱
     url: req.file.path, // Cloudinary URL
     mimeType: req.file.mimetype, // 檔案類型
     size: req.file.size, // 檔案大小

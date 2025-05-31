@@ -37,7 +37,7 @@ const upload = multer({
   fileFilter,
   limits: {
     fileSize: 2 * 1024 * 1024, // 2MB
-    fileCount: 1, // 只允許上傳單一檔案
+    files: 1, // 只允許上傳單一檔案
   },
 });
 
