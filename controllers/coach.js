@@ -212,6 +212,16 @@ async function patchProfile(req, res, next) {
 
     await AppDataSource.transaction(async (transactionalEntityManager) => {
       //處理一般欄位的更新
+
+      const transactionalCoach = await transactionalEntityManager
+        .getRepository("Coach") // Get repo from transactionalEntityManager
+        .createQueryBuilder("c")
+        .leftJoinAndSelect("c.Coach_Skill", "cs")
+        .leftJoinAndSelect("cs.Skill", "s")
+        .leftJoinAndSelect("c.Coach_License", "cl")
+        .where("c.id = :id", { id: coachId })
+        .getOne();
+
       //跳過特殊處理邏輯的專長及證照上傳
       for (const key of Object.keys(filteredData)) {
         if (key === "skill" || key === "license_data") {
@@ -280,15 +290,16 @@ async function patchProfile(req, res, next) {
           coach_id: coach.id,
           skill_id: skill.id,
         });
-        await coachSkillRepo.save(newCoachSkill);
+        await transactionalEntityManager.getRepository("Coach_Skill").save(newCoachSkill);
       }
-      updatedFields.push("skill");
+      if (skillsToAdd.length > 0) {
+        updatedFields.push("skill");
+      }
 
       //處理license_data更新
+      let licenseDataActuallyChanged = false;
       //檢查req.body是否輸入證照與資格(license)、證照與資格上傳(license_data)
       if (filteredData.license_data !== undefined) {
-        hasSkillOrLicenseUpdated = true;
-
         //檢查上傳證照license_data是否是陣列。是的話讀取陣列，不是的話，使從req.body取得的資料為空陣列
         const newLicensesFromReq = Array.isArray(filteredData.license_data)
           ? filteredData.license_data
@@ -317,7 +328,7 @@ async function patchProfile(req, res, next) {
             return next(generateError(400, "未上傳檔案或未取得檔案名稱"));
           }
         }
-        const currentLicenses = coach.Coach_License;
+        const currentLicenses = coach.Coach_License || [];
 
         //找出需要從資料庫移除的證照(若教練更新後去掉某證照附件)
         const licenseToRemove = currentLicenses.filter((currentLicense) => {
@@ -329,34 +340,50 @@ async function patchProfile(req, res, next) {
           return !found; //若找不到，代表該證照要被移除
         });
 
+        //找出需新增的證照
+        const licenseToAdd = newLicensesFromReq.filter((newLicenseData) => {
+          const found = currentLicenses.some(
+            (currentLicenses) =>
+              currentLicenses.file_url === newLicenseData.file_url &&
+              currentLicenses.filename === newLicenseData.filename
+          );
+          return !found; //如果當前資料庫中沒有完全匹配的，則認為是新的
+        });
+
+        //檢查是否有實質性的license_data變動
+        console.log(licenseToRemove, licenseToAdd);
+        if (licenseToRemove.length > 0 || licenseToAdd.length > 0) {
+          licenseDataActuallyChanged = true;
+        }
+
+        //執行刪除操作
         for (const license of licenseToRemove) {
-          await coachLicenseRepo.delete({ id: license.id });
+          await transactionalEntityManager
+            .getRepository("Coach_License")
+            .delete({ id: license.id });
         }
 
         //找出須更新或新增的證照
-        for (const newLicenseData of newLicensesFromReq) {
+        for (const newLicenseData of licenseToAdd) {
           //嘗試找到file_url和filename與資料庫都匹配的現有證照
-          const existingLicense = currentLicenses.find(
-            (cl) =>
-              cl.file_url === newLicenseData.file_url && cl.filename === newLicenseData.filename
-          );
-          if (!existingLicense) {
-            //如果不存在完全匹配的證照，就創建新的Coach_License 記錄
-            const newCoachLicense = coachLicenseRepo.create({
-              coach_id: coach.id,
-              file_url: newLicenseData.file_url,
-              filename: newLicenseData.filename,
-            });
-            await coachLicenseRepo.save(newCoachLicense);
-          }
-          //如果有Coach_License存在的證照，就不做任何事。
+          const newCoachLicense = transactionalEntityManager.create("Coach_License", {
+            Coach: transactionalCoach,
+            file_url: newLicenseData.file_url,
+            filename: newLicenseData.filename,
+          });
+          await transactionalEntityManager.getRepository("Coach_License").save(newCoachLicense);
         }
+        //如果有Coach_License存在的證照，就不做任何事。
+      }
+      console.log(licenseDataActuallyChanged);
+      if (licenseDataActuallyChanged) {
         updatedFields.push("license_data");
       }
 
       //更新Coach主表，license證照字串會原原本本寫入Coach資料表中
-      if (updatedFields.length > 0 || hasSkillOrLicenseUpdated) {
-        await coachRepo.save(coach);
+      if (updatedFields.length > 0 || hasSkillOrLicenseUpdated || licenseDataActuallyChanged) {
+        await transactionalEntityManager.getRepository("Coach").save(transactionalCoach);
+        // await coachRepo.save(coach);
       }
     });
     console.log(updatedFields);
