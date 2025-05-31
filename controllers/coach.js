@@ -143,6 +143,24 @@ async function patchProfile(req, res, next) {
     if (isNotValidUUID(coachId)) {
       return next(generateError(400, "教練 ID 格式不正確"));
     }
+    //取得並檢查該教練的資料內容，並載入相關技能跟證照(因skill與license欄位是輸入頓號分隔字串，在後端轉化為陣列存入資料庫)
+    const coach = await coachRepo
+      .createQueryBuilder("c")
+      .leftJoinAndSelect("c.Coach_Skill", "cs") //將教練專長關聯表併入
+      .leftJoinAndSelect("cs.Skill", "s") //再將skill表併入
+      .leftJoinAndSelect("c.Coach_License", "cl") //併入教練證照關聯表
+      .where("c.id = :id", { id: coachId })
+      .getOne();
+
+    if (!coach) {
+      return next(generateError(404, "查無教練個人資料"));
+    }
+    // DEBUGGING: 驗證 coach 物件是否為實例
+    // console.log("--- Debugging Coach Instance ---");
+    // console.log("Value of Coach (Class):", Coach); // 應該是 function 或 class
+    // console.log("Type of Coach (Class):", typeof Coach); // 應該是 'function'
+    // console.log("Is coach an instance of Coach Entity?", coach instanceof Coach);
+    // console.log("----------------------------");
 
     // //取得並檢查該教練的資料內容
     // const profile = await coachRepo
@@ -192,26 +210,7 @@ async function patchProfile(req, res, next) {
     const updatedFields = [];
     let hasSkillOrLicenseUpdated = false; //標記技能或證照是否更新
 
-    //使用transaction避免更新到一半出錯的狀況。一但出錯就回捲所有改動
-    await AppDataSource.transaction(async (manager) => {
-      const coachRepo = manager.getRepository("Coach");
-      const skillRepo = manager.getRepository("Skill");
-      const coachSkillRepo = manager.getRepository("Coach_Skill");
-      const coachLicenseRepo = manager.getRepository("Coach_License");
-
-      //取得並檢查該教練的資料內容，並載入相關技能跟證照(因skill與license欄位是輸入頓號分隔字串，在後端轉化為陣列存入資料庫)
-      const coach = await coachRepo
-        .createQueryBuilder("c")
-        .leftJoinAndSelect("c.Coach_Skill", "cs") //將教練專長關聯表併入
-        .leftJoinAndSelect("cs.Skill", "s") //再將skill表併入
-        .leftJoinAndSelect("c.Coach_License", "cl") //併入教練證照關聯表
-        .where("c.id = :id", { id: coachId })
-        .getOne();
-
-      if (!coach) {
-        return next(generateError(404, "查無教練個人資料"));
-      }
-
+    await AppDataSource.transaction(async (transactionalEntityManager) => {
       //處理一般欄位的更新
       //跳過特殊處理邏輯的專長及證照上傳
       for (const key of Object.keys(filteredData)) {
@@ -235,53 +234,55 @@ async function patchProfile(req, res, next) {
         }
       }
       //處理Skill資料表的更新
+      let newSkillsFromReq = [];
       if (filteredData.skill !== undefined) {
         hasSkillOrLicenseUpdated = true;
 
         //將request body的專長字串的頓號去掉，存入一個陣列。
         //skill更動原則 : 不可任意刪除、減少專長，否則影響
-        const newSkills = filteredData.skill
+        newSkillsFromReq = filteredData.skill
           .split("、")
           .map((s) => s.trim())
           .filter((s) => s !== ""); //過濾空字串
-
-        //將目前教練存入skill資料表的專長撈出，並存成陣列。
-        const currentSkills = coach.Coach_Skill.map((cs) => cs.Skill.name);
-
-        //找出需要新增的技能項目
-        const skillsToAdd = newSkills.filter((skillName) => !currentSkills.includes(skillName));
-        //找到會被刪除的技能名稱
-        const skillToRemove = currentSkills.filter((skillName) => !newSkills.includes(skillName));
-        if (skillToRemove.length > 0) {
-          return next(generateError(400, `刪除技能${skillToRemove}需聯絡管理員`));
-        }
-        //驗證新增技能項目是否在許可的技能種類中
-        //找到可以加入的技能
-        const existingSkill = await skillRepo.find({ where: { name: In(skillsToAdd) } });
-
-        //找出request body有，Skill資料表卻不存在的專長
-        const foundSkillNames = new Set(existingSkill.map((s) => s.name));
-        const invalidSkills = skillsToAdd.filter((skillName) => !foundSkillNames.has(skillName));
-        if (invalidSkills.length > 0) {
-          return next(generateError(400, `${invalidSkills}不是可開課的專長，請聯絡管理員`));
-        }
-        //新增Coach_Skill關係資料
-        for (const skillName of skillsToAdd) {
-          const skill = existingSkill.find((s) => s.name === skillName);
-
-          if (!skill) {
-            return next(generateError(404, `查找${skillName}失敗，請聯絡管理員`));
-          }
-          await coachSkillRepo.save(
-            coachSkillRepo.create({
-              coach_id: coach.id,
-              skill_id: skill.id,
-            })
-          );
-          // console.log("💾 將新增 Coach_Skill：", newCoachSkill);
-        }
-        updatedFields.push("skill");
       }
+      //將目前教練存入skill資料表的專長撈出，並存成陣列。
+      const currentSkills = coach.Coach_Skill.map((cs) => cs.Skill.name);
+
+      //找出需要新增的技能項目
+      const skillsToAdd = newSkillsFromReq.filter(
+        (skillName) => !currentSkills.includes(skillName)
+      );
+      //找到會被刪除的技能名稱
+      const skillToRemove = currentSkills.filter(
+        (skillName) => !newSkillsFromReq.includes(skillName)
+      );
+      if (skillToRemove.length > 0) {
+        return next(generateError(400, `刪除技能${skillToRemove}需聯絡管理員`));
+      }
+      //驗證新增技能項目是否在許可的技能種類中
+      //找到可以加入的技能
+      const existingSkill = await skillRepo.find({ where: { name: In(skillsToAdd) } });
+
+      //找出request body有，Skill資料表卻不存在的專長
+      const foundSkillNames = new Set(existingSkill.map((s) => s.name));
+      const nonExistingSkills = skillsToAdd.filter((skillName) => !foundSkillNames.has(skillName));
+      if (nonExistingSkills.length > 0) {
+        return next(generateError(400, `${nonExistingSkills}不是可開課的專長，請聯絡管理員`));
+      }
+      //新增Coach_Skill關係資料
+      for (const skillName of skillsToAdd) {
+        const skill = existingSkill.find((s) => s.name === skillName);
+
+        if (!skill) {
+          return next(generateError(404, `查找${skillName}失敗，請聯絡管理員`));
+        }
+        const newCoachSkill = coachSkillRepo.create({
+          coach_id: coach.id,
+          skill_id: skill.id,
+        });
+        await coachSkillRepo.save(newCoachSkill);
+      }
+      updatedFields.push("skill");
 
       //處理license_data更新
       //檢查req.body是否輸入證照與資格(license)、證照與資格上傳(license_data)
@@ -358,6 +359,7 @@ async function patchProfile(req, res, next) {
         await coachRepo.save(coach);
       }
     });
+    console.log(updatedFields);
     //若無任何更新，仍然算成功更新，只是告知無資料變更
     if (updatedFields.length === 0) {
       res.status(200).json({
@@ -368,7 +370,7 @@ async function patchProfile(req, res, next) {
       res.status(200).json({
         status: true,
         message: "成功更新資料",
-        // data: { coach: coach },
+        data: { coach: coach },
       });
     }
   } catch (error) {
