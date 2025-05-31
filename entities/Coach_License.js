@@ -10,24 +10,28 @@ module.exports = new EntitySchema({
       primary: true,
       generated: "uuid",
     },
-    title: {
-      type: "varchar",
-      length: 100, //用戶輸入的證照名稱，例如CPR證書，由證照與資格去掉頓號後存入。
+    coach_id: {
+      type: "uuid",
+      nullable: true, // 或 true 看你的需求
     },
     filename: {
       type: "varchar",
       length: 255, //用戶上傳的原檔名，可用以比對資料用。
+      nullable: true,
     },
     file_url: {
       type: "varchar",
       length: 2048,
+      nullable: true,
     },
     file_mimetype: {
       type: "varchar",
       length: 100, //檔案的媒體格式，如image/png、application/pdf
+      nullable: true,
     },
     file_size: {
       type: "int",
+      nullable: true,
     },
     status: {
       type: "varchar",

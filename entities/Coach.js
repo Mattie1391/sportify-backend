@@ -98,11 +98,11 @@ module.exports = new EntitySchema({
       type: "date",
       nullable: true, // 出生日期，可空
     },
-    // license: {
-    //   type: "varchar",
-    //   length: 50,
-    //   nullable: true, //證照名稱，可空。如UCI認證教練、CPR證書
-    // },
+    license: {
+      type: "varchar",
+      length: 50,
+      nullable: true, //證照名稱，可空。如UCI認證教練、CPR證書
+    },
     // license_url: {
     //   type: "varchar",
     //   length: 2048,
@@ -174,7 +174,7 @@ module.exports = new EntitySchema({
     // 一位教練可以有多個證照附件
     Coach_License: {
       target: "Coach_License",
-      type: "one-to-many", // 一對多關聯：一位教練對應多個課程
+      type: "one-to-many", // 一對多關聯：一位教練對應多個檔案
       inverseSide: "Coach", // 對方 entity（Course）中定義的關聯欄位名
     },
   },
