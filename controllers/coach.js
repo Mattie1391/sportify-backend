@@ -3,9 +3,7 @@ const AppDataSource = require("../db/data-source");
 const courseRepo = AppDataSource.getRepository("Course");
 const viewRepo = AppDataSource.getRepository("View_Stat");
 const coachRepo = AppDataSource.getRepository("Coach");
-const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
 const skillRepo = AppDataSource.getRepository("Skill");
-const coachLicenseRepo = AppDataSource.getRepository("Coach_License");
 
 //services
 const { checkValidQuerys } = require("../services/queryServices");
