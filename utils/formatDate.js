@@ -15,4 +15,12 @@ const formatYYYYMMDD = (date) =>
     date.getDate()
   ).padStart(2, "0")}`;
 
-module.exports = { formatDate, formatYYYYMMDD };
+// 將 YYYYMMDD 字串轉為 Date 物件
+const parseYYYYMMDD = (str) => {
+  if (!/^\d{8}$/.test(str)) return null;
+  const year = parseInt(str.slice(0, 4), 10);
+  const month = parseInt(str.slice(4, 6), 10) - 1;
+  const day = parseInt(str.slice(6, 8), 10);
+  return new Date(year, month, day);
+};
+module.exports = { formatDate, formatYYYYMMDD , parseYYYYMMDD };

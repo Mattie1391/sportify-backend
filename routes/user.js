@@ -3,9 +3,11 @@ const router = express.Router();
 const auth = require("../middlewares/auth");
 const isUser = require("../middlewares/isUser");
 const isSelf = require("../middlewares/isSelf");
+const upload = require("../middlewares/upload");
 const userController = require("../controllers/user");
 const ratingController = require("../controllers/rating");
 const paymentController = require("../controllers/payment");
+const { uploadAvatar } = require("../controllers/upload");
 
 //固定路由
 //固定路由順序要放在動態路由前，如:userId，否則會被/:userId的路由攔截
@@ -30,8 +32,10 @@ router.post("/create-payment", auth, isUser, paymentController.postCreatePayment
 router.post("/payment-confirm", paymentController.postPaymentConfirm);
 //取消定期扣款
 router.post("/cancel-payment", auth, isUser, paymentController.postCancelPayment);
-// 接收取消結果的通知（從前端導回）
+//TODO:接收取消結果的通知，待確認
 router.post("/cancel-confirm", paymentController.postCancelConfirm);
+//上傳大頭貼
+router.post("/upload-avatar", auth, isUser, upload.single("avatar"), uploadAvatar);
 
 //動態路由
 
@@ -49,7 +53,6 @@ router.get("/courses/:courseId/ratings", auth, isUser, ratingController.getRatin
 router.post("/:userId/ratings/:courseId", auth, isUser, isSelf, ratingController.postRating);
 //取得上課頁面詳細資訊
 router.get("/courses/:courseId/details", auth, isUser, userController.getCourseDetails);
-router.post("/:userId/ratings/:courseId", auth, isUser, isSelf, ratingController.postRating);
 //修改課程評價
 router.patch("/:userId/rating/:courseId", auth, isUser, isSelf, ratingController.patchRating);
 

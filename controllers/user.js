@@ -1,4 +1,15 @@
 const bcrypt = require("bcryptjs");
+const cloudinary = require("cloudinary").v2;
+const logger = require("pino")({
+  transport: {
+    target: "pino-pretty",
+    options: {
+      colorize: true,
+      translateTime: "HH:MM:ss",
+      ignore: "pid,hostname",
+    },
+  },
+});
 const { MoreThan, Like } = require("typeorm");
 //repo
 const AppDataSource = require("../db/data-source");
@@ -110,9 +121,17 @@ async function patchProfile(req, res, next) {
       return next(generateError(400, "使用者 ID 格式不正確"));
 
     const user = await userRepo.findOneBy({ id: userId });
+    if (!user) return next(generateError(400, "使用者不存在"));
 
     // email及使用者ID無法修改,前端email欄位同步寫死，不能輸入
-    const { name, profile_image_url, oldPassword, newPassword, newPassword_check } = req.body;
+    const {
+      name,
+      profile_image_url,
+      profile_image_public_id,
+      oldPassword,
+      newPassword,
+      newPassword_check,
+    } = req.body;
 
     //目前暫無email驗證功能，禁止修改email
     if ("email" in req.body) {
@@ -123,18 +142,22 @@ async function patchProfile(req, res, next) {
     // 若值為字串，就回傳去掉前後空白的結果，空字串""就會回傳false
     // 若值為null或undefined,就不執行trim()，直接回傳undefined（false）
 
-    //判斷機制提取
+    // 檢查 name 是否有效（非空字串）
     const nameValidCheck = Boolean(name?.trim()); //name合格會回傳true
     let changeNameCheck = false;
     if (nameValidCheck) {
       changeNameCheck = name.trim() !== user.name; //name變更會回傳true
     }
 
+    // 檢查頭像圖片網址是否有效（非空字串）
     const profileValidCheck = Boolean(profile_image_url?.trim()); //url合格會回傳true
     let changeProfileCheck = false;
     if (profileValidCheck) {
       changeProfileCheck = profile_image_url.trim() !== user.profile_image_url; //url變更會回傳true
     }
+
+    //檢查 public_id是否有效（非空字串）
+    const publicIdValidCheck = Boolean(profile_image_public_id?.trim());
 
     // 若使用者想修改 name，檢查是否符合填寫規則
     if (nameValidCheck && changeNameCheck) {
@@ -150,6 +173,15 @@ async function patchProfile(req, res, next) {
     if (profileValidCheck && changeProfileCheck) {
       if (isNotValidUrl(profile_image_url)) {
         return next(generateError(400, "頭貼網址格式不正確"));
+      }
+      // 如果有新圖片URL，必須要有對應的 public_id
+      if (!publicIdValidCheck) {
+        return next(generateError(400, "更新頭像時必須提供有效的 public_id"));
+      }
+      // 檢查 public_id 格式（應該包含 user-avatars/ 前綴）
+      const trimmedPublicId = profile_image_public_id.trim();
+      if (!trimmedPublicId.startsWith("user-avatars/")) {
+        return next(generateError(400, "public_id 格式不正確"));
       }
     }
 
@@ -202,6 +234,16 @@ async function patchProfile(req, res, next) {
     ) {
       return next(generateError(400, "無資料需變更，請輸入欲修改的內容"));
     }
+    // 在更新資料庫前，先準備刪除舊圖片
+    let oldImagePublicId = null;
+    if (
+      profileValidCheck &&
+      changeProfileCheck &&
+      user.profile_image_url &&
+      user.profile_image_public_id
+    ) {
+      oldImagePublicId = user.profile_image_public_id || null;
+    }
 
     //修改變更的資料
     if (nameValidCheck && changeNameCheck) {
@@ -209,17 +251,33 @@ async function patchProfile(req, res, next) {
     }
     if (profileValidCheck && changeProfileCheck) {
       user.profile_image_url = profile_image_url.trim();
+      user.profile_image_public_id = profile_image_public_id.trim();
     }
     if (hasAllPasswordFields) {
       user.password = await bcrypt.hash(newPassword, 10);
     }
     await userRepo.save(user);
 
+    //資料庫更新成功後，在cloudinary刪除舊圖片
+    if (oldImagePublicId && oldImagePublicId !== profile_image_public_id?.trim()) {
+      try {
+        const deleteResult = await cloudinary.uploader.destroy(oldImagePublicId);
+        if (deleteResult.result === "ok") {
+          logger.info(`舊圖片刪除成功: ${deleteResult.result} (${oldImagePublicId})`);
+        } else {
+          logger.warn(`舊圖片刪除異常: ${deleteResult.result} (${oldImagePublicId})`);
+        }
+      } catch (error) {
+        logger.error(`舊圖片刪除失敗，請手動處理:${error}, public_id: ${oldImagePublicId}`);
+      }
+    }
+
     const userData = {
       id: user.id,
       name: user.name,
       email: user.email,
       profile_image_url: user.profile_image_url,
+      profile_image_public_id: user.profile_image_public_id,
       updated_at: user.updated_at,
     };
     res.status(200).json({ status: true, message: "成功更新資料", data: userData });
