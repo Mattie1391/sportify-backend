@@ -395,8 +395,65 @@ async function patchProfile(req, res, next) {
     next(error);
   }
 }
+//教練後台取得自己課程列表
+async function getOwnCourses(req, res, next) {
+  try {
+    const coachId = req.user.id;
+
+    //取得需顯示的教練個人資訊
+    const coachProfile = await coachRepo.findOne({
+      select: ["id", "nickname", "profile_image_url", "is_verified", "job_title"],
+      where: { id: coachId },
+    });
+    //排除找不到教練個人資訊的狀況
+    if (!coachProfile) {
+      return next(generateError(404, "查無教練資料"));
+    }
+    //改寫is_verified的值為已審核/未審核
+    coachProfile.is_verified = coachProfile.is_verified === true ? "已審核" : "未審核";
+
+    //取得教練所有課程
+    const courses = await courseRepo
+      .createQueryBuilder("c")
+      .leftJoin("c.Skill", "s")
+      .select([
+        "c.id AS course_id",
+        "c.name AS title",
+        "s.name AS type",
+        "c.image_url AS picture_url",
+        "c.score AS score",
+        "c.student_amount AS student_amount",
+        "c.total_hours AS total_hours",
+        "c.description AS description",
+        "c.is_approved AS is_approved",
+      ])
+      .where("c.coach_id = :id", { id: coachId })
+      .orderBy("c.student_amount", "DESC")
+      .addOrderBy("c.is_approved", "DESC")
+      .getRawMany();
+
+    //改寫courses資料的審核狀況為 已審核/未審核
+    courses.forEach((item) => {
+      item.is_approved = item.is_approved === true ? "已審核" : "未審核";
+    });
+
+    //組裝呈現資料
+    const data = {
+      coach: coachProfile,
+      courses: courses,
+    };
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
 
 module.exports = {
   getCoachViewStats,
   patchProfile,
+  getOwnCourses,
 };

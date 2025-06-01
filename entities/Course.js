@@ -63,6 +63,7 @@ module.exports = new EntitySchema({
     numbers_of_view: {
       type: "int",
       nullable: false,
+      default: 0,
     },
 
     // 課程總時數（分鐘）
@@ -77,10 +78,10 @@ module.exports = new EntitySchema({
       nullable: false,
     },
 
-    // 審核通過的時間
+    // 審核通過的時間(需經審核才有值)
     approved_at: {
       type: "timestamp",
-      nullable: false,
+      nullable: true,
     },
 
     // 建立時間（自動產生）
