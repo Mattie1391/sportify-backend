@@ -10,7 +10,7 @@ const logger = require("pino")({
     },
   },
 });
-const { MoreThan, Like } = require("typeorm");
+const { MoreThan, Like, In } = require("typeorm");
 //repo
 const AppDataSource = require("../db/data-source");
 const userRepo = AppDataSource.getRepository("User");
@@ -19,6 +19,8 @@ const courseRepo = AppDataSource.getRepository("Course");
 const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
 const favoriteRepo = AppDataSource.getRepository("User_Course_Favorite");
 const subscriptionRepo = AppDataSource.getRepository("Subscription");
+const chapterRepo = AppDataSource.getRepository("Course_Chapter");
+const videoRepo = AppDataSource.getRepository("Course_Video");
 //services
 const {
   getLatestSubscription,
@@ -852,6 +854,72 @@ async function getCourseDetails(req, res, next) {
   }
 }
 
+//取得課程章節側邊欄資訊
+async function getCourseChaptersSidebar(req, res, next) {
+  try {
+    const { courseId } = req.params;
+
+    // 檢查是否有提供課程 ID
+    if (!courseId) {
+      return next(generateError(400, "請提供課程 ID"));
+    }
+
+    // 查詢課程資料
+    const course = await courseRepo.findOneBy({ id: courseId });
+    if (!course) {
+      return next(generateError(400, "查無此課程"));
+    }
+
+    // 查詢課程底下所有章節，依照章節與子章節順序排序
+    const chapters = await chapterRepo.find({
+      where: { course_id: courseId },
+      order: {
+        chapter_number: "ASC",
+        sub_chapter_number: "ASC",
+      },
+    });
+
+    // 取出所有章節 ID 用來查詢影片資料
+    const chapterIds = chapters.map((c) => c.id);
+    const videos = await videoRepo.find({
+      where: {
+        chapter_subtitle_set_id: In(chapterIds),
+      },
+    });
+
+    // 建立影片對照表：以章節 ID 為 key，對應影片長度（duration）
+    const videoMap = {};
+    videos.forEach((v) => {
+      videoMap[v.chapter_subtitle_set_id] = v.duration;
+    });
+
+    //TODO:模擬章節觀看進度（未連接使用者資料，之後可整合 user_progress 資料）
+    const fakeProgress = chapters.map((chapter, index) => {
+      return {
+        name: chapter.subtitle,
+        length: videoMap[chapter.id] ? `${Math.round(videoMap[chapter.id])}分鐘` : "未提供",
+        isFinished: index < 2, // 假設前兩個已完成
+        isCurrentWatching: index === 2, // 假設第三個正在觀看
+      };
+    });
+
+    // 回傳符合格式的 JSON 結構
+    return res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: {
+        courseName: course.name,
+        chapter: fakeProgress,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+
+
+
 module.exports = {
   getProfile,
   getPlans,
@@ -865,4 +933,5 @@ module.exports = {
   patchSubscription,
   getSubscriptions,
   getCourseDetails,
+  getCourseChaptersSidebar,
 };
