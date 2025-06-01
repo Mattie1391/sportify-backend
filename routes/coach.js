@@ -7,8 +7,8 @@ const isSelf = require("../middlewares/isSelf");
 const coachController = require("../controllers/coach");
 
 //固定路由
-//取得所有課程觀看資料，或依照輸入的課程id找對應課程
-router.get("/courses/views", auth, isCoach, coachController.getCoachViewStats);
+//教練取得後台報表(觀看數、收益)
+router.get("/data-analysis", auth, isCoach, coachController.getCoachAnalytics);
 //教練取得自己所有課程
 router.get("/courses", auth, isCoach, coachController.getOwnCourses);
 
