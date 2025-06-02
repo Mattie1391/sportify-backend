@@ -55,5 +55,7 @@ router.post("/:userId/ratings/:courseId", auth, isUser, isSelf, ratingController
 router.get("/courses/:courseId/details", auth, isUser, userController.getCourseDetails);
 //修改課程評價
 router.patch("/:userId/rating/:courseId", auth, isUser, isSelf, ratingController.patchRating);
+//取得側邊欄課程章節
+router.get("/courses/:courseId/sidebar", auth, isUser, userController.getCourseChaptersSidebar);
 
 module.exports = router;
