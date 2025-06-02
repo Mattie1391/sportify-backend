@@ -1,15 +1,6 @@
 const bcrypt = require("bcryptjs");
 const cloudinary = require("cloudinary").v2;
-const logger = require("pino")({
-  transport: {
-    target: "pino-pretty",
-    options: {
-      colorize: true,
-      translateTime: "HH:MM:ss",
-      ignore: "pid,hostname",
-    },
-  },
-});
+const logger = require("../config/logger");
 const { MoreThan, Like } = require("typeorm");
 //repo
 const AppDataSource = require("../db/data-source");
