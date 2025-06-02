@@ -1,5 +1,5 @@
 const dayjs = require("dayjs");
-const logger = require("pino")();
+const logger = require("../config/logger");
 const config = require("../config/index");
 const { merchantId, returnUrl, notifyUrl } = config.get("ecpay"); //引入綠界金流參數
 const { generateCMV } = require("../services/ecPayServices");
