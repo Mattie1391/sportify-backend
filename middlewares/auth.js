@@ -1,14 +1,4 @@
-//logger套件
-const logger = require("pino")({
-  transport: {
-    target: "pino-pretty",
-    options: {
-      colorize: true,
-      translateTime: "HH:MM:ss",
-      ignore: "pid,hostname",
-    },
-  },
-});
+const logger = require("../config/logger");
 const secret = process.env.JWT_SECRET;
 const generateError = require("../utils/generateError");
 const { verifyJWT } = require("../utils/jwtUtils");
