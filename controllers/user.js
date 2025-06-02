@@ -19,7 +19,6 @@ const courseRepo = AppDataSource.getRepository("Course");
 const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
 const favoriteRepo = AppDataSource.getRepository("User_Course_Favorite");
 const subscriptionRepo = AppDataSource.getRepository("Subscription");
-const chapterRepo = AppDataSource.getRepository("Course_Chapter");
 const videoRepo = AppDataSource.getRepository("Course_Video");
 //services
 const {
@@ -871,7 +870,7 @@ async function getCourseChaptersSidebar(req, res, next) {
     }
 
     // 查詢課程底下所有章節，依照章節與子章節順序排序
-    const chapters = await chapterRepo.find({
+    const chapters = await courseChapterRepo.find({
       where: { course_id: courseId },
       order: {
         chapter_number: "ASC",
@@ -879,25 +878,45 @@ async function getCourseChaptersSidebar(req, res, next) {
       },
     });
 
+    // 這段程式碼將所有章節的影片資料依照章節 ID 分組
+    // 每個章節會有一個 videos 屬性，內容為該章節所有影片組成的陣列
+
     // 取出所有章節 ID 用來查詢影片資料
     const chapterIds = chapters.map((c) => c.id);
+
+    // 查詢所有屬於這些章節的影片
     const videos = await videoRepo.find({
-      where: {
-        chapter_subtitle_set_id: In(chapterIds),
-      },
+    where: {
+    chapter_subtitle_set_id: In(chapterIds),
+    },
     });
 
-    // 建立影片對照表：以章節 ID 為 key，對應影片長度（duration）
-    const videoMap = {};
-    videos.forEach((v) => {
-      videoMap[v.chapter_subtitle_set_id] = v.duration;
+    // 假設你已經有 chapters 跟 videos 兩個陣列
+    // videos 陣列裡每個物件都有 chapter_subtitle_set_id（對應章節 id）與 duration（秒數）
+
+    // 1. 建立一個以章節 ID 為 key，影片陣列為 value 的對照表
+    const videoListMap = {};
+    videos.forEach(video => {
+      const key = video.chapter_subtitle_set_id;
+      if (!videoListMap[key]) videoListMap[key] = [];
+      videoListMap[key].push(video);
     });
 
+    // 2. 依據 chapters 產生 fakeProgress，每個章節取得該章節所有影片
     //TODO:模擬章節觀看進度（未連接使用者資料，之後可整合 user_progress 資料）
     const fakeProgress = chapters.map((chapter, index) => {
+      // 取得此章節所有影片的陣列
+      const videoArr = videoListMap[chapter.id] || [];
+      // 計算該章節所有影片的總時長（秒）
+      const totalDuration = videoArr.reduce((sum, video) => sum + (video.duration || 0), 0);
+      // 轉換成幾分幾秒的格式
+      const lengthStr = videoArr.length
+        ? `${Math.floor(totalDuration / 60)}分${Math.round(totalDuration % 60)}秒`
+        : "未提供";
+      // 回傳進度物件
       return {
         name: chapter.subtitle,
-        length: videoMap[chapter.id] ? `${Math.round(videoMap[chapter.id])}分鐘` : "未提供",
+        length: lengthStr,
         isFinished: index < 2, // 假設前兩個已完成
         isCurrentWatching: index === 2, // 假設第三個正在觀看
       };
