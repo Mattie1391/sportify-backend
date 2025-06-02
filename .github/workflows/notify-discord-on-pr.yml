@@ -3,35 +3,55 @@ name: Notify Discord on PR Events
 on:
   pull_request:
     types: [opened, closed]
+  issue_comment:
+    types: [created]
 
 jobs:
   notify-discord:
     runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' || 
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request)
+
     steps:
-      - name: Send PR Event to Discord
+      - name: Send PR Event or Comment to Discord
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          PR_TITLE="${{ github.event.pull_request.title }}"
-          PR_URL="${{ github.event.pull_request.html_url }}"
-          AUTHOR="${{ github.event.pull_request.user.login }}"
-          BASE_BRANCH="${{ github.event.pull_request.base.ref }}"
-          MERGED="${{ github.event.pull_request.merged }}"
           ACTION="${{ github.event.action }}"
+          EVENT_NAME="${{ github.event_name }}"
+          IS_PR_COMMENT="${{ github.event.issue.pull_request }}"
+          
+          if [ "$EVENT_NAME" == "pull_request" ]; then
+            PR_TITLE="${{ github.event.pull_request.title }}"
+            PR_URL="${{ github.event.pull_request.html_url }}"
+            AUTHOR="${{ github.event.pull_request.user.login }}"
+            BASE_BRANCH="${{ github.event.pull_request.base.ref }}"
+            MERGED="${{ github.event.pull_request.merged }}"
 
-          if [ "$ACTION" == "opened" ]; then
-            MSG="📬 **New Pull Request Opened!**"
-          elif [ "$ACTION" == "closed" ] && [ "$MERGED" == "true" ] && [ "$BASE_BRANCH" == "main" ]; then
-            MSG="🎉 **Pull Request Merged into \`main\`!**"
-          elif [ "$ACTION" == "closed" ]; then
-            MSG="✅ **Pull Request Closed (Not Merged)**"
-          else
-            MSG="🔔 Pull Request Event"
+            if [ "$ACTION" == "opened" ]; then
+              MSG="📬 **New Pull Request Opened!**"
+            elif [ "$ACTION" == "closed" ] && [ "$MERGED" == "true" ] && [ "$BASE_BRANCH" == "main" ]; then
+              MSG="🎉 **Pull Request Merged into \`main\`!**"
+            elif [ "$ACTION" == "closed" ]; then
+              MSG="✅ **Pull Request Closed (Not Merged)**"
+            else
+              MSG="🔔 Pull Request Event"
+            fi
+
+            DETAILS="🔗 [View PR]($PR_URL)\n📄 Title: *$PR_TITLE*\n👤 Author: **$AUTHOR**"
+
+          elif [ "$EVENT_NAME" == "issue_comment" ] && [ -n "$IS_PR_COMMENT" ]; then
+            COMMENT_BODY="${{ github.event.comment.body }}"
+            COMMENT_AUTHOR="${{ github.event.comment.user.login }}"
+            ISSUE_URL="${{ github.event.issue.html_url }}"
+            MSG="💬 **New Comment on Pull Request**"
+            DETAILS="🗨️ *$COMMENT_BODY*\n👤 By: **$COMMENT_AUTHOR**\n🔗 [View Comment]($ISSUE_URL)"
           fi
 
           curl -H "Content-Type: application/json" \
             -X POST \
             -d "{
-              \"content\": \"$MSG\\n🔗 [View PR]($PR_URL)\\n📄 Title: *$PR_TITLE*\\n👤 Author: **$AUTHOR**\"
+              \"content\": \"$MSG\\n$DETAILS\"
             }" \
             $DISCORD_WEBHOOK_URL
