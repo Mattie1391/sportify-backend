@@ -251,10 +251,10 @@ async function getCoaches(req, res, next) {
         "c.nickname AS coach_name",
         "c.job_title AS coach_title",
         "c.about_me AS coach_about_me",
-        "SUM(course.student_amount) AS student_amount",
+        "SUM(course.numbers_of_view) AS numbers_of_view",
       ])
       .groupBy("c.id")
-      .orderBy("student_amount", sort)
+      .orderBy("numbers_of_view", sort)
       .getRawMany();
 
     // 取得所有教練對應技能的資料
@@ -548,7 +548,7 @@ async function getDataAnalysis(req, res, next) {
       .innerJoin("s.Plan", "p") // 將 s.Plan 關聯到 Plan 表，p 是 Plan 的別名
       .groupBy("p.name") // 依照訂閱方案名稱分組
       .getRawMany(); // 回傳格式如：[{ plan: 'Fitness', count: '2' }, ...]
- 
+
     // 建立初始方案統計物件
     const planCounts = {
       Wellness: 0,
@@ -559,7 +559,7 @@ async function getDataAnalysis(req, res, next) {
     // 將查詢結果統整進 planCounts
     planCountsRaw.forEach((item) => {
       if (item.plan.includes("試用")) return; // 排除含「試用」的方案
-    
+
       if (item.plan.includes("Eagerness")) {
         planCounts.Eagerness += parseInt(item.count);
       } else if (item.plan.includes("Fitness")) {
@@ -568,7 +568,6 @@ async function getDataAnalysis(req, res, next) {
         planCounts.Wellness += parseInt(item.count);
       }
     });
-    
 
     // 回傳統計資料
     res.status(200).json({
