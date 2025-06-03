@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Upload to Mux with UpChunk</title>
+    <script src="https://unpkg.com/@mux/upchunk"></script>
+  </head>
+  <body>
+    <h1>影片上傳</h1>
+    <input type="file" id="videoInput" />
+    <button id="uploadBtn">上傳影片</button>
+    <progress id="progressBar" max="100" value="0"></progress>
+    <p id="status"></p>
+
+    <script>
+      document.getElementById("uploadBtn").addEventListener("click", async () => {
+        const file = document.getElementById("videoInput").files[0];
+        if (!file) return alert("請選擇影片");
+
+        // 從後端取得 direct_upload url
+        const res = await fetch("http://localhost:8080/api/v1/mux/upload-url"); //網址寫死，需自行調整才能打開上傳頁面
+        const data = await res.json();
+        const uploadUrl = data.url;
+
+        const upload = UpChunk.createUpload({
+          endpoint: uploadUrl, // Mux 提供的 direct upload URL
+          file: file,
+          chunkSize: 2048, // KB (2MB per chunk)，較小對於同步上傳而言較穩定
+        });
+
+        upload.on("error", (err) => {
+          document.getElementById("status").innerText = `❌ 錯誤: ${err.detail}`;
+        });
+
+        upload.on("progress", (progress) => {
+          document.getElementById("progressBar").value = progress.detail;
+          document.getElementById("status").innerText = `📤 上傳中: ${progress.detail.toFixed(2)}%`;
+        });
+
+        upload.on("success", () => {
+          document.getElementById("status").innerText = "✅ 上傳成功！";
+        });
+      });
+    </script>
+  </body>
+</html>

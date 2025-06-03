@@ -13,6 +13,7 @@ const authRouter = require("./routes/auth");
 const courseRouter = require("./routes/course");
 const adminRouter = require("./routes/admin");
 const coachRouter = require("./routes/coach");
+const muxRouter = require("./routes/mux");
 
 const app = express();
 
@@ -28,6 +29,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
+//讓public資料夾可以存放upload.html
+app.use(express.static("public"));
 
 app.use("/", indexRouter);
 app.use("/api/v1/users", userRouter);
@@ -35,6 +38,7 @@ app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/courses", courseRouter);
 app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/coaches", coachRouter);
+app.use("/api/v1/mux", muxRouter);
 
 // 錯誤處理中介軟體
 app.use(function (req, res, next) {
