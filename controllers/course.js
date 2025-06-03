@@ -75,10 +75,10 @@ async function getCoaches(req, res, next) {
         "c.nickname AS coach_name", //教練名稱
         "c.job_title AS coach_title", //教練title
         "c.about_me AS coach_about_me", //教練自我介紹
-        "SUM(course.student_amount) AS student_amount", //教練學生總數
+        "SUM(course.numbers_of_view) AS numbers_of_view", //教練觀看人次總數
       ])
-      .groupBy("c.id") // 將相同教練的資料聚合,計算每個教練的總學生數
-      .orderBy("student_amount", sort) //按學生人數排序，讓熱門課程類別排在前面
+      .groupBy("c.id") // 將相同教練的資料聚合,計算每個教練的總觀看人次
+      .orderBy("numbers_of_view", sort) //按觀看人次排序，讓熱門課程類別排在前面
       .getRawMany();
 
     //取得所有教練對應技能的資料
@@ -165,7 +165,7 @@ async function getCourses(req, res, next) {
       return next(generateError(400, `無此排序方式：${sortBy}，可用值為 popular 或 score`));
     //在撈資料前預先設定排序方式對應的參數
     const validSortParams = {
-      popular: "c.student_amount",
+      popular: "c.numbers_of_view",
       score: "c.score",
     };
     //根據sortBy query取出參數
@@ -249,7 +249,7 @@ async function getRecommandCourses(req, res, next) {
       .innerJoin("c.Skill", "s") //s=Skill
       .innerJoin("c.Coach", "coach")
       .select(fullCourseFields)
-      .orderBy("c.student_amount", "DESC") //按照課程學生人數排序
+      .orderBy("c.numbers_of_view", "DESC") //按照課程觀看人次排序
       .getRawMany();
 
     //只取前三筆推薦課程，且不包含當前頁面的課程
@@ -294,7 +294,7 @@ async function getCoachCourses(req, res, next) {
       .innerJoin("c.Coach", "coach")
       .select(fullCourseFields)
       .where("coach.id = :coachId", { coachId })
-      .orderBy("c.student_amount", "DESC") //按照課程學生人數排序
+      .orderBy("c.numbers_of_view", "DESC") //按照課程觀看人次排序
       .getRawMany();
 
     //取出前三筆
@@ -376,7 +376,7 @@ async function getCourseDetails(req, res, next) {
         id: course.id,
         name: course.name,
         score: course.score,
-        student_amount: course.student_amount,
+        numbers_of_view: course.numbers_of_view,
         hours: course.total_hours,
         image_url: course.image_url,
         trailer_url: course.trailer_url, //TODO:待確認網址格式，所有課程的第一部影片皆需設為公開

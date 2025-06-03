@@ -414,7 +414,7 @@ async function getCourses(req, res, next) {
       .innerJoin("c.Coach", "coach")
       .where("s.id IN (:...ids)", { ids: typeIds }) //取出skill_id包含在可觀看類別id的課程
       .select(fullCourseFields)
-      .orderBy("c.student_amount", "DESC")
+      .orderBy("c.numbers_of_view", "DESC")
       .getRawMany();
 
     //取得已收藏的課程ID陣列
@@ -476,7 +476,7 @@ async function getCourses(req, res, next) {
         filter: {
           category: category, //篩選類別
           sort: "desc", //後端寫死
-          sort_by: "popular", //依照學生人數排序，後端寫死
+          sort_by: "popular", //依照觀看人次排序，後端寫死
         },
         pagination,
       },
@@ -709,18 +709,18 @@ async function getSubscriptions(req, res, next) {
       take: limit, // 取得的資料筆數
     });
 
-    // 計算總頁數
-    const totalPages = Math.ceil(total / limit);
-    if (page > totalPages) {
-      return next(generateError(400, "頁數超出範圍"));
-    }
-
     //若查無訂閱紀錄
     if (!subscriptions || subscriptions.length === 0) {
       return res.status(200).json({
         status: true,
         message: "尚未訂閱，暫無訂閱紀錄",
       });
+    }
+
+    // 計算總頁數
+    const totalPages = Math.ceil(total / limit);
+    if (page > totalPages) {
+      return next(generateError(400, "頁數超出範圍"));
     }
 
     //扣款日期為訂閱結束日順延一日
@@ -826,7 +826,7 @@ async function getCourseDetails(req, res, next) {
         chapterTitle: currentChapter.title,
         chapterSubtitle: currentChapter.subtitle,
         score: course.score,
-        student_amount: course.student_amount,
+        numbers_of_view: course.numbers_of_view,
         hours: course.total_hours,
         image_url: course.image_url,
         video_url: course.trailer_url, //TODO:待確認網址格式，所有課程的第一部影片皆需設為公開
@@ -886,9 +886,9 @@ async function getCourseChaptersSidebar(req, res, next) {
 
     // 查詢所有屬於這些章節的影片
     const videos = await videoRepo.find({
-    where: {
-    chapter_subtitle_set_id: In(chapterIds),
-    },
+      where: {
+        chapter_subtitle_set_id: In(chapterIds),
+      },
     });
 
     // 假設你已經有 chapters 跟 videos 兩個陣列
@@ -896,7 +896,7 @@ async function getCourseChaptersSidebar(req, res, next) {
 
     // 1. 建立一個以章節 ID 為 key，影片陣列為 value 的對照表
     const videoListMap = {};
-    videos.forEach(video => {
+    videos.forEach((video) => {
       const key = video.chapter_subtitle_set_id;
       if (!videoListMap[key]) videoListMap[key] = [];
       videoListMap[key].push(video);
@@ -935,9 +935,6 @@ async function getCourseChaptersSidebar(req, res, next) {
     next(error);
   }
 }
-
-
-
 
 module.exports = {
   getProfile,

@@ -47,12 +47,6 @@ module.exports = new EntitySchema({
       length: 2048,
       nullable: false,
     },
-
-    // 學生數量
-    student_amount: {
-      type: "int",
-      nullable: false,
-    },
     // 課程評分（1.0 ~ 5.0，浮點數）
     score: {
       type: "float",
