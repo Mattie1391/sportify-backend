@@ -80,7 +80,7 @@ module.exports = new EntitySchema({
     // 審核通過的時間
     approved_at: {
       type: "timestamp",
-      nullable: false,
+      nullable: true,
     },
 
     // 建立時間（自動產生）

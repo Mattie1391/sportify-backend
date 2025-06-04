@@ -26,7 +26,7 @@ module.exports = new EntitySchema({
     },
     nickname: {
       type: "varchar",
-      length: 50,
+      length: 10,
       nullable: false, // 前端顯示的暱稱
     },
     // 重設密碼的 token，僅儲存一組最新有效的 token，避免使用者在時限內多次請求產生好幾組有效的 token
@@ -49,27 +49,32 @@ module.exports = new EntitySchema({
     },
     job_title: {
       type: "varchar",
-      length: 100,
+      length: 12,
       nullable: true, // 頭銜，例如「資深健身教練」
     },
     about_me: {
       type: "varchar",
+      length: 512,
       nullable: true, // 自我介紹，可空
     },
     hobby: {
       type: "varchar",
+      length: 100,
       nullable: true, // 興趣愛好，可空
     },
     experience: {
       type: "varchar",
-      nullable: true, // 教學經驗年數
+      length: 512,
+      nullable: true, // 資歷自述，例如擁有國際皮拉提斯教學證照
     },
     favorite_words: {
       type: "varchar",
+      length: 100,
       nullable: true, // 最喜歡的一句話，可空
     },
     motto: {
       type: "varchar",
+      length: 100,
       nullable: true, // 座右銘，可空
     },
 
@@ -86,22 +91,37 @@ module.exports = new EntitySchema({
     },
     id_number: {
       type: "varchar",
-      length: 20,
+      length: 10,
       nullable: true, // 身分證號或居留證號碼
     },
     phone_number: {
       type: "varchar",
-      length: 30,
+      length: 10,
       nullable: true, // 聯絡用手機號碼
     },
     birthday: {
       type: "date",
       nullable: true, // 出生日期，可空
     },
-    license_url: {
+    license: {
       type: "varchar",
-      length: 2048,
-      nullable: true, // 技能證照圖片網址，可空
+      length: 50,
+      nullable: true, //證照名稱，可空。如UCI認證教練、CPR證書
+    },
+    // license_url: {
+    //   type: "varchar",
+    //   length: 2048,
+    //   nullable: true, // 技能證照圖片網址，可空
+    // },
+    bank_code: {
+      type: "varchar",
+      length: 3,
+      nullable: true, //銀行代碼，可空
+    },
+    bank_account: {
+      type: "varchar",
+      length: 20,
+      nullable: true, //銀行帳號
     },
     bankbook_copy_url: {
       type: "varchar",
@@ -110,6 +130,7 @@ module.exports = new EntitySchema({
     },
     skill_description: {
       type: "varchar",
+      length: 100,
       nullable: true, // 教練擅長的技能簡介
     },
     experience_years: {
@@ -153,6 +174,12 @@ module.exports = new EntitySchema({
     Course: {
       target: "Course",
       type: "one-to-many", // 一對多關聯：一位教練對應多個課程
+      inverseSide: "Coach", // 對方 entity（Course）中定義的關聯欄位名
+    },
+    // 一位教練可以有多個證照附件
+    Coach_License: {
+      target: "Coach_License",
+      type: "one-to-many", // 一對多關聯：一位教練對應多個檔案
       inverseSide: "Coach", // 對方 entity（Course）中定義的關聯欄位名
     },
   },

@@ -1,5 +1,5 @@
 const AppDataSource = require("../db/data-source");
-const userRepo = AppDataSource.getRepository("User");
+// const userRepo = AppDataSource.getRepository("User");
 const planRepo = AppDataSource.getRepository("Plan");
 const courseRepo = AppDataSource.getRepository("Course");
 const subscriptionRepo = AppDataSource.getRepository("Subscription");
