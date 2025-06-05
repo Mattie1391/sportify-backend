@@ -24,6 +24,7 @@ const parseYYYYMMDD = (str) => {
   return new Date(year, month, day);
 };
 
+// 將日期加上指定的天數，返回新的 Date 物件
 const addDays = (date, days) => {
   const result = new Date(date);
   result.setDate(result.getDate() + days);

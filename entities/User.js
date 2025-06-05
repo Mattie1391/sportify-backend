@@ -81,7 +81,7 @@ module.exports = new EntitySchema({
     // ➤ 與訂閱資料的關聯：每位使用者可有一筆訂閱紀錄（many-to-one）
     Subscription: {
       target: "Subscription", // 關聯的目標 entity 名稱
-      type: "many-to-one",
+      type: "one-to-many",
       joinColumn: {
         name: "subscription_id", // 本表中的欄位
         referencedColumnName: "id", // 關聯表的欄位

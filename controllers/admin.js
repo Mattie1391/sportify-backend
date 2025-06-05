@@ -663,18 +663,28 @@ async function getUsers(req, res, next) {
     }
 
     // 格式化回傳資料
-    const data = paginatedData.map((user) => ({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      profile_image_url: user.profile_image_url,
-      plan: user.plan,
-      course_type: user.skills?.filter(Boolean) || [], // 改名 + 防 null
-      createdAt: user.createdAt,
-      period: `${formatDate(user.start_at)} - ${formatDate(user.end_at)}`,
-      end_at: formatDate(user.end_at),
-      next_payment: user.is_renewal && user.end_at ? formatDate(addDays(user.end_at, 1)) : null, //下次付款日期（若有開啟續訂）
-    }));
+      const data = paginatedData.map((user) => {
+      const hasStart = user.start_at !== null;
+      const hasEnd = user.end_at !== null;
+    
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        profile_image_url: user.profile_image_url,
+        plan: user.plan,
+        course_type: user.skills?.filter(Boolean) || [],
+        createdAt: user.createdAt,
+        period: hasStart && hasEnd
+          ? `${formatDate(user.start_at)} - ${formatDate(user.end_at)}`
+          : null,
+        end_at: hasEnd ? formatDate(user.end_at) : null,
+        next_payment: user.is_renewal && hasEnd
+          ? formatDate(addDays(user.end_at, 1))
+          : null,
+      };
+    });
+    
     
     res.status(200).json({
       status: true,
