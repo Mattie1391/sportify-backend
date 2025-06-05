@@ -20,7 +20,7 @@ module.exports = new EntitySchema({
     },
     duration: {
       type: "float",
-      nullable: true,
+      nullable: true, //單位是秒
     },
     status: {
       type: "varchar",
