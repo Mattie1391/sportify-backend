@@ -6,7 +6,6 @@ const coachRepo = AppDataSource.getRepository("Coach");
 const skillRepo = AppDataSource.getRepository("Skill");
 
 //services
-const { checkValidQuerys } = require("../services/queryServices");
 
 //utils
 const { isNotValidString, isNotValidUUID } = require("../utils/validators"); // 引入驗證工具函數
@@ -100,12 +99,6 @@ async function getCoachViewStats(req, res, next) {
 }
 //教練修改個人檔案API
 async function patchProfile(req, res, next) {
-  // 禁止前端亂輸入參數，如 banana=999
-  const invalidQuerys = checkValidQuerys(req.query, ["coachId"]);
-  if (invalidQuerys.length > 0) {
-    return next(generateError(400, `不允許的參數：${invalidQuerys.join(", ")}`));
-  }
-
   //設定patch request欄位的白名單
   const allowedFields = [
     "nickname",
@@ -197,7 +190,7 @@ async function patchProfile(req, res, next) {
         skillDataActuallyChanged = true;
 
         //將request body的專長字串的頓號去掉，存入一個陣列。
-        //skill更動原則 : 不可任意刪除、減少專長，否則影響
+        //skill更動原則 : 不可任意刪除、減少專長，否則會影響已開設的課程
         newSkillsFromReq = filteredData.skill
           .split("、")
           .map((s) => s.trim())

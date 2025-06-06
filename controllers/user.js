@@ -1,15 +1,6 @@
 const bcrypt = require("bcryptjs");
 const cloudinary = require("cloudinary").v2;
-const logger = require("pino")({
-  transport: {
-    target: "pino-pretty",
-    options: {
-      colorize: true,
-      translateTime: "HH:MM:ss",
-      ignore: "pid,hostname",
-    },
-  },
-});
+const logger = require("../config/logger");
 const { MoreThan, Like, In } = require("typeorm");
 //repo
 const AppDataSource = require("../db/data-source");
@@ -19,7 +10,6 @@ const courseRepo = AppDataSource.getRepository("Course");
 const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
 const favoriteRepo = AppDataSource.getRepository("User_Course_Favorite");
 const subscriptionRepo = AppDataSource.getRepository("Subscription");
-const chapterRepo = AppDataSource.getRepository("Course_Chapter");
 const videoRepo = AppDataSource.getRepository("Course_Video");
 //services
 const {
@@ -43,7 +33,7 @@ const {
 } = require("../utils/validators");
 const generateError = require("../utils/generateError");
 const paginate = require("../utils/paginate");
-const { formatDate, formatYYYYMMDD } = require("../utils/formatDate"); // 引入日期格式化工具函數
+const { formatDate, formatYYYYMMDD, addDays } = require("../utils/formatDate"); // 引入日期格式化工具函數
 const generateOrderNumber = require("../utils/generateOrderNumber"); // 引入生成訂單編號的工具函數
 
 //取得使用者資料
@@ -415,7 +405,7 @@ async function getCourses(req, res, next) {
       .innerJoin("c.Coach", "coach")
       .where("s.id IN (:...ids)", { ids: typeIds }) //取出skill_id包含在可觀看類別id的課程
       .select(fullCourseFields)
-      .orderBy("c.student_amount", "DESC")
+      .orderBy("c.numbers_of_view", "DESC")
       .getRawMany();
 
     //取得已收藏的課程ID陣列
@@ -477,7 +467,7 @@ async function getCourses(req, res, next) {
         filter: {
           category: category, //篩選類別
           sort: "desc", //後端寫死
-          sort_by: "popular", //依照學生人數排序，後端寫死
+          sort_by: "popular", //依照觀看人次排序，後端寫死
         },
         pagination,
       },
@@ -710,12 +700,6 @@ async function getSubscriptions(req, res, next) {
       take: limit, // 取得的資料筆數
     });
 
-    // 計算總頁數
-    const totalPages = Math.ceil(total / limit);
-    if (page > totalPages) {
-      return next(generateError(400, "頁數超出範圍"));
-    }
-
     //若查無訂閱紀錄
     if (!subscriptions || subscriptions.length === 0) {
       return res.status(200).json({
@@ -724,11 +708,10 @@ async function getSubscriptions(req, res, next) {
       });
     }
 
-    //扣款日期為訂閱結束日順延一日
-    function addDays(date, days) {
-      const result = new Date(date);
-      result.setDate(result.getDate() + days);
-      return result;
+    // 計算總頁數
+    const totalPages = Math.ceil(total / limit);
+    if (page > totalPages) {
+      return next(generateError(400, "頁數超出範圍"));
     }
 
     //取出回傳資料
@@ -742,6 +725,7 @@ async function getSubscriptions(req, res, next) {
         order_number: s.order_number, //訂單編號
         plan: s.Plan.name, //方案名稱
         price: s.price, //價格
+        merchant_trade_no: s.merchant_trade_no, //金流商交易編號
         purchased_at: purchasedAt, //購買日期
         end_at: endAt, //訂閱到期時間
         period: `${startAt} - ${endAt}`, //訂閱期間
@@ -827,7 +811,7 @@ async function getCourseDetails(req, res, next) {
         chapterTitle: currentChapter.title,
         chapterSubtitle: currentChapter.subtitle,
         score: course.score,
-        student_amount: course.student_amount,
+        numbers_of_view: course.numbers_of_view,
         hours: course.total_hours,
         image_url: course.image_url,
         video_url: course.trailer_url, //TODO:待確認網址格式，所有課程的第一部影片皆需設為公開
@@ -871,7 +855,7 @@ async function getCourseChaptersSidebar(req, res, next) {
     }
 
     // 查詢課程底下所有章節，依照章節與子章節順序排序
-    const chapters = await chapterRepo.find({
+    const chapters = await courseChapterRepo.find({
       where: { course_id: courseId },
       order: {
         chapter_number: "ASC",
@@ -879,25 +863,45 @@ async function getCourseChaptersSidebar(req, res, next) {
       },
     });
 
+    // 這段程式碼將所有章節的影片資料依照章節 ID 分組
+    // 每個章節會有一個 videos 屬性，內容為該章節所有影片組成的陣列
+
     // 取出所有章節 ID 用來查詢影片資料
     const chapterIds = chapters.map((c) => c.id);
+
+    // 查詢所有屬於這些章節的影片
     const videos = await videoRepo.find({
       where: {
         chapter_subtitle_set_id: In(chapterIds),
       },
     });
 
-    // 建立影片對照表：以章節 ID 為 key，對應影片長度（duration）
-    const videoMap = {};
-    videos.forEach((v) => {
-      videoMap[v.chapter_subtitle_set_id] = v.duration;
+    // 假設你已經有 chapters 跟 videos 兩個陣列
+    // videos 陣列裡每個物件都有 chapter_subtitle_set_id（對應章節 id）與 duration（秒數）
+
+    // 1. 建立一個以章節 ID 為 key，影片陣列為 value 的對照表
+    const videoListMap = {};
+    videos.forEach((video) => {
+      const key = video.chapter_subtitle_set_id;
+      if (!videoListMap[key]) videoListMap[key] = [];
+      videoListMap[key].push(video);
     });
 
+    // 2. 依據 chapters 產生 fakeProgress，每個章節取得該章節所有影片
     //TODO:模擬章節觀看進度（未連接使用者資料，之後可整合 user_progress 資料）
     const fakeProgress = chapters.map((chapter, index) => {
+      // 取得此章節所有影片的陣列
+      const videoArr = videoListMap[chapter.id] || [];
+      // 計算該章節所有影片的總時長（秒）
+      const totalDuration = videoArr.reduce((sum, video) => sum + (video.duration || 0), 0);
+      // 轉換成幾分幾秒的格式
+      const lengthStr = videoArr.length
+        ? `${Math.floor(totalDuration / 60)}分${Math.round(totalDuration % 60)}秒`
+        : "未提供";
+      // 回傳進度物件
       return {
         name: chapter.subtitle,
-        length: videoMap[chapter.id] ? `${Math.round(videoMap[chapter.id])}分鐘` : "未提供",
+        length: lengthStr,
         isFinished: index < 2, // 假設前兩個已完成
         isCurrentWatching: index === 2, // 假設第三個正在觀看
       };
@@ -916,9 +920,6 @@ async function getCourseChaptersSidebar(req, res, next) {
     next(error);
   }
 }
-
-
-
 
 module.exports = {
   getProfile,

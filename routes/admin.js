@@ -22,6 +22,9 @@ router.get("/courses", auth, isAdmin, adminController.getCourses);
 router.get("/coaches", auth, isAdmin, adminController.getCoaches);
 //取得後台數據分析
 router.get("/data-analysis", auth, isAdmin, adminController.getDataAnalysis);
+//取得使用者列表
+router.get("/users", auth, isAdmin, adminController.getUsers);
+
 
 //動態路由
 //取得課程評價

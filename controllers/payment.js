@@ -1,5 +1,5 @@
 const dayjs = require("dayjs");
-const logger = require("pino")();
+const logger = require("../config/logger");
 const config = require("../config/index");
 const { merchantId, returnUrl, notifyUrl } = config.get("ecpay"); //引入綠界金流參數
 const { generateCMV } = require("../services/ecPayServices");
@@ -102,6 +102,7 @@ async function postCancelPayment(req, res, next) {
 async function postPaymentConfirm(req, res, next) {
   try {
     const { CheckMacValue, ...data } = req.body; //把CMV欄位單獨取出
+    logger.info("收到綠界金流付款通知", req.body);
     //驗證 CheckMacValue 是否正確
     const localCMV = generateCMV(data);
     if (localCMV !== CheckMacValue) {
@@ -130,7 +131,7 @@ async function postPaymentConfirm(req, res, next) {
     const paymentDate = dayjs(data.PaymentDate, "YYYY/MM/DD HH:mm:ss");
 
     //若為第一次定期定額扣款，更新訂單紀錄
-    if (data.TotalSuccessTimes === 1) {
+    if (!data.TotalSuccessTimes) {
       latestSub.payment_method =
         data.PaymentType === "Credit_CreditCard" ? "信用卡" : data.PaymentType; //付款方式
       latestSub.purchased_at = paymentDate.toDate(); //付款時間

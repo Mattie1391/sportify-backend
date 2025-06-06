@@ -77,18 +77,12 @@ module.exports = new EntitySchema({
   },
 
   // === 關聯定義 ===
-  relations: {
-    // ➤ 與訂閱資料的關聯：每位使用者可有一筆訂閱紀錄（many-to-one）
-    Subscription: {
-      target: "Subscription", // 關聯的目標 entity 名稱
-      type: "many-to-one",
-      joinColumn: {
-        name: "subscription_id", // 本表中的欄位
-        referencedColumnName: "id", // 關聯表的欄位
-      },
-      onDelete: "SET NULL", // 若訂閱紀錄被刪除，使用者資料保留，設為 null
-      nullable: true,
-    },
+relations: {
+  Subscription: {
+    target: "Subscription",
+    type: "one-to-many",
+    inverseSide: "User", // 對應 Subscription 裡的 User 關聯
+  },
 
     // ➤ 使用者收藏的課程（User → UserCourseFavorite 一對多）
     User_Course_Favorite: {

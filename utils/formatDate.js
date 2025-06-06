@@ -23,4 +23,12 @@ const parseYYYYMMDD = (str) => {
   const day = parseInt(str.slice(6, 8), 10);
   return new Date(year, month, day);
 };
-module.exports = { formatDate, formatYYYYMMDD , parseYYYYMMDD };
+
+// 將日期加上指定的天數，返回新的 Date 物件
+const addDays = (date, days) => {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+module.exports = { formatDate, formatYYYYMMDD , parseYYYYMMDD, addDays };

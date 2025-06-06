@@ -1,8 +1,3 @@
-// 僅在本地開發時才載入 .env 檔案
-if (process.env.NODE_ENV !== "production") {
-  require("dotenv").config();
-}
-
 //config是針對環境變數的統一管理
 const db = require("./db");
 const web = require("./web");
