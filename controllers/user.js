@@ -17,6 +17,7 @@ const {
   checkActiveSubscription,
   checkCourseAccess,
   checkSkillAccess,
+  checkHasTrial,
 } = require("../services/checkServices");
 const { getViewableCourseTypes } = require("../services/typeServices");
 const { courseFilter } = require("../services/filterServices");
@@ -578,6 +579,20 @@ async function postSubscription(req, res, next) {
       is_paid: false,
     });
 
+    // 處理試用邏輯
+    const isTrialPlan = subscription_name === "Eagerness方案-7天試用";
+    if (isTrialPlan) {
+      const hasTrial = await checkHasTrial(userId); // 你既有的 service
+      if (!hasTrial) {
+        return next(generateError(400, "您已使用過免費試用"));
+      }
+      const now = new Date();
+      newSubscription.start_at = now;
+      newSubscription.end_at = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // +7天
+      newSubscription.is_paid = false;
+    }
+
+
     // 儲存訂閱紀錄
     const savedSubscription = await subscriptionRepo.save(newSubscription);
     if (!savedSubscription) {
@@ -628,6 +643,8 @@ async function postSubscription(req, res, next) {
           order_number: savedSubscription.order_number,
           price: savedSubscription.price,
           is_paid: savedSubscription.is_paid,
+          start_at: formatDate(savedSubscription.start_at),
+          end_at: formatDate(savedSubscription.end_at),
           created_at: formatDate(savedSubscription.created_at),
           updated_at: formatDate(savedSubscription.updated_at),
         },
