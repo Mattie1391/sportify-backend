@@ -725,6 +725,7 @@ async function getSubscriptions(req, res, next) {
         order_number: s.order_number, //訂單編號
         plan: s.Plan.name, //方案名稱
         price: s.price, //價格
+        merchant_trade_no: s.merchant_trade_no, //金流商交易編號
         purchased_at: purchasedAt, //購買日期
         end_at: endAt, //訂閱到期時間
         period: `${startAt} - ${endAt}`, //訂閱期間
