@@ -418,12 +418,7 @@ async function postNewCourse(req, res, next) {
     if (!coachId || isNotValidString(coachId) || coachId.length === 0 || isNotValidUUID(coachId)) {
       return next(generateError(400, "教練ID格式不正確"));
     }
-
-    const coach = await coachRepo.findOneBy({ id: coachId });
-    if (!coach) return next(generateError(400, "教練不存在"));
-
     const { name, description, sports_type, image_url } = req.body;
-    //驗證章節框架外的資料
     if (
       isNotValidString(name) ||
       isNotValidString(description) ||
@@ -431,6 +426,18 @@ async function postNewCourse(req, res, next) {
       isNotValidUrl(image_url)
     ) {
       return next(generateError(400, "欄位未填寫正確"));
+    }
+    //取得教練相關rawData
+    const rawData = await coachRepo
+      .createQueryBuilder("c")
+      .leftJoin("c.Coach_Skill", "cs")
+      .leftJoin("cs.Skill", "s")
+      .where("c.id = :id", { id: coachId })
+      .select(["c.id AS coach_id", "s.id AS skill_id", "s.name AS skill_name"])
+      .getRawMany();
+
+    if (rawData.length === 0) {
+      return next(generateError(400, "未能確認教練身分"));
     }
     if (name.length < 2 || name.length > 50) {
       return next(generateError(400, `${name}超出字數限制`));
@@ -441,16 +448,14 @@ async function postNewCourse(req, res, next) {
     if (sports_type.length > 20) {
       return next(generateError(400, `${sports_type}超出字數限制`));
     }
-    const validCourseType = await skillRepo.findOneBy({ name: sports_type });
-    if (!validCourseType) {
+    //驗證是否是有效的專長(課程類別
+    const skill = await skillRepo.findOneBy({ name: sports_type });
+    if (skill.length === 0) {
       return next(generateError(400, `${sports_type}不是可開課的專長，詳洽管理員`));
     }
-    //驗證教練是否具有相應專長
-    const skillIdForCourse = validCourseType.id;
-    const hasSkill = await coachSkillRepo.find({
-      where: { coach_id: coachId, skill_id: skillIdForCourse },
-    });
-    if (hasSkill.length === 0) {
+    //驗證教練是否具有所填入表單的專長
+    const hasSkillCheck = rawData.filter((data) => data.skill_name === sports_type);
+    if (hasSkillCheck.length === 0) {
       return next(generateError(400, `您不具${sports_type}專長，無法開設此課程`));
     }
 
@@ -471,15 +476,13 @@ async function postNewCourse(req, res, next) {
     //驗證是否有相同課程名稱
     let course = await courseRepo.find({ where: { name: name } });
     if (course.length > 0) {
-      return next(generateError(409, "課程已存在，不可重複建立"));
+      return next(generateError(409, "課程名稱已存在，不可重複建立"));
     }
-    const sportsType = await skillRepo.findOneBy({ name: sports_type });
-
     const newCourse = courseRepo.create({
       name,
       coach_id: coachId,
       description,
-      type_id: sportsType.id,
+      type_id: skill.id,
       image_url,
       is_approved: false,
     });
@@ -504,7 +507,7 @@ async function postNewCourse(req, res, next) {
         chapterRecordsToCreate.push(newChapterRecord);
       }
     }
-    //使用typeorm批量插入資料庫
+    //typeorm可以批量插入資料庫
     const insertedChapters = await courseChapterRepo.save(chapterRecordsToCreate);
 
     //組合回傳結果
