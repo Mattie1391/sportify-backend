@@ -415,13 +415,13 @@ async function getOwnCourses(req, res, next) {
         "s.name AS type",
         "c.image_url AS picture_url",
         "c.score AS score",
-        "c.student_amount AS student_amount",
+        "c.numbers_of_view AS numbers_of_view",
         "c.total_hours AS total_hours",
         "c.description AS description",
         "c.is_approved AS is_approved",
       ])
       .where("c.coach_id = :id", { id: coachId })
-      .orderBy("c.student_amount", "DESC")
+      .orderBy("c.numbers_of_view", "DESC")
       .addOrderBy("c.is_approved", "DESC")
       .getRawMany();
 
