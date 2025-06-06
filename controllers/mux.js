@@ -11,10 +11,10 @@ const mux = new Mux({
   muxTokenSecret,
 });
 
-//mux從本地上傳影片
+// mux從本地上傳影片;
 const muxUploadHandler = async (req, res, next) => {
   try {
-    //===========大量上傳的嘗試============//
+    // ===========大量上傳的嘗試============//
     // const count = parseInt(req.query.count) || 1;
     // const uploadTasks = [];
 
@@ -35,9 +35,9 @@ const muxUploadHandler = async (req, res, next) => {
     //   }))
     // );
 
-    //===========大量上傳的嘗試============//
+    // ===========大量上傳的嘗試============//
 
-    //測試設定chapter_subtitle_set_id 用假的
+    // 測試設定chapter_subtitle_set_id 用假的
     let chapter_subtitle_set_id = "c3d1e98f-3714-4f4d-bb95-8d486604c531";
     // const { chapter_subtitle_set_id } = req.query;
     //送出post request到 https://api.mux.com/video/v1/uploads
@@ -62,78 +62,78 @@ const muxUploadHandler = async (req, res, next) => {
   }
 };
 
-//mux webhook通知上傳結果
-const muxWebhookHandler = async (req, res, next) => {
-  try {
-    // console.log(req.body, req.headers);
-    // const event = mux.webhooks.verifySignature(req.body, req.headers, webhookSecret);
-    // console.log(event);
+// //mux webhook通知上傳結果
+// const muxWebhookHandler = async (req, res, next) => {
+//   try {
+//     // console.log(req.body, req.headers);
+//     // const event = mux.webhooks.verifySignature(req.body, req.headers, webhookSecret);
+//     // console.log(event);
 
-    // console.log("✅ Mux webhook 驗證成功，事件為：", event.type);
-    // console.log("📄 完整資料：", JSON.stringify(event.data, null, 2));
-    // if (event.type === "video.asset.ready") {
-    //   const asset = event.data;
-    //   const { id: asset_id, playback_ids, passthrough, duration } = asset;
+//     // console.log("✅ Mux webhook 驗證成功，事件為：", event.type);
+//     // console.log("📄 完整資料：", JSON.stringify(event.data, null, 2));
+//     // if (event.type === "video.asset.ready") {
+//     //   const asset = event.data;
+//     //   const { id: asset_id, playback_ids, passthrough, duration } = asset;
 
-    //   const playback_id = playback_ids[0]?.id;
+//     //   const playback_id = playback_ids[0]?.id;
 
-    //   if (!passthrough) {
-    //     return next(generateError(400, "passthrough 為空，無法儲存影片資料"));
-    //   }
+//     //   if (!passthrough) {
+//     //     return next(generateError(400, "passthrough 為空，無法儲存影片資料"));
+//     //   }
 
-    //   //儲存到Course_Video資料表
-    //   const existingVideo = await courseVideoRepo.findOneBy({ mux_asset_id });
-    //   if (existingVideo) {
-    //     return next(generateError(409, "已儲存過此影片"));
-    //   }
-    //   const video = courseVideoRepo.create({
-    //     chapter_subtitle_set_id: passthrough,
-    //     mux_asset_id: asset_id,
-    //     mux_playback_id: playback_id,
-    //     duration,
-    //     status: "ready",
-    //   });
-    //   await courseVideoRepo.save(video);
-    //   res.status(200).send("Webhook received");
-    // }
-    const event = req.body;
-    // const event = JSON.stringify(req.body);
-    if (event.type === "video.asset.ready") {
-      const asset = event.data;
-      const { id: asset_id, passthrough, duration } = asset;
+//     //   //儲存到Course_Video資料表
+//     //   const existingVideo = await courseVideoRepo.findOneBy({ mux_asset_id });
+//     //   if (existingVideo) {
+//     //     return next(generateError(409, "已儲存過此影片"));
+//     //   }
+//     //   const video = courseVideoRepo.create({
+//     //     chapter_subtitle_set_id: passthrough,
+//     //     mux_asset_id: asset_id,
+//     //     mux_playback_id: playback_id,
+//     //     duration,
+//     //     status: "ready",
+//     //   });
+//     //   await courseVideoRepo.save(video);
+//     //   res.status(200).send("Webhook received");
+//     // }
+//     const event = req.body;
+//     // const event = JSON.stringify(req.body);
+//     if (event.type === "video.asset.ready") {
+//       const asset = event.data;
+//       const { id: asset_id, passthrough, duration } = asset;
 
-      //建立signed播放id
-      const { id: playback_id } = await mux.video.assets.createPlaybackId(asset_id, {
-        policy: "signed",
-      });
-      console.log(passthrough);
-      if (passthrough === undefined) {
-        return next(generateError(400, "passthrough 為空，無法儲存影片資料"));
-      }
-      // res.status(200).send("Webhook received");
-      //儲存到Course_Video資料表
-      const existingVideo = await courseVideoRepo.findOneBy({ mux_asset_id: asset_id });
-      if (existingVideo) {
-        return next(generateError(409, "已儲存過此影片"));
-      }
-      const video = courseVideoRepo.create({
-        chapter_subtitle_set_id: passthrough,
-        mux_asset_id: asset_id,
-        mux_playback_id: playback_id,
-        duration,
-        status: "ready",
-      });
-      await courseVideoRepo.save(video);
-      console.log("儲存成功，要傳送status code");
-      res.status(200).send("Webhook received");
-    }
-  } catch (error) {
-    console.error("❌ 簽名驗證失敗：", error.message);
-    console.log("🧪 模擬：這筆 webhook 是不合法的或被偽造");
+//       //建立signed播放id
+//       const { id: playback_id } = await mux.video.assets.createPlaybackId(asset_id, {
+//         policy: "signed",
+//       });
+//       console.log(passthrough);
+//       if (passthrough === undefined) {
+//         return next(generateError(400, "passthrough 為空，無法儲存影片資料"));
+//       }
+//       // res.status(200).send("Webhook received");
+//       //儲存到Course_Video資料表
+//       const existingVideo = await courseVideoRepo.findOneBy({ mux_asset_id: asset_id });
+//       if (existingVideo) {
+//         return next(generateError(409, "已儲存過此影片"));
+//       }
+//       const video = courseVideoRepo.create({
+//         chapter_subtitle_set_id: passthrough,
+//         mux_asset_id: asset_id,
+//         mux_playback_id: playback_id,
+//         duration,
+//         status: "ready",
+//       });
+//       await courseVideoRepo.save(video);
+//       console.log("儲存成功，要傳送status code");
+//       res.status(200).send("Webhook received");
+//     }
+//   } catch (error) {
+//     console.error("❌ 簽名驗證失敗：", error.message);
+//     console.log("🧪 模擬：這筆 webhook 是不合法的或被偽造");
 
-    res.status(401).send("Invalid signature");
-    // next(error);
-  }
-};
+//     res.status(401).send("Invalid signature");
+//     // next(error);
+//   }
+// };
 
-module.exports = { muxUploadHandler, muxWebhookHandler };
+module.exports = { muxUploadHandler };

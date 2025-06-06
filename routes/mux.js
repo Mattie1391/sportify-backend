@@ -8,6 +8,6 @@ router.get("/upload-url", muxUploadHandler);
 
 //webhook取得上傳結果
 //express.raw middleware : mux驗證原始body
-router.post("/webhook", bodyParser.raw({ type: "application/json" }), muxWebhookHandler);
+// router.post("/webhook", bodyParser.raw({ type: "application/json" }), muxWebhookHandler);
 
 module.exports = router;

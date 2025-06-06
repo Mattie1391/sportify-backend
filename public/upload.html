@@ -17,7 +17,7 @@
         const file = document.getElementById("videoInput").files[0];
         if (!file) return alert("請選擇影片");
 
-        // 從後端取得 direct_upload url
+        // 從後端取得 direct_upload url，從res取得上傳url
         const res = await fetch("http://localhost:8080/api/v1/mux/upload-url"); //網址寫死，需自行調整才能打開上傳頁面
         const data = await res.json();
         const uploadUrl = data.url;
