@@ -48,11 +48,6 @@ module.exports = new EntitySchema({
       nullable: false,
     },
 
-    // 學生數量
-    student_amount: {
-      type: "int",
-      nullable: false,
-    },
     // 課程評分（1.0 ~ 5.0，浮點數）
     score: {
       type: "float",
@@ -63,12 +58,13 @@ module.exports = new EntitySchema({
     numbers_of_view: {
       type: "int",
       nullable: false,
+      default: 0,
     },
 
     // 課程總時數（分鐘）
     total_hours: {
       type: "int",
-      nullable: false,
+      nullable: true,
     },
 
     // 是否通過審核
@@ -77,7 +73,7 @@ module.exports = new EntitySchema({
       nullable: false,
     },
 
-    // 審核通過的時間
+    // 審核通過的時間(需經審核才有值)
     approved_at: {
       type: "timestamp",
       nullable: true,
