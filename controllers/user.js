@@ -33,7 +33,7 @@ const {
 } = require("../utils/validators");
 const generateError = require("../utils/generateError");
 const paginate = require("../utils/paginate");
-const { formatDate, formatYYYYMMDD } = require("../utils/formatDate"); // 引入日期格式化工具函數
+const { formatDate, formatYYYYMMDD, addDays } = require("../utils/formatDate"); // 引入日期格式化工具函數
 const generateOrderNumber = require("../utils/generateOrderNumber"); // 引入生成訂單編號的工具函數
 
 //取得使用者資料
@@ -712,13 +712,6 @@ async function getSubscriptions(req, res, next) {
     const totalPages = Math.ceil(total / limit);
     if (page > totalPages) {
       return next(generateError(400, "頁數超出範圍"));
-    }
-
-    //扣款日期為訂閱結束日順延一日
-    function addDays(date, days) {
-      const result = new Date(date);
-      result.setDate(result.getDate() + days);
-      return result;
     }
 
     //取出回傳資料
