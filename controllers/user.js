@@ -589,7 +589,7 @@ async function postSubscription(req, res, next) {
       const now = new Date();
       newSubscription.start_at = now;
       newSubscription.end_at = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // +7天
-      newSubscription.is_paid = false;
+      newSubscription.is_paid = true; // 試用方案視為已付款
     }
 
 
