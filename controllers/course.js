@@ -333,7 +333,7 @@ async function getCoachDetails(req, res, next) {
       about_me: coach.about_me,
       hobby: coach.hobby,
       experience: coach.experience,
-      favoriteWords: coach.favoriteWords,
+      favorite_words: coach.favorite_words,
       motto: coach.motto,
       profile_image_url: coach.profile_image_url,
       background_image_url: coach.background_image_url,
