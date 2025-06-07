@@ -6,6 +6,8 @@ const subscriptionRepo = AppDataSource.getRepository("Subscription");
 const userRepo = AppDataSource.getRepository("User");
 const skillRepo = AppDataSource.getRepository("Skill");
 const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
+const coachLisenseRepo = AppDataSource.getRepository("Coach_License");
+const paymentRepo = AppDataSource.getRepository("Payment_Transfer");
 //services
 const { getAllCourseTypes } = require("../services/typeServices");
 const { courseFilter, coachFilter } = require("../services/filterServices");
@@ -16,6 +18,7 @@ const {
   isNotValidString,
   isNotValidInteger,
   isNotValidUUID,
+  isNotValidUrl,
 } = require("../utils/validators");
 const generateError = require("../utils/generateError");
 const paginate = require("../utils/paginate");
@@ -329,6 +332,105 @@ async function getCoaches(req, res, next) {
         pagination,
       },
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+//取得教練詳細資料
+async function getCoachDetails(req, res, next) {
+  try {
+    const coachId = req.params.coachId;
+    if (isNotValidUUID(coachId)) {
+      return next(generateError(400, "教練 ID 格式不正確"));
+    }
+    const coach = await coachRepo.findOneBy({ id: coachId });
+    if (!coach) {
+      return next(generateError(404, "查無此教練"));
+    }
+    //檢查頭貼網址是否正確，不正確則設為null
+    if (!coach.profile_image_url || isNotValidUrl(coach.profile_image_url)) {
+      coach.profile_image_url = null;
+    }
+    //檢查背景圖片網址是否正確，不正確則設為null
+    if (!coach.background_image_url || isNotValidUrl(coach.background_image_url)) {
+      coach.background_image_url = null;
+    }
+    //檢查銀行存摺影像網址是否正確，不正確則設為null
+    if (!coach.bankbook_copy_url || isNotValidUrl(coach.bankbook_copy_url)) {
+      coach.bankbook_copy_url = null;
+    }
+    const coachSkillData = await coachSkillRepo.find({
+      where: { coach_id: coachId },
+      relations: ["Skill"],
+    });
+    // 取得教練技能資料
+    if (coachSkillData.length > 0) {
+      const coachSkills = coachSkillData.map((cs) => ({
+        name: cs.Skill.name,
+      }));
+      // 整理教練個人資料
+      const coachData = {
+        id: coach.id,
+        email: coach.email,
+        nickname: coach.nickname,
+        skills: coachSkills || [], //技能陣列
+        profile_image_url: coach.profile_image_url,
+        background_image_url: coach.background_image_url,
+        job_title: coach.job_title,
+        about_me: coach.about_me,
+        hobby: coach.hobby,
+        experience: coach.experience,
+        favorite_words: coach.favorite_words,
+        motto: coach.motto,
+        is_verified: coach.is_verified,
+        realname: coach.realname,
+        id_number: coach.id_number,
+        phone_number: coach.phone_number,
+        birthday: coach.birthday,
+        lisence: coach.lisence,
+        bank_code: coach.bank_code,
+        bank_account: coach.bank_account,
+        bankbook_copy_url: coach.bankbook_copy_url,
+        skill_description: coach.skill_description,
+        experience_years: coach.experience_years,
+        created_at: coach.created_at,
+        updated_at: coach.updated_at,
+      };
+      // 取得教練證照檔案
+      const coachLicenseData = await coachLisenseRepo.find({
+        where: { coach_id: coachId },
+      });
+      let coachLicenses = [];
+      if (coachLicenseData.length > 0) {
+        coachLicenses = coachLicenseData.map((cl) => ({
+          id: cl.id,
+          name: cl.filename,
+        }));
+      }
+      // 取得教練匯款紀錄
+      const coachPaymentData = await paymentRepo.find({
+        where: { coach_id: coachId },
+      });
+      let coachPayments = [];
+      if (coachPaymentData.length > 0) {
+        coachPayments = coachPaymentData.map((cp) => ({
+          id: cp.id,
+          amount: cp.amount,
+          transfer_at: cp.transfer_at,
+          is_transfered: cp.is_transfered,
+        }));
+      }
+      res.status(200).json({
+        status: true,
+        message: "成功取得資料",
+        data: {
+          coachDetails: coachData,
+          licenses: coachLicenses || [],
+          payment_transfer: coachPayments || [],
+        },
+      });
+    }
   } catch (error) {
     next(error);
   }
@@ -663,10 +765,10 @@ async function getUsers(req, res, next) {
     }
 
     // 格式化回傳資料
-      const data = paginatedData.map((user) => {
+    const data = paginatedData.map((user) => {
       const hasStart = user.start_at !== null;
       const hasEnd = user.end_at !== null;
-    
+
       return {
         id: user.id,
         name: user.name,
@@ -675,17 +777,13 @@ async function getUsers(req, res, next) {
         plan: user.plan,
         course_type: user.skills?.filter(Boolean) || [],
         createdAt: user.createdAt,
-        period: hasStart && hasEnd
-          ? `${formatDate(user.start_at)} - ${formatDate(user.end_at)}`
-          : null,
+        period:
+          hasStart && hasEnd ? `${formatDate(user.start_at)} - ${formatDate(user.end_at)}` : null,
         end_at: hasEnd ? formatDate(user.end_at) : null,
-        next_payment: user.is_renewal && hasEnd
-          ? formatDate(addDays(user.end_at, 1))
-          : null,
+        next_payment: user.is_renewal && hasEnd ? formatDate(addDays(user.end_at, 1)) : null,
       };
     });
-    
-    
+
     res.status(200).json({
       status: true,
       message: "成功取得資料",
@@ -697,11 +795,11 @@ async function getUsers(req, res, next) {
   }
 }
 
-
 module.exports = {
   postPlan,
   postSportsType,
   getCoaches,
+  getCoachDetails,
   patchReviewCourse,
   getCourses,
   getCoachTypes,

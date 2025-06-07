@@ -15,10 +15,9 @@ module.exports = new EntitySchema({
       type: "uuid",
       nullable: false,
     },
-    // // 影片id
-    asset_id: {
+    //外來鍵，章節小節組合的唯一識別碼
+    chapter_sub_chapter_set_id: {
       type: "varchar",
-      length: 100,
       nullable: true,
     },
     // 採計觀看次數的日期
@@ -31,11 +30,6 @@ module.exports = new EntitySchema({
       type: "int",
       nullable: true, //不確定是否有取得觀看次數null的狀況，先設true
     },
-    //截至計算日此asset(影片)的總觀看數
-    // total_views: {
-    //   type: "int",
-    //   nullable: true,
-    // },
   },
   // === 關聯設定 ===
   relations: {
@@ -50,14 +44,14 @@ module.exports = new EntitySchema({
       },
       onDelete: "CASCADE", // 若課程被刪除，對應的觀看次數資料也被刪除
     },
-    //一支影片有多筆觀看資料，一筆觀看資料只屬於一支影片
-    CourseVideo: {
-      target: "Course_Video",
+    //一個章節影片有多筆觀看資料，一筆觀看資料只屬於一個章節
+    CourseChapter: {
+      target: "Course_Chapter",
       type: "many-to-one",
       joinColumn: {
-        name: "asset_id", //本表中的欄位名
-        referencedColumnName: "mux_asset_id", //Course_Video表的主鍵
-        foreignKeyConstraintName: "fk_view_stat_course_video_id",
+        name: "chapter_sub_chapter_set_id", //本表中的欄位名
+        referencedColumnName: "id", //Course_Chapter表的主鍵名稱
+        foreignKeyConstraintName: "fk_view_stat_course_chapter_id",
       },
       onDelete: "CASCADE", // 若影片被刪除，對應的觀看次數資料也被刪除
     },

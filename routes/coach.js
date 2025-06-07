@@ -30,5 +30,7 @@ router.post("/upload-license", auth, isCoach, upload.single("license"), uploadLi
 //動態路由
 //教練修改個人資料
 router.patch("/:coachId", auth, isCoach, isSelf, coachController.patchProfile);
+//取得教練個人資料
+router.get("/:coachId", auth, isCoach, isSelf, coachController.getProfile);
 
 module.exports = router;
