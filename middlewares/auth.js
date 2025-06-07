@@ -98,7 +98,7 @@ module.exports = async (req, res, next) => {
     }
     next();
   } catch (error) {
-    logger.error(`[Auth] ${req.method} ${req.url}`, error);
+    logger.error("[Auth]error:%s", error);
     next(error);
   }
 };

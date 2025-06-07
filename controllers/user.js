@@ -256,12 +256,16 @@ async function patchProfile(req, res, next) {
       try {
         const deleteResult = await cloudinary.uploader.destroy(oldImagePublicId);
         if (deleteResult.result === "ok") {
-          logger.info(`舊圖片刪除成功: ${deleteResult.result} (${oldImagePublicId})`);
+          logger.info("舊圖片刪除成功，舊圖片publicId%s", oldImagePublicId);
         } else {
-          logger.warn(`舊圖片刪除異常: ${deleteResult.result} (${oldImagePublicId})`);
+          logger.error(
+            "舊圖片刪除失敗，結果: %s，publicId: %s",
+            deleteResult.result,
+            oldImagePublicId
+          );
         }
       } catch (error) {
-        logger.error(`舊圖片刪除失敗，請手動處理:${error}, public_id: ${oldImagePublicId}`);
+        logger.error("舊圖片刪除失敗，錯誤:%s，public_id: %s", error, oldImagePublicId);
       }
     }
 
@@ -592,7 +596,6 @@ async function postSubscription(req, res, next) {
       newSubscription.is_paid = true; // 試用方案視為已付款
     }
 
-
     // 儲存訂閱紀錄
     const savedSubscription = await subscriptionRepo.save(newSubscription);
     if (!savedSubscription) {
@@ -643,8 +646,8 @@ async function postSubscription(req, res, next) {
           order_number: savedSubscription.order_number,
           price: savedSubscription.price,
           is_paid: savedSubscription.is_paid,
-          start_at: formatDate(savedSubscription.start_at),
-          end_at: formatDate(savedSubscription.end_at),
+          start_at: savedSubscription.start_at ? formatDate(savedSubscription.start_at) : null,
+          end_at: savedSubscription.end_at ? formatDate(savedSubscription.end_at) : null,
           created_at: formatDate(savedSubscription.created_at),
           updated_at: formatDate(savedSubscription.updated_at),
         },
