@@ -709,8 +709,15 @@ async function getSubscriptions(req, res, next) {
       return next(generateError(400, "分頁參數格式不正確，頁數需為正整數"));
     }
 
+    //取得userId
+    let userId;
+    if (req.user.role === "admin") {
+      userId = req.params.userId;
+    }
+    if (req.user.role === "user") {
+      userId = req.user.id;
+    }
     //取得排序後的資料
-    const userId = req.user.id;
     const [subscriptions, total] = await subscriptionRepo.findAndCount({
       where: { user_id: userId },
       order: { order_number: "DESC" },
