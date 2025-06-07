@@ -18,7 +18,6 @@ const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
 const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
 
 //services
-const { checkValidQuerys } = require("../services/queryServices");
 
 //utils
 const { isNotValidString, isNotValidUUID, isNotValidUrl } = require("../utils/validators"); // 引入驗證工具函數
@@ -114,12 +113,6 @@ async function getCoachViewStats(req, res, next) {
 }
 //教練修改個人檔案API
 async function patchProfile(req, res, next) {
-  // 禁止前端亂輸入參數，如 banana=999
-  const invalidQuerys = checkValidQuerys(req.query, ["coachId"]);
-  if (invalidQuerys.length > 0) {
-    return next(generateError(400, `不允許的參數：${invalidQuerys.join(", ")}`));
-  }
-
   //設定patch request欄位的白名單
   const allowedFields = [
     "nickname",
@@ -211,7 +204,7 @@ async function patchProfile(req, res, next) {
         skillDataActuallyChanged = true;
 
         //將request body的專長字串的頓號去掉，存入一個陣列。
-        //skill更動原則 : 不可任意刪除、減少專長，否則影響
+        //skill更動原則 : 不可任意刪除、減少專長，否則會影響已開設的課程
         newSkillsFromReq = filteredData.skill
           .split("、")
           .map((s) => s.trim())
@@ -409,6 +402,62 @@ async function patchProfile(req, res, next) {
     next(error);
   }
 }
+//教練後台取得自己課程列表
+async function getOwnCourses(req, res, next) {
+  try {
+    const coachId = req.user.id;
+
+    //取得需顯示的教練個人資訊
+    const coachProfile = await coachRepo.findOne({
+      select: ["id", "nickname", "profile_image_url", "is_verified", "job_title"],
+      where: { id: coachId },
+    });
+    //排除找不到教練個人資訊的狀況
+    if (!coachProfile) {
+      return next(generateError(404, "查無教練資料"));
+    }
+    //改寫is_verified的值為已審核/未審核
+    coachProfile.is_verified = coachProfile.is_verified === true ? "已審核" : "未審核";
+
+    //取得教練所有課程
+    const courses = await courseRepo
+      .createQueryBuilder("c")
+      .leftJoin("c.Skill", "s")
+      .select([
+        "c.id AS course_id",
+        "c.name AS title",
+        "s.name AS type",
+        "c.image_url AS picture_url",
+        "c.score AS score",
+        "c.numbers_of_view AS numbers_of_view",
+        "c.total_hours AS total_hours",
+        "c.description AS description",
+        "c.is_approved AS is_approved",
+      ])
+      .where("c.coach_id = :id", { id: coachId })
+      .orderBy("c.numbers_of_view", "DESC")
+      .addOrderBy("c.is_approved", "DESC")
+      .getRawMany();
+
+    //改寫courses資料的審核狀況為 已審核/未審核
+    courses.forEach((item) => {
+      item.is_approved = item.is_approved === true ? "已審核" : "未審核";
+    });
+
+    //組裝呈現資料
+    const data = {
+      coach: coachProfile,
+      courses: courses,
+    };
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
 
 //教練建立課程API
 async function postNewCourse(req, res, next) {
@@ -553,5 +602,6 @@ async function postNewCourse(req, res, next) {
 module.exports = {
   getCoachViewStats,
   patchProfile,
+  getOwnCourses,
   postNewCourse,
 };

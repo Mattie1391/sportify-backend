@@ -12,6 +12,8 @@ const uploadController = require("../controllers/upload");
 router.get("/courses/views", auth, isCoach, coachController.getCoachViewStats);
 //建立新課程
 router.post("/course", auth, isCoach, coachController.postNewCourse);
+//教練取得自己所有課程
+router.get("/courses", auth, isCoach, coachController.getOwnCourses);
 
 //動態路由
 //教練修改個人資料

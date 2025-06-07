@@ -59,6 +59,33 @@ module.exports = new EntitySchema({
       updateDate: true,
       nullable: false, // 不可為空
     },
+
+    //有關每個小節影片的資訊
+    mux_asset_id: {
+      type: "varchar",
+      length: 64,
+      nullable: true,
+      unique: true,
+    },
+    mux_playback_id: {
+      type: "varchar",
+      length: 64,
+      nullable: true,
+    },
+    duration: {
+      type: "float",
+      nullable: true,
+    },
+    status: {
+      type: "varchar",
+      length: 32,
+      default: "waiting",
+    },
+    uploaded_at: {
+      //影片上傳時間
+      type: "timestamp",
+      nullable: true,
+    },
   },
 
   // === 關聯定義 ===

@@ -71,7 +71,7 @@ module.exports = new EntitySchema({
       nullable: false,
     },
 
-    // 審核通過的時間
+    // 審核通過的時間(需經審核才有值)
     approved_at: {
       type: "timestamp",
       nullable: true,

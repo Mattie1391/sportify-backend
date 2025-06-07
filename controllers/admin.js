@@ -20,6 +20,7 @@ const {
 const generateError = require("../utils/generateError");
 const paginate = require("../utils/paginate");
 const { parseYYYYMMDD } = require("../utils/formatDate");
+const { formatDate, addDays } = require("../utils/formatDate");
 
 //新增訂閱方案，目前沒有畫管理員相應UI的線稿
 async function postPlan(req, res, next) {
@@ -251,10 +252,10 @@ async function getCoaches(req, res, next) {
         "c.nickname AS coach_name",
         "c.job_title AS coach_title",
         "c.about_me AS coach_about_me",
-        "SUM(course.student_amount) AS student_amount",
+        "SUM(course.numbers_of_view) AS numbers_of_view",
       ])
       .groupBy("c.id")
-      .orderBy("student_amount", sort)
+      .orderBy("numbers_of_view", sort)
       .getRawMany();
 
     // 取得所有教練對應技能的資料
@@ -486,7 +487,7 @@ async function getCourses(req, res, next) {
   }
 }
 
-// 取得後台數據分析
+//取得後台數據分析
 async function getDataAnalysis(req, res, next) {
   try {
     const { startDate, endDate } = req.query;
@@ -548,7 +549,7 @@ async function getDataAnalysis(req, res, next) {
       .innerJoin("s.Plan", "p") // 將 s.Plan 關聯到 Plan 表，p 是 Plan 的別名
       .groupBy("p.name") // 依照訂閱方案名稱分組
       .getRawMany(); // 回傳格式如：[{ plan: 'Fitness', count: '2' }, ...]
- 
+
     // 建立初始方案統計物件
     const planCounts = {
       Wellness: 0,
@@ -559,7 +560,7 @@ async function getDataAnalysis(req, res, next) {
     // 將查詢結果統整進 planCounts
     planCountsRaw.forEach((item) => {
       if (item.plan.includes("試用")) return; // 排除含「試用」的方案
-    
+
       if (item.plan.includes("Eagerness")) {
         planCounts.Eagerness += parseInt(item.count);
       } else if (item.plan.includes("Fitness")) {
@@ -568,7 +569,6 @@ async function getDataAnalysis(req, res, next) {
         planCounts.Wellness += parseInt(item.count);
       }
     });
-    
 
     // 回傳統計資料
     res.status(200).json({
@@ -589,6 +589,115 @@ async function getDataAnalysis(req, res, next) {
   }
 }
 
+//取得使用者列表
+async function getUsers(req, res, next) {
+  try {
+    // 僅允許特定 query 參數
+    const validQuerys = ["page", "userId", "subscriptionPlan"];
+    const queryKeys = Object.keys(req.query);
+    const invalidQuerys = queryKeys.filter((key) => !validQuerys.includes(key));
+    if (invalidQuerys.length > 0) {
+      return next(generateError(400, `不允許的參數：${invalidQuerys.join(", ")}`));
+    }
+
+    // 取得所有使用者資料與訂閱資料
+    const rawUsers = await userRepo
+      .createQueryBuilder("u")
+      .leftJoinAndSelect("u.Subscription", "s") // 關聯到最新訂閱
+      .leftJoin("s.Plan", "p")
+      .leftJoin("s.Subscription_Skills", "ss")
+      .leftJoin("ss.Skill", "sk")
+      .select([
+        "u.id AS id",
+        "u.name AS name",
+        "u.email AS email",
+        "u.profile_image_url AS profile_image_url",
+        "p.name AS plan",
+        "s.start_at AS start_at",
+        "s.end_at AS end_at",
+        "s.purchased_at AS purchased_at",
+        "u.created_at AS createdAt",
+        "s.is_renewal AS is_renewal", // 是否開啟續訂
+      ])
+      .addSelect("ARRAY_AGG(sk.name)", "skills")
+      .groupBy("u.id, p.name, s.start_at, s.end_at, s.purchased_at, u.created_at, s.is_renewal")
+      .getRawMany();
+
+    // 篩選 userId
+    let filteredUsers = rawUsers;
+    if (req.query.userId) {
+      const userId = req.query.userId;
+      if (isNotValidUUID(userId)) {
+        return next(generateError(400, "userId 格式不正確"));
+      }
+      filteredUsers = filteredUsers.filter((user) => user.id === userId);
+    }
+
+    // 篩選訂閱方案
+    if (req.query.subscriptionPlan) {
+      const planName = req.query.subscriptionPlan;
+      const matchedPlan = await planRepo.findOneBy({ name: planName });
+      if (!matchedPlan) {
+        return next(generateError(400, "查無此訂閱方案"));
+      }
+      filteredUsers = filteredUsers.filter((user) => user.plan === planName);
+    }
+
+    // 若沒有符合的使用者
+    if (filteredUsers.length === 0) {
+      return next(generateError(400, "查無此會員"));
+    }
+
+    // 分頁處理
+    const rawPage = req.query.page;
+    const page = rawPage === undefined ? 1 : parseInt(rawPage);
+    const limit = 20;
+    if (isNaN(page) || page < 1 || !Number.isInteger(page)) {
+      return next(generateError(400, "分頁參數格式不正確，頁數需為正整數"));
+    }
+
+    const { paginatedData, pagination } = await paginate(filteredUsers, page, limit);
+    const totalPages = pagination.total_pages;
+    if (page > totalPages && totalPages !== 0) {
+      return next(generateError(400, "頁數超出範圍"));
+    }
+
+    // 格式化回傳資料
+      const data = paginatedData.map((user) => {
+      const hasStart = user.start_at !== null;
+      const hasEnd = user.end_at !== null;
+    
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        profile_image_url: user.profile_image_url,
+        plan: user.plan,
+        course_type: user.skills?.filter(Boolean) || [],
+        createdAt: user.createdAt,
+        period: hasStart && hasEnd
+          ? `${formatDate(user.start_at)} - ${formatDate(user.end_at)}`
+          : null,
+        end_at: hasEnd ? formatDate(user.end_at) : null,
+        next_payment: user.is_renewal && hasEnd
+          ? formatDate(addDays(user.end_at, 1))
+          : null,
+      };
+    });
+    
+    
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data,
+      pagination,
+    });
+  } catch (error) {
+    next(generateError(500, "無法取得會員資料"));
+  }
+}
+
+
 module.exports = {
   postPlan,
   postSportsType,
@@ -598,4 +707,5 @@ module.exports = {
   getCoachTypes,
   getCourseTypes,
   getDataAnalysis,
+  getUsers,
 };
