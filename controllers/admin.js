@@ -408,6 +408,20 @@ async function getCoachDetails(req, res, next) {
           name: cl.filename,
         }));
       }
+      const coachCourseData = await courseRepo.find({
+        where: { coach_id: coachId },
+        relations: ["Skill"],
+      });
+      let coachCourses = [];
+      if (coachCourseData.length > 0) {
+        coachCourses = coachCourseData.map((cc) => ({
+          course_type: cc.Skill.name,
+          id: cc.id,
+          name: cc.name,
+          approved_at: cc.approved_at,
+          is_approved: cc.is_approved,
+        }));
+      }
       // 取得教練匯款紀錄
       const coachPaymentData = await paymentRepo.find({
         where: { coach_id: coachId },
@@ -428,6 +442,7 @@ async function getCoachDetails(req, res, next) {
           coachDetails: coachData,
           licenses: coachLicenses || [],
           payment_transfer: coachPayments || [],
+          courses: coachCourses || [],
         },
       });
     }

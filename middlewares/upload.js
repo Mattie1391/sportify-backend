@@ -14,12 +14,45 @@ cloudinary.config({
 // 設定cloudinary的儲存配置
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
-  params: {
-    folder: "user-avatars", // Cloudinary 資料夾
-    format: async (req, file) => "jpg", //儲存格式
-    public_id: (req, file) => `avatar_${req.user.id}_${Date.now()}`, // 自定義檔案名稱
+  params: async (req, file) => {
+    //取用req.body或檔案來源來判斷性質
+    const type = req.body?.type || file.fieldname || "default";
+    if (!["avatar", "coachAvatar", "bankbook", "license"].includes(type)) {
+      throw new Error("不支援的上傳類型");
+    }
+    let folder = "";
+    const public_id = `${file.fieldname}_${req.user.id}_${Date.now()}`; // 自定義檔案名稱
+
+    switch (type) {
+      case "avatar":
+        folder = "user/avatars";
+        break;
+      case "coachAvatar":
+        folder = "coach/avatars";
+        break;
+      case "bankbook":
+        folder = "coach/bankbook";
+        break;
+      case "license":
+        folder = "coach/license";
+        break;
+    }
+    return {
+      folder,
+      public_id,
+      format: "jpg",
+    };
   },
 });
+
+// const storage = new CloudinaryStorage({
+//   cloudinary: cloudinary,
+//   params: {
+//     folder: "user-avatars", // Cloudinary 資料夾
+//     format: async (req, file) => "jpg", //儲存格式
+//     public_id: (req, file) => `avatar_${req.user.id}_${Date.now()}`, // 自定義檔案名稱
+//   },
+// });
 
 // 檢查檔案類型
 const fileFilter = (req, file, cb) => {

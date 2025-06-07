@@ -9,7 +9,7 @@ const errorHandler = (err, req, res, next) => {
   // multer官方提供的錯誤代碼
   if (err.code === "LIMIT_UNEXPECTED_FILE") {
     statusCode = 400;
-    message = "不允許的檔案欄位，只接受 'avatar' 欄位的單一檔案";
+    message = "不允許的檔案欄位，請確認欄位名稱是否正確";
   }
 
   if (err.code === "LIMIT_FILE_SIZE") {
