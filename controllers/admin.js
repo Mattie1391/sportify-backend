@@ -394,8 +394,8 @@ async function getCoachDetails(req, res, next) {
         bankbook_copy_url: coach.bankbook_copy_url,
         skill_description: coach.skill_description,
         experience_years: coach.experience_years,
-        created_at: coach.created_at,
-        updated_at: coach.updated_at,
+        created_at: formatDate(coach.created_at),
+        updated_at: formatDate(coach.updated_at),
       };
       // 取得教練證照檔案
       const coachLicenseData = await coachLisenseRepo.find({
