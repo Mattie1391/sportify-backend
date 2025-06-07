@@ -1,12 +1,16 @@
 const AppDataSource = require("../db/data-source");
-const courseVideoRepo = AppDataSource.getRepository("Course_Video");
+const courseRepo = AppDataSource.getRepository("Course");
+const chapterRepo = AppDataSource.getRepository("Course_Chapter");
 const generateError = require("../utils/generateError");
-const getRawBody = require("raw-body");
 
 const { Mux } = require("@mux/mux-node");
 const config = require("../config/index");
 const { muxTokenId, muxTokenSecret, webhookSecret } = config.get("mux");
 
+//utils
+const { isNotValidString, isNotValidInteger } = require("../utils/validators");
+
+//建立mux api客戶端實例，設定存取憑證。建立後可用以調用各種mux提供的API方法。
 const mux = new Mux({
   muxTokenId,
   muxTokenSecret,
@@ -16,32 +20,53 @@ const mux = new Mux({
 // mux從本地上傳影片;
 const muxUploadHandler = async (req, res, next) => {
   try {
-    // ===========大量上傳的嘗試============//
-    // const count = parseInt(req.query.count) || 1;
-    // const uploadTasks = [];
+    //從前端取得必要的欄位資訊
+    const {
+      coachId,
+      filename,
+      extension,
+      size,
+      chapter_number,
+      title,
+      sub_chapter_number,
+      subtitle,
+    } = req.body;
 
-    // for (let i = 0; 1 < count; i++) {
-    //   uploadTasks.push(
-    //     mux.video.uploads.create({
-    //       cors_origin: "*",
-    //       new_asset_settings: { playback_policy: ["signed"] },
-    //     })
-    //   );
-    // }
-    // const uploads = await Promise.all(uploadTasks);
+    //驗證資料格式
+    if (isNotValidString(filename) || isNotValidString(extension) || isNotValidInteger(size)) {
+      return next(generateError(400, "檔案相關資料格式錯誤"));
+    }
+    if (
+      isNotValidInteger(chapter_number) ||
+      isNotValidInteger(sub_chapter_number) ||
+      isNotValidString(title) ||
+      isNotValidString(subtitle)
+    ) {
+      return next(generateError(400, "章節或小節欄位填寫錯誤"));
+    }
 
-    // res.json(
-    //   uploads.map((upload) => ({
-    //     id: upload.id,
-    //     url: upload.url,
-    //   }))
-    // );
+    //驗證檔案格式與大小
+    if (size > 4 * 1024 * 1024 * 1024) {
+      return next(generateError(400, `${filename}影片過大，請勿超過4GB`));
+    }
+    if (!["mp4", "mov", "webm"].includes(extension)) {
+      return next(generateError(400, `不支援${filename}的影片格式。請上傳mp4、mov、webm格式檔案`));
+    }
+    //建立querybuilder一次查詢課程與章節資料
 
-    // ===========大量上傳的嘗試============//
+    //判斷是否已建立課程資料，若無，就建立空白課程以取得course id以綁定章節資料
+    const existingCourse = await courseRepo.findOneBy({ coach_id: coachId });
+    if (existingCourse.length === 0) {
+      const newCourse = courseRepo.create({
+        coach_id: coachId,
+        is_approved: false,
+      });
+      await courseRepo.save(newCourse);
+    }
+    //查詢是否已有章節資料 **若刪除影片，為保留觀看數據不可刪除Course_Chapter的id
 
-    // 測試設定chapter_subtitle_set_id 用假的
-    let chapter_subtitle_set_id = "c3d1e98f-3714-4f4d-bb95-8d486604c531";
-    // const { chapter_subtitle_set_id } = req.query;
+    //在資料庫建立章節資訊
+
     //送出post request到 https://api.mux.com/video/v1/uploads
     const upload = await mux.video.uploads.create({
       cors_origin: "*",
@@ -85,18 +110,20 @@ const muxWebhookHandler = async (req, res, next) => {
         return next(generateError(400, "passthrough 為空，無法儲存影片資料"));
       }
       //儲存到Course_Video資料表
-      const existingVideo = await courseVideoRepo.findOneBy({ mux_asset_id: asset_id });
+      const existingVideo = await chapterRepo.findOneBy({ mux_asset_id: asset_id });
       if (existingVideo) {
         return next(generateError(409, "已儲存過此影片"));
       }
-      const video = courseVideoRepo.create({
-        chapter_subtitle_set_id: passthrough,
-        mux_asset_id: asset_id,
-        mux_playback_id: playback_id,
-        duration,
-        status: "ready",
-      });
-      await courseVideoRepo.save(video);
+      //必定已存在章節資訊，所以不用建新欄位!
+
+      // const video = chapterRepo.create({
+      //   chapter_subtitle_set_id: passthrough,
+      //   mux_asset_id: asset_id,
+      //   mux_playback_id: playback_id,
+      //   duration,
+      //   status: "ready",
+      // });
+      // await chapterRepo.save(video);
     }
     res.status(200).send("OK");
   } catch (error) {
