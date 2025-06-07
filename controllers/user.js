@@ -10,7 +10,6 @@ const courseRepo = AppDataSource.getRepository("Course");
 const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
 const favoriteRepo = AppDataSource.getRepository("User_Course_Favorite");
 const subscriptionRepo = AppDataSource.getRepository("Subscription");
-const videoRepo = AppDataSource.getRepository("Course_Video");
 //services
 const {
   getLatestSubscription,
@@ -882,6 +881,7 @@ async function getCourseChaptersSidebar(req, res, next) {
         sub_chapter_number: "ASC",
       },
     });
+    console.log(chapters);
 
     // 這段程式碼將所有章節的影片資料依照章節 ID 分組
     // 每個章節會有一個 videos 屬性，內容為該章節所有影片組成的陣列
