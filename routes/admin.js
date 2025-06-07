@@ -25,7 +25,6 @@ router.get("/data-analysis", auth, isAdmin, adminController.getDataAnalysis);
 //取得使用者列表
 router.get("/users", auth, isAdmin, adminController.getUsers);
 
-
 //動態路由
 //取得課程評價
 router.get("/courses/:courseId/ratings", auth, isAdmin, ratingController.getRatings);
@@ -33,5 +32,7 @@ router.get("/courses/:courseId/ratings", auth, isAdmin, ratingController.getRati
 router.delete("/courses/:courseId/ratings/:ratingId", auth, isAdmin, ratingController.deleteRating);
 //審核課程是否上架
 router.patch("/courses/:courseId/review", auth, isAdmin, adminController.patchReviewCourse);
+//取得教練詳細資訊
+router.get("/coaches/:coachId", auth, isAdmin, adminController.getCoachDetails);
 
 module.exports = router;

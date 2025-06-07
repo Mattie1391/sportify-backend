@@ -4,11 +4,13 @@ const courseRepo = AppDataSource.getRepository("Course");
 const viewRepo = AppDataSource.getRepository("View_Stat");
 const coachRepo = AppDataSource.getRepository("Coach");
 const skillRepo = AppDataSource.getRepository("Skill");
+const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
+const coachLisenseRepo = AppDataSource.getRepository("Coach_License");
 
 //services
 
 //utils
-const { isNotValidString, isNotValidUUID } = require("../utils/validators"); // 引入驗證工具函數
+const { isNotValidString, isNotValidUUID, isNotValidUrl } = require("../utils/validators"); // 引入驗證工具函數
 const generateError = require("../utils/generateError");
 const { validateField } = require("../utils/coachProfileValidators");
 
@@ -97,7 +99,93 @@ async function getCoachViewStats(req, res, next) {
     next(error);
   }
 }
-//教練修改個人檔案API
+
+//取得教練個人資料
+async function getProfile(req, res, next) {
+  try {
+    const coachId = req.params.coachId;
+    if (isNotValidUUID(coachId)) {
+      return next(generateError(400, "教練 ID 格式不正確"));
+    }
+    const coach = await coachRepo.findOneBy({ id: coachId });
+    if (!coach) {
+      return next(generateError(404, "查無此教練"));
+    }
+    //檢查頭貼網址是否正確，不正確則設為null
+    if (!coach.profile_image_url || isNotValidUrl(coach.profile_image_url)) {
+      coach.profile_image_url = null;
+    }
+    //檢查背景圖片網址是否正確，不正確則設為null
+    if (!coach.background_image_url || isNotValidUrl(coach.background_image_url)) {
+      coach.background_image_url = null;
+    }
+    //檢查銀行存摺影像網址是否正確，不正確則設為null
+    if (!coach.bankbook_copy_url || isNotValidUrl(coach.bankbook_copy_url)) {
+      coach.bankbook_copy_url = null;
+    }
+    const coachSkillData = await coachSkillRepo.find({
+      where: { coach_id: coachId },
+      relations: ["Skill"],
+    });
+    // 取得教練技能資料
+    if (coachSkillData.length > 0) {
+      const coachSkills = coachSkillData.map((cs) => ({
+        name: cs.Skill.name,
+      }));
+
+      const coachData = {
+        id: coach.id,
+        email: coach.email,
+        nickname: coach.nickname,
+        skills: coachSkills || [], //技能陣列
+        profile_image_url: coach.profile_image_url,
+        background_image_url: coach.background_image_url,
+        job_title: coach.job_title,
+        about_me: coach.about_me,
+        hobby: coach.hobby,
+        experience: coach.experience,
+        favorite_words: coach.favorite_words,
+        motto: coach.motto,
+        is_verified: coach.is_verified,
+        realname: coach.realname,
+        id_number: coach.id_number,
+        phone_number: coach.phone_number,
+        birthday: coach.birthday,
+        lisence: coach.lisence,
+        bank_code: coach.bank_code,
+        bank_account: coach.bank_account,
+        bankbook_copy_url: coach.bankbook_copy_url,
+        skill_description: coach.skill_description,
+        experience_years: coach.experience_years,
+        created_at: formatDate(coach.created_at),
+        updated_at: formatDate(coach.updated_at),
+      };
+      const coachLicenseData = await coachLisenseRepo.find({
+        where: { coach_id: coachId },
+      });
+      let coachLicenses = [];
+      if (coachLicenseData.length > 0) {
+        coachLicenses = coachLicenseData.map((cl) => ({
+          id: cl.id,
+          name: cl.filename,
+        }));
+      }
+
+      res.status(200).json({
+        status: true,
+        message: "成功取得資料",
+        data: {
+          coachDetails: coachData,
+          licenses: coachLicenses || [],
+        },
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+}
+
+//教練修改個人檔案
 async function patchProfile(req, res, next) {
   //設定patch request欄位的白名單
   const allowedFields = [
@@ -388,6 +476,7 @@ async function patchProfile(req, res, next) {
     next(error);
   }
 }
+
 //教練後台取得自己課程列表
 async function getOwnCourses(req, res, next) {
   try {
@@ -447,6 +536,7 @@ async function getOwnCourses(req, res, next) {
 
 module.exports = {
   getCoachViewStats,
+  getProfile,
   patchProfile,
   getOwnCourses,
 };
