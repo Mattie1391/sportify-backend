@@ -67,68 +67,42 @@ const muxUploadHandler = async (req, res, next) => {
 // //mux webhook通知上傳結果
 const muxWebhookHandler = async (req, res, next) => {
   try {
-    const rawBody = await getRawBody(req, {
-      encoding: "utf8",
-      length: req.headers["content-length"],
-      limit: "1mb",
-    });
+    mux.webhooks.verifySignature(JSON.stringify(req.body), req.headers, webhookSecret);
+    console.log("✅ Webhook Received:", JSON.stringify(req.body, null, 2));
 
-    const signature = req.headers["mux-signature"];
-    const event = mux.webhooks.verifySignature(rawBody, signature, webhookSecret);
-    console.log(req.headers["mux-signature"]);
-    console.log("✅ Webhook Received:", event.type);
+    const event = req.body;
+    //當事件為影片上傳就緒，便儲存進資料庫
+    if (event.type === "video.asset.ready") {
+      const asset = event.data;
+      const { id: asset_id, passthrough, duration } = asset;
+
+      //建立signed playback id
+      const { id: playback_id } = await mux.video.assets.createPlaybackId(asset_id, {
+        policy: "signed",
+      });
+
+      if (passthrough === undefined) {
+        return next(generateError(400, "passthrough 為空，無法儲存影片資料"));
+      }
+      //儲存到Course_Video資料表
+      const existingVideo = await courseVideoRepo.findOneBy({ mux_asset_id: asset_id });
+      if (existingVideo) {
+        return next(generateError(409, "已儲存過此影片"));
+      }
+      const video = courseVideoRepo.create({
+        chapter_subtitle_set_id: passthrough,
+        mux_asset_id: asset_id,
+        mux_playback_id: playback_id,
+        duration,
+        status: "ready",
+      });
+      await courseVideoRepo.save(video);
+    }
     res.status(200).send("OK");
   } catch (error) {
     console.error("❌ 簽名驗證失敗：", error.message);
-    console.log("🧪 模擬：這筆 webhook 是不合法的或被偽造");
     return next(error);
   }
-
-  // try {
-  // const event = mux.webhooks.verifySignature(req.body, req.headers, webhookSecret);
-  // console.log(event);
-
-  // console.log("✅ Mux webhook 驗證成功，事件為：", event.type);
-  // console.log("📄 完整資料：", JSON.stringify(event.data, null, 2));
-  // if (event.type === "video.asset.ready") {
-  //   const asset = event.data;
-  //   const { id: asset_id, playback_ids, passthrough, duration } = asset;
-
-  //   const playback_id = playback_ids[0]?.id;
-  // }
-  // const event = JSON.stringify(req.body);
-  //   if (event.type === "video.asset.ready") {
-  //     const asset = event.data;
-  //     const { id: asset_id, passthrough, duration } = asset;
-
-  //     //建立signed播放id
-  //     const { id: playback_id } = await mux.video.assets.createPlaybackId(asset_id, {
-  //       policy: "signed",
-  //     });
-  //     console.log(passthrough);
-  //     if (passthrough === undefined) {
-  //       return next(generateError(400, "passthrough 為空，無法儲存影片資料"));
-  //     }
-  //     // res.status(200).send("Webhook received");
-  //     //儲存到Course_Video資料表
-  //     const existingVideo = await courseVideoRepo.findOneBy({ mux_asset_id: asset_id });
-  //     if (existingVideo) {
-  //       return next(generateError(409, "已儲存過此影片"));
-  //     }
-  //     const video = courseVideoRepo.create({
-  //       chapter_subtitle_set_id: passthrough,
-  //       mux_asset_id: asset_id,
-  //       mux_playback_id: playback_id,
-  //       duration,
-  //       status: "ready",
-  //     });
-  //     await courseVideoRepo.save(video);
-  //     console.log("儲存成功，要傳送status code");
-  //     res.status(200).send("Webhook received");
-  //   }
-  // } catch (error) {
-  //   next(error);
-  // }
 };
 
 module.exports = { muxUploadHandler, muxWebhookHandler };
