@@ -19,7 +19,7 @@ module.exports = new EntitySchema({
     asset_id: {
       type: "varchar",
       length: 100,
-      nullable: false,
+      nullable: true,
     },
     // 採計觀看次數的日期
     date: {
