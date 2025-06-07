@@ -1,4 +1,7 @@
 const dayjs = require("dayjs");
+const axios = require("axios");
+const querystring = require("querystring");
+const { Like, MoreThan } = require("typeorm");
 const logger = require("../config/logger");
 const config = require("../config/index");
 const { merchantId, returnUrl, notifyUrl } = config.get("ecpay"); //引入綠界金流參數
@@ -80,19 +83,48 @@ async function postCancelPayment(req, res, next) {
       Action: "Cancel",
       TimeStamp: dayjs().unix(), // 確保每次發送時為最新時間
     };
-    //在物件內新增CheckMacValue檢查碼欄位
+    // 在物件內新增CheckMacValue檢查碼欄位
     postdata.CheckMacValue = generateCMV(postdata);
-    //整理成html form回傳格式
-    const formInputs = Object.entries(postdata)
-      .map(([key, value]) => `<input type="hidden" name="${key}" value="${value}" />`)
-      .join("\n");
-    const form = `
-  <form id="cancel-form" method="post" action="https://payment-stage.ecpay.com.tw/Cashier/CreditCardPeriodAction">
-  ${formInputs}
-  </form>
-  <script>document.getElementById('cancel-form').submit();</script>
-  `;
-    res.send(form);
+
+    // 用axios發送POST請求到綠界金流取消定期定額扣款
+    // 將資料轉換為 URL 編碼格式
+    const formData = querystring.stringify(postdata);
+    // 取得綠界同步回應結果
+    const response = await axios.post(
+      "https://payment-stage.ecpay.com.tw/Cashier/CreditCardPeriodAction",
+      formData,
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      }
+    );
+    // 解析綠界回傳的字串為物件
+    const resObj = querystring.parse(response.data);
+    // 驗證綠界回傳的 CheckMacValue 是否正確
+    const { CheckMacValue, ...data } = resObj; //把CMV欄位單獨取出
+    //驗證 CheckMacValue 是否正確
+    const localCMV = generateCMV(data);
+    if (localCMV !== CheckMacValue) {
+      return next(
+        logger.error(resObj, "取消定期定額扣款通知CMV驗證失敗"),
+        generateError(400, "通知驗證失敗：CheckMacValue 驗證不符，資料可能被修改或參數異常")
+      );
+    }
+
+    // 若為取消付款成功通知
+    if (resObj.RtnCode === "1") {
+      subscription.is_renewal = false; //取消自動續訂
+      await subscriptionRepo.save(subscription); //更新資料庫
+      res.status(200).json({
+        status: true,
+        message: "成功取消定期定額扣款",
+        data: resObj,
+      });
+    } else {
+      logger.error("取消定期定額扣款失敗，狀態碼：%s,錯誤訊息：%s", resObj.RtnCode, resObj.RtnMsg);
+      return next(generateError(400, `取消定期定額扣款失敗：${resObj.RtnCode} ${resObj.RtnMsg}`)); //RtnMsg綠界回傳錯誤訊息
+    }
   } catch (error) {
     next(error);
   }
@@ -102,7 +134,8 @@ async function postCancelPayment(req, res, next) {
 async function postPaymentConfirm(req, res, next) {
   try {
     const { CheckMacValue, ...data } = req.body; //把CMV欄位單獨取出
-    logger.info("收到綠界金流付款通知", req.body);
+    logger.info(req.body, "[Webhook]收到綠界金流付款通知");
+
     //驗證 CheckMacValue 是否正確
     const localCMV = generateCMV(data);
     if (localCMV !== CheckMacValue) {
@@ -110,38 +143,44 @@ async function postPaymentConfirm(req, res, next) {
         generateError(400, "通知驗證失敗：CheckMacValue 驗證不符，資料可能被修改或參數異常")
       );
     }
+
     //若付款失敗，data.RtnCode !== "1"
-    if (data.RtnCode !== "1") return next(generateError(400, `付款失敗：${data.RtnMsg}`)); //RtnMsg綠界回傳錯誤訊息
+    if (data.RtnCode !== "1") return next(generateError(400, `付款或取消付款失敗：${data.RtnMsg}`)); //RtnMsg綠界回傳錯誤訊息
     const merchant_trade_no = data.MerchantTradeNo; //取得綠界金流特店訂單編號
+
     //查找此筆定期定額扣款最新訂單紀錄
-    const latestSub = await subscriptionRepo.findOne({
-      where: {
-        merchant_trade_no: merchant_trade_no,
-      },
-      order: {
-        purchased_at: "DESC",
-      },
+    const subscription = await subscriptionRepo.findOneBy({
+      merchant_trade_no: merchant_trade_no,
+      is_renewal: true, //只查找自動續訂的訂單
     });
-    if (!latestSub) return next(generateError(404, "查無相關定期定額訂單"));
-    if (Number(data.TradeAmt) !== latestSub.price) {
-      logger.warn(`[Webhook] 訂單金額不一致：實付 ${data.TradeAmt} ≠ 訂單 ${latestSub.price}`);
+    if (!subscription) return next(generateError(404, "查無相關定期定額訂單"));
+
+    //確認扣款金額是否一致
+    if (Number(data.TradeAmt) !== subscription.price) {
+      logger.warn(
+        "[Webhook] 訂單金額不一致,實付金額: %s,訂單金額: %s",
+        data.TradeAmt,
+        subscription.price
+      );
       return next(generateError(400, "訂單金額與實際付款金額不一致，請聯絡綠界金流客服確認"));
     }
+
     //取得付款日期
     const paymentDate = dayjs(data.PaymentDate, "YYYY/MM/DD HH:mm:ss");
 
-    //若為第一次定期定額扣款，更新訂單紀錄
+    //若為定期定額扣款成功通知
     if (!data.TotalSuccessTimes) {
-      latestSub.payment_method =
+      //若為第一次定期定額扣款，更新訂單紀錄
+      subscription.payment_method =
         data.PaymentType === "Credit_CreditCard" ? "信用卡" : data.PaymentType; //付款方式
-      latestSub.purchased_at = paymentDate.toDate(); //付款時間
-      latestSub.start_at = paymentDate.toDate(); //訂閱開始時間
+      subscription.purchased_at = paymentDate.toDate(); //付款時間
+      subscription.start_at = paymentDate.toDate(); //訂閱開始時間
       // 訂閱結束時間為下一個月的同一天（若無該天自動退到月底）
-      latestSub.end_at = paymentDate.add(1, "month").toDate(); //訂閱結束時間
-      latestSub.is_paid = true; //付款狀態，紀錄為已付款
-      latestSub.invoice_image_url = null; //TODO:發票功能待確認
-      latestSub.is_renewal = true; //預設自動續訂
-      const newSub = await subscriptionRepo.save(latestSub); //更新資料庫
+      subscription.end_at = paymentDate.add(1, "month").toDate(); //訂閱結束時間
+      subscription.is_paid = true; //付款狀態，紀錄為已付款
+      subscription.invoice_image_url = null; //TODO:發票功能待確認
+      subscription.is_renewal = true; //預設自動續訂
+      const newSub = await subscriptionRepo.save(subscription); //更新資料庫
       if (!newSub) {
         return next(generateError(500, "更新資料失敗"));
       }
@@ -150,13 +189,13 @@ async function postPaymentConfirm(req, res, next) {
       //確認webhook沒有重複打入，避免重複創建新訂閱紀錄
       const exist = await subscriptionRepo.findOne({
         where: {
-          merchant_trade_no: latestSub.merchant_trade_no,
+          merchant_trade_no: subscription.merchant_trade_no,
           purchased_at: paymentDate.toDate(),
         },
       });
       if (exist) return res.send("1|OK");
-      if (!latestSub.is_renewal) {
-        logger.warn(`[Webhook] 收到非續訂狀態的扣款：訂單 ${latestSub.order_number}`);
+      if (!subscription.is_renewal) {
+        logger.warn("[Webhook] 收到非續訂狀態的扣款,訂單編號：%s", subscription.order_number);
       }
       //撈出資料庫今日最新訂單，並創建
       const todayStr = paymentDate.format("YYYYMMDD");
@@ -170,7 +209,7 @@ async function postPaymentConfirm(req, res, next) {
       //創建新訂單前，先停用舊訂單的續訂
       await subscriptionRepo.update(
         {
-          user_id: latestSub.user_id,
+          user_id: subscription.user_id,
           is_renewal: true,
         },
         {
@@ -180,7 +219,7 @@ async function postPaymentConfirm(req, res, next) {
       //創建新訂單前，先停止未到期的訂單有效期（預防兩個有效訂閱同時存在）
       await subscriptionRepo.update(
         {
-          user_id: latestSub.user_id,
+          user_id: subscription.user_id,
           end_at: MoreThan(paymentDate.toDate()), // 停用未到期的訂單
         },
         {
@@ -188,8 +227,8 @@ async function postPaymentConfirm(req, res, next) {
         }
       );
       const newSub = subscriptionRepo.create({
-        user_id: latestSub.user_id,
-        plan_id: latestSub.plan_id,
+        user_id: subscription.user_id,
+        plan_id: subscription.plan_id,
         order_number: orderNumber,
         price: data.TradeAmt, //訂單金額
         is_paid: true, //付款狀態，紀錄為已付款
@@ -212,37 +251,8 @@ async function postPaymentConfirm(req, res, next) {
   }
 }
 
-//接收取消結果的通知（從前端導回通知並再次檢查）
-async function postCancelConfirm(req, res, next) {
-  try {
-    const { CheckMacValue, ...data } = req.body; //把CMV欄位單獨取出
-    //驗證 CheckMacValue 是否正確
-    const localCMV = generateCMV(data);
-    if (localCMV !== CheckMacValue) {
-      return next(generateError(400, "驗證失敗：CheckMacValue 驗證不符，資料可能被修改或參數異常"));
-    }
-    //查找對應訂單紀錄
-    const merchant_trade_no = data.MerchantTradeNo; //取得綠界金流特店訂單編號
-    const subscription = await subscriptionRepo.findOneBy({
-      merchant_trade_no: merchant_trade_no,
-    });
-    if (!subscription) return next(generateError(404, "查無訂單"));
-
-    //若是取消定期定額扣款狀態通知
-    if (data.RtnCode === "1") {
-      subscription.is_renewal = false; //取消自動續訂
-      await subscriptionRepo.save(subscription); //更新資料庫
-    } else {
-      return next(generateError(400, `取消定期定額扣款失敗：${data.RtnMsg}`)); //RtnMsg綠界回傳錯誤訊息
-    }
-  } catch (error) {
-    next(error);
-  }
-}
-
 module.exports = {
   postCreatePayment,
   postCancelPayment,
   postPaymentConfirm,
-  postCancelConfirm,
 };
