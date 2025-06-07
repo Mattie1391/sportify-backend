@@ -4,6 +4,7 @@ const adminController = require("../controllers/admin");
 const ratingController = require("../controllers/rating");
 const auth = require("../middlewares/auth");
 const isAdmin = require("../middlewares/isAdmin");
+const userController = require("../controllers/user");
 
 //固定路由
 //固定路由順序要放在動態路由前，如:userId，否則會被/:userId的路由攔截
@@ -34,5 +35,7 @@ router.delete("/courses/:courseId/ratings/:ratingId", auth, isAdmin, ratingContr
 router.patch("/courses/:courseId/review", auth, isAdmin, adminController.patchReviewCourse);
 //取得教練詳細資訊
 router.get("/coaches/:coachId", auth, isAdmin, adminController.getCoachDetails);
+//取得使用者訂閱紀錄
+router.get("/subscriptions/:userId", auth, isAdmin, userController.getSubscriptions);
 
 module.exports = router;
