@@ -32,8 +32,6 @@ router.post("/create-payment", auth, isUser, paymentController.postCreatePayment
 router.post("/payment-confirm", paymentController.postPaymentConfirm);
 //取消定期扣款
 router.post("/cancel-payment", auth, isUser, paymentController.postCancelPayment);
-//TODO:接收取消結果的通知，待確認
-router.post("/cancel-confirm", paymentController.postCancelConfirm);
 //上傳大頭貼
 router.post("/upload-avatar", auth, isUser, upload.single("avatar"), uploadAvatar);
 
