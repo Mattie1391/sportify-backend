@@ -13,6 +13,9 @@ router.get("/courses/views", auth, isCoach, coachController.getCoachViewStats);
 router.get("/courses", auth, isCoach, coachController.getOwnCourses);
 
 //動態路由
+//修改教練資料
 router.patch("/:coachId", auth, isCoach, isSelf, coachController.patchProfile);
+//取得教練個人資料
+router.get("/:coachId", auth, isCoach, isSelf, coachController.getProfile);
 
 module.exports = router;
