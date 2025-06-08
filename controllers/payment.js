@@ -149,9 +149,13 @@ async function postPaymentConfirm(req, res, next) {
     const merchant_trade_no = data.MerchantTradeNo; //取得綠界金流特店訂單編號
 
     //查找此筆定期定額扣款最新訂單紀錄
-    const subscription = await subscriptionRepo.findOneBy({
-      merchant_trade_no: merchant_trade_no,
-      is_renewal: true, //只查找自動續訂的訂單
+    const subscription = await subscriptionRepo.findOne({
+      where: {
+        merchant_trade_no: merchant_trade_no,
+      },
+      order: {
+        created_at: "DESC",
+      },
     });
     if (!subscription) return next(generateError(404, "查無相關定期定額訂單"));
 
