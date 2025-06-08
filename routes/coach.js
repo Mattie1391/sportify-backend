@@ -10,7 +10,12 @@ const upload = require("../middlewares/upload");
 
 //controllers
 const coachController = require("../controllers/coach");
-const { uploadCoachAvatar, uploadBankbook, uploadLicense } = require("../controllers/upload");
+const {
+  uploadCoachAvatar,
+  uploadBankbook,
+  uploadLicense,
+  uploadBackground,
+} = require("../controllers/upload");
 
 //固定路由
 //取得所有課程觀看資料，或依照輸入的課程id找對應課程
@@ -26,6 +31,14 @@ router.post("/upload-avatar", auth, isCoach, upload.single("coachAvatar"), uploa
 router.post("/upload-bankbook", auth, isCoach, upload.single("bankbook"), uploadBankbook);
 //教練上傳證照
 router.post("/upload-license", auth, isCoach, upload.single("license"), uploadLicense);
+//教練上傳背景圖片
+router.post(
+  "/upload-background-image",
+  auth,
+  isCoach,
+  upload.single("background"),
+  uploadBackground
+);
 
 //動態路由
 //教練修改個人資料
