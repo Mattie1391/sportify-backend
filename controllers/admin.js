@@ -705,7 +705,7 @@ async function getUsers(req, res, next) {
     // 取得所有使用者資料與訂閱資料
     const rawUsers = await userRepo
       .createQueryBuilder("u")
-      .leftJoinAndSelect("u.Subscription", "s") // 關聯到最新訂閱
+      .leftJoinAndSelect("u.Subscription", "s", "s.id = u.subscription_id") // 關聯到最新訂閱
       .leftJoin("s.Plan", "p")
       .leftJoin("s.Subscription_Skills", "ss")
       .leftJoin("ss.Skill", "sk")
@@ -718,7 +718,7 @@ async function getUsers(req, res, next) {
         "s.start_at AS start_at",
         "s.end_at AS end_at",
         "s.purchased_at AS purchased_at",
-        "u.created_at AS createdAt",
+        "u.created_at AS created_at",
         "s.is_renewal AS is_renewal", // 是否開啟續訂
       ])
       .addSelect("ARRAY_AGG(sk.name)", "skills")
@@ -776,9 +776,10 @@ async function getUsers(req, res, next) {
         profile_image_url: user.profile_image_url,
         plan: user.plan,
         course_type: user.skills?.filter(Boolean) || [],
-        createdAt: user.createdAt,
-        period:
-          hasStart && hasEnd ? `${formatDate(user.start_at)} - ${formatDate(user.end_at)}` : null,
+        createdAt: formatDate(user.created_at),
+        period: hasStart && hasEnd
+          ? `${formatDate(user.start_at)} - ${formatDate(user.end_at)}`
+          : null,
         end_at: hasEnd ? formatDate(user.end_at) : null,
         next_payment: user.is_renewal && hasEnd ? formatDate(addDays(user.end_at, 1)) : null,
       };
