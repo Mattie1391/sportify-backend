@@ -42,10 +42,20 @@ module.exports = new EntitySchema({
       length: 2048,
       nullable: true, // 頭像圖片網址
     },
+    profile_image_public_id: {
+      type: "varchar",
+      length: 2048,
+      nullable: true, // 頭像圖片在cloudinary的儲存id
+    },
     background_image_url: {
       type: "varchar",
       length: 2048,
       nullable: true, // 頁面背景圖片網址
+    },
+    background_image_public_id: {
+      type: "varchar",
+      length: 2048,
+      nullable: true, // 頁面背景圖片在cloudinary的儲存id
     },
     job_title: {
       type: "varchar",
@@ -127,6 +137,11 @@ module.exports = new EntitySchema({
       type: "varchar",
       length: 2048,
       nullable: true, // 存摺影本網址（薪資轉帳帳號）
+    },
+    bankbook_copy_public_id: {
+      type: "varchar",
+      length: 2048,
+      nullable: true, // 存摺影本（薪資轉帳帳號）圖片的cloudinary的儲存id
     },
     skill_description: {
       type: "varchar",

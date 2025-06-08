@@ -1,4 +1,5 @@
 const { In } = require("typeorm");
+const cloudinary = require("cloudinary").v2;
 const AppDataSource = require("../db/data-source");
 const courseRepo = AppDataSource.getRepository("Course");
 const viewRepo = AppDataSource.getRepository("View_Stat");
@@ -198,6 +199,7 @@ async function patchProfile(req, res, next) {
     "bank_code",
     "bank_account",
     "bankbook_copy_url",
+    "bankbook_copy_public_id",
     "job_title",
     "about_me",
     "skill", //取得時為頓號分隔的字串，拆解成陣列後存入skill表
@@ -210,7 +212,9 @@ async function patchProfile(req, res, next) {
     "motto",
     "favorite_words",
     "profile_image_url",
+    "profile_image_public_id",
     "background_image_url",
+    "background_image_public_id",
   ];
   try {
     //驗證教練req params是否是適當的uuid格式、是否可找到此教練
@@ -252,7 +256,46 @@ async function patchProfile(req, res, next) {
         throw generateError(404, "查無教練個人資料");
       }
 
-      //跳過特殊處理邏輯的專長及證照上傳
+      //對於上傳檔案有關(大頭貼、存摺封面、背景圖)的資料，將url跟public_id組合，確保一同更新
+      const fileFieldPairs = [
+        ["profile_image_url", "profile_image_public_id"],
+        ["bankbook_copy_url", "bankbook_copy_public_id"],
+        ["background_image_url", "background_image_public_id"],
+      ];
+      for (const [urlKey, publicIdKey] of fileFieldPairs) {
+        const newUrl = filteredData[urlKey];
+        const newPublicId = filteredData[publicIdKey];
+
+        //驗證兩個欄位是否都有提供
+        if (newUrl !== undefined || newPublicId !== undefined) {
+          if (!newUrl || !newPublicId) {
+            throw generateError(400, `缺少 ${urlKey}或 ${publicIdKey}`);
+          }
+          const oldUrl = transactionalCoach[urlKey];
+          const oldPublicId = transactionalCoach[publicIdKey];
+
+          const trimmedUrl = typeof newUrl === "string" ? newUrl.trim() : newUrl;
+          const trimmedId = typeof newPublicId === "string" ? newPublicId.trim() : newPublicId;
+
+          //驗證是否有url、public_id只改了其中一欄 : true對false時就會報錯。
+          const isUrlChanged = trimmedUrl !== oldUrl;
+          const isIdChanged = trimmedId !== oldPublicId;
+          if (isUrlChanged !== isIdChanged) {
+            throw generateError(400, "檔案資訊不一致，必須同時更改 URL 與 Public ID");
+          }
+          //url/public key必須都被改寫才進行更新
+          if (isUrlChanged && isIdChanged) {
+            transactionalCoach[urlKey] = trimmedUrl;
+            transactionalCoach[publicIdKey] = trimmedId;
+            updatedFields.push(urlKey, publicIdKey);
+            //刪除cloudinary上的舊檔案
+            await cloudinary.uploader.destroy(oldPublicId);
+          }
+          //都沒改，就不會做任何處理
+        }
+      }
+
+      //以迴圈取出有改動的欄位並更新資料，但若取到skill或license_data，因為處理邏輯特殊，用continue跳過此迴圈
       for (const key of Object.keys(filteredData)) {
         if (key === "skill" || key === "license_data") {
           continue;
@@ -345,66 +388,82 @@ async function patchProfile(req, res, next) {
         if (parsedTitlesCount !== newLicensesFromReq.length) {
           throw generateError(400, "證照資格的標題與上傳的附件數量不符");
         }
-
         //驗證每個檔案物件的格式
         for (const fileInfo of newLicensesFromReq) {
           if (
             typeof fileInfo !== "object" ||
             fileInfo === null ||
             !fileInfo.file_url ||
+            !fileInfo.file_public_id ||
             !fileInfo.filename
           ) {
-            throw generateError(400, "未上傳檔案或未取得檔案名稱");
+            throw generateError(400, "上傳檔案所需資料不足，應包含檔名、url、public_id。");
           }
         }
         const currentLicenses = transactionalCoach.Coach_License || [];
 
-        //找出需要從資料庫移除的證照(若教練更新後去掉某證照附件)
+        //列出需新增的證照
+        const licenseToAdd = newLicensesFromReq.filter((newLicenseData) => {
+          //完全比對是否有重複url和public_id相同
+          const completelySame = currentLicenses.some(
+            (currentLicense) =>
+              currentLicense.file_url === newLicenseData.file_url &&
+              currentLicense.file_public_id === newLicenseData.file_public_id
+          );
+          //任一欄位是否有與舊資料相同，若有就報錯
+          const inputConflict = currentLicenses.some(
+            (currentLicense) =>
+              currentLicense.file_url === newLicenseData.file_url ||
+              currentLicense.file_public_id === newLicenseData.file_public_id
+          );
+          if (inputConflict && !completelySame) {
+            throw generateError(400, "檔案資訊不一致，必須同時更改 URL 與 Public ID");
+          }
+          return !completelySame; //僅計算完全url、public_id都變更的，為要更新的證照
+        });
+
+        //列出需要從資料庫移除的證照(若教練更新後去掉某證照附件)
         const licenseToRemove = currentLicenses.filter((currentLicense) => {
           const found = newLicensesFromReq.some(
             (newLicense) =>
               newLicense.file_url === currentLicense.file_url &&
-              newLicense.filename === currentLicense.filename
+              newLicense.file_public_id === currentLicense.file_public_id
           );
-          return !found; //若找不到，代表該證照要被移除
+          return !found; //若req.body輸入的license資料等同資料庫資料(資料皆未改變)，found會是true，但只要有一項資料不符合(!found是true)，就加入licenseToRemove
         });
 
-        //找出需新增的證照
-        const licenseToAdd = newLicensesFromReq.filter((newLicenseData) => {
-          const found = currentLicenses.some(
-            (currentLicenses) =>
-              currentLicenses.file_url === newLicenseData.file_url &&
-              currentLicenses.filename === newLicenseData.filename
-          );
-          return !found; //如果當前資料庫中沒有完全匹配的，則認為是新的
-        });
-
-        //檢查是否有實質性的license_data變動
-        if (licenseToRemove.length > 0 || licenseToAdd.length > 0) {
+        //檢查license_data是否有刪除動作，有的話執行刪除(先從cloudinary刪除檔案，再將新上傳檔案資料與檔案名稱建入資料庫)並紀錄
+        if (licenseToRemove.length > 0) {
+          //執行刪除操作
+          for (const license of licenseToRemove) {
+            //從cloudinary刪除舊證照(若先前未上傳過，public為null就跳過)
+            if (license.file_public_id) {
+              await cloudinary.uploader.destroy(license.file_public_id);
+            }
+            await transactionalEntityManager
+              .getRepository("Coach_License")
+              .delete({ id: license.id });
+          }
           licenseDataActuallyChanged = true;
         }
-
-        //執行刪除操作
-        for (const license of licenseToRemove) {
-          await transactionalEntityManager
-            .getRepository("Coach_License")
-            .delete({ id: license.id });
+        //檢查license_data是否有新增或更新動作，有的話執行並記錄
+        if (licenseToAdd.length > 0) {
+          for (const newLicenseData of licenseToAdd) {
+            //嘗試找到file_url和filename與資料庫都匹配的現有證照
+            const newCoachLicense = transactionalEntityManager.create("Coach_License", {
+              Coach: transactionalCoach,
+              file_url: newLicenseData.file_url,
+              file_public_id: newLicenseData.file_public_id,
+              filename: newLicenseData.filename,
+            });
+            await transactionalEntityManager.getRepository("Coach_License").save(newCoachLicense);
+          }
+          licenseDataActuallyChanged = true;
         }
-
-        //找出須更新或新增的證照
-        for (const newLicenseData of licenseToAdd) {
-          //嘗試找到file_url和filename與資料庫都匹配的現有證照
-          const newCoachLicense = transactionalEntityManager.create("Coach_License", {
-            Coach: transactionalCoach,
-            file_url: newLicenseData.file_url,
-            filename: newLicenseData.filename,
-          });
-          await transactionalEntityManager.getRepository("Coach_License").save(newCoachLicense);
+        //檢查若證照有更新，就紀錄license_data有變更
+        if (licenseDataActuallyChanged) {
+          updatedFields.push("license_data");
         }
-        //如果有Coach_License存在的證照，就不做任何事。
-      }
-      if (licenseDataActuallyChanged) {
-        updatedFields.push("license_data");
       }
 
       //更新Coach主表，license證照字串會原原本本寫入Coach資料表中
@@ -431,6 +490,9 @@ async function patchProfile(req, res, next) {
         realname: finalCoachData.realname,
         birthday: finalCoachData.birthday,
         phone_number: finalCoachData.phone_number,
+        bank_code: finalCoachData.bank_code,
+        bank_account: finalCoachData.bank_account,
+        bankbook_copy_url: finalCoachData.bankbook_copy_url,
         job_title: finalCoachData.job_title,
         about_me: finalCoachData.about_me,
         skill: req.body.skill, //沿用req.body的字串形式
@@ -441,7 +503,9 @@ async function patchProfile(req, res, next) {
         motto: finalCoachData.motto,
         favorite_words: finalCoachData.favorite_words,
         profile_image_url: finalCoachData.profile_image_url,
+        profile_image_public_id: finalCoachData.profile_image_public_id,
         background_image_url: finalCoachData.background_image_url,
+        background_image_public_id: finalCoachData.background_image_public_id,
         updated_at: finalCoachData.updated_at,
       };
     }
@@ -456,6 +520,7 @@ async function patchProfile(req, res, next) {
       resData.license_data = finalCoachData.Coach_License.map((cl) => ({
         filename: cl.filename,
         file_url: cl.file_url,
+        file_public_id: cl.file_public_id,
       }));
     }
 
