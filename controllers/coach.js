@@ -7,6 +7,7 @@ const coachRepo = AppDataSource.getRepository("Coach");
 const skillRepo = AppDataSource.getRepository("Skill");
 const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
 const coachLisenseRepo = AppDataSource.getRepository("Coach_License");
+const { formatDate } = require("../utils/formatDate"); // 引入日期格式化工具函數
 
 //services
 
