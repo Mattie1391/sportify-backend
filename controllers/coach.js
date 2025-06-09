@@ -1,14 +1,5 @@
 const { In } = require("typeorm");
-const logger = require("pino")({
-  transport: {
-    target: "pino-pretty",
-    options: {
-      colorize: true,
-      translateTime: "HH:MM:ss",
-      ignore: "pid,hostname",
-    },
-  },
-});
+const logger = require("../config/logger");
 const cloudinary = require("cloudinary").v2;
 const AppDataSource = require("../db/data-source");
 const courseRepo = AppDataSource.getRepository("Course");
