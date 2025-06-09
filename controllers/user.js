@@ -888,44 +888,15 @@ async function getCourseChaptersSidebar(req, res, next) {
         sub_chapter_number: "ASC",
       },
     });
-    console.log(chapters);
 
-    // 這段程式碼將所有章節的影片資料依照章節 ID 分組
-    // 每個章節會有一個 videos 屬性，內容為該章節所有影片組成的陣列
+    // 不再需要從 videoRepo 取得影片，因為影片資訊（例如 duration）直接存在 chapter 中
 
-    // 取出所有章節 ID 用來查詢影片資料
-    const chapterIds = chapters.map((c) => c.id);
-
-    // 查詢所有屬於這些章節的影片
-    const videos = await videoRepo.find({
-      where: {
-        chapter_subtitle_set_id: In(chapterIds),
-      },
-    });
-
-    // 假設你已經有 chapters 跟 videos 兩個陣列
-    // videos 陣列裡每個物件都有 chapter_subtitle_set_id（對應章節 id）與 duration（秒數）
-
-    // 1. 建立一個以章節 ID 為 key，影片陣列為 value 的對照表
-    const videoListMap = {};
-    videos.forEach((video) => {
-      const key = video.chapter_subtitle_set_id;
-      if (!videoListMap[key]) videoListMap[key] = [];
-      videoListMap[key].push(video);
-    });
-
-    // 2. 依據 chapters 產生 fakeProgress，每個章節取得該章節所有影片
-    //TODO:模擬章節觀看進度（未連接使用者資料，之後可整合 user_progress 資料）
     const fakeProgress = chapters.map((chapter, index) => {
-      // 取得此章節所有影片的陣列
-      const videoArr = videoListMap[chapter.id] || [];
-      // 計算該章節所有影片的總時長（秒）
-      const totalDuration = videoArr.reduce((sum, video) => sum + (video.duration || 0), 0);
-      // 轉換成幾分幾秒的格式
-      const lengthStr = videoArr.length
-        ? `${Math.floor(totalDuration / 60)}分${Math.round(totalDuration % 60)}秒`
+      const duration = chapter.duration || 0;
+      const lengthStr = duration
+        ? `${Math.floor(duration / 60)}分${Math.round(duration % 60)}秒`
         : "未提供";
-      // 回傳進度物件
+
       return {
         name: chapter.subtitle,
         length: lengthStr,
