@@ -51,7 +51,7 @@ const muxUploadHandler = async (req, res, next) => {
     if (size > 4 * 1024 * 1024 * 1024) {
       return next(generateError(400, `${filename}影片過大，請勿超過4GB`));
     }
-    if (!["mp4", "mov", "webm"].includes(extension)) {
+    if (!["mp4", "mov", "webm"].includes(extension.toLowerCase())) {
       return next(generateError(400, `不支援${filename}的影片格式。請上傳mp4、mov、webm格式檔案`));
     }
 
@@ -61,7 +61,7 @@ const muxUploadHandler = async (req, res, next) => {
     });
 
     //如果有未建立課程(以資料庫有該教練未填入課程名稱的課程資料為判斷依據)，就建立空白課程，如有空白課程，就取得該課程id
-    if (course.length === 0) {
+    if (!course) {
       logger.info("需建立新課程id");
       const newCourse = courseRepo.create({
         coach_id: coachId,
@@ -96,11 +96,11 @@ const muxUploadHandler = async (req, res, next) => {
 
     //送出post request到 https://api.mux.com/video/v1/uploads
     const upload = await mux.video.uploads.create({
-      cors_origin: "*",
+      cors_origin: "*", //上線後要改為同網域內
       timeout: 7200, //上傳任務時限。由於上傳任務多，先設20分鐘看看。
       new_asset_settings: {
-        plaback_policy: ["signed"],
-        test: true, //設定該上傳影片為試用，不產生費用，但限制時長10秒鐘、24小時候刪除
+        playback_policy: ["signed"],
+        test: true, //設定該上傳影片為試用，不產生費用，但限制時長10秒鐘、24小時後刪除
         max_resolution_tier: "2160p",
         video_quality: "plus", //至少要plus才符合提供最高2160p畫質的需求，更高階可設premium，但錢包炸裂更快。
         passthrough: chapterSubtitleSet.id, //以章節副標題id作為識別碼
@@ -129,11 +129,12 @@ const muxWebhookHandler = async (req, res, next) => {
         logger.info(`資料接收成功， ${event.type}`);
 
         const { id: asset_id, passthrough, duration, status, created_at } = asset;
+        const playbackId = asset.playback_ids[0].id;
 
         //產生signed playback id
-        const { id: playback_id } = await mux.video.assets.createPlaybackId(asset_id, {
-          policy: "signed",
-        });
+        // const { id: playback_id } = await mux.video.assets.createPlaybackId(asset_id, {
+        //   policy: "signed",
+        // });
 
         if (!passthrough) {
           return next(generateError(400, "passthrough 為空。由於未傳入章節id，無法儲存影片資料"));
@@ -144,17 +145,16 @@ const muxWebhookHandler = async (req, res, next) => {
           return next(generateError(409, "已儲存過此影片"));
         }
 
-        //換算上傳時間為+8時區的YYYY-MM-DD格式
         await chapterRepo.update(
           {
             id: passthrough,
           },
           {
             mux_asset_id: asset_id,
-            mux_playback_id: playback_id,
+            mux_playback_id: playbackId,
             duration: duration,
             status: status,
-            uploaded_at: unixTot8zYYYYMMDD(created_at),
+            uploaded_at: unixTot8zYYYYMMDD(created_at), //換算上傳時間，轉換unix時間為+8時區的時間格式
           }
         );
         return res.status(200).send("Webhook processed: video.asset.ready");
