@@ -131,11 +131,6 @@ const muxWebhookHandler = async (req, res, next) => {
         const { id: asset_id, passthrough, duration, status, created_at } = asset;
         const playbackId = asset.playback_ids[0].id;
 
-        //產生signed playback id
-        // const { id: playback_id } = await mux.video.assets.createPlaybackId(asset_id, {
-        //   policy: "signed",
-        // });
-
         if (!passthrough) {
           return next(generateError(400, "passthrough 為空。由於未傳入章節id，無法儲存影片資料"));
         }
