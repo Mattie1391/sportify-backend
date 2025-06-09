@@ -711,10 +711,10 @@ async function getSubscriptions(req, res, next) {
 
     //取得userId
     let userId;
-    if (req.user.role === "admin") {
+    if (req.user.role === "ADMIN") {
       userId = req.params.userId;
     }
-    if (req.user.role === "user") {
+    if (req.user.role === "USER") {
       userId = req.user.id;
     }
     //取得排序後的資料
