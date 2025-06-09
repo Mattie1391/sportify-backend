@@ -7,7 +7,7 @@ const isCouch = require("../middlewares/isCoach");
 const auth = require("../middlewares/auth");
 
 //取得從本地上傳影片的url
-router.get("/upload-url", auth, isCouch, muxUploadHandler);
+router.post("/upload-url", auth, isCouch, muxUploadHandler);
 
 //webhook取得上傳結果
 //express.raw middleware : mux驗證原始body

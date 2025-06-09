@@ -2,6 +2,8 @@ const AppDataSource = require("../db/data-source");
 const courseRepo = AppDataSource.getRepository("Course");
 const chapterRepo = AppDataSource.getRepository("Course_Chapter");
 const generateError = require("../utils/generateError");
+const logger = require("../config/logger");
+const { IsNull } = require("typeorm");
 
 const { Mux } = require("@mux/mux-node");
 const config = require("../config/index");
@@ -9,7 +11,7 @@ const { muxTokenId, muxTokenSecret, webhookSecret } = config.get("mux");
 
 //utils
 const { isNotValidString, isNotValidInteger } = require("../utils/validators");
-
+const { unixTot8zYYYYMMDD } = require("../utils/formatDate");
 //建立mux api客戶端實例，設定存取憑證。建立後可用以調用各種mux提供的API方法。
 const mux = new Mux({
   muxTokenId,
@@ -20,11 +22,11 @@ const mux = new Mux({
 // mux從本地上傳影片;
 const muxUploadHandler = async (req, res, next) => {
   try {
-    //從前端取得必要的欄位資訊
+    const coachId = req.user.id;
+    //從前端取得必要的欄位資訊，用以建立章節
     const {
-      coachId,
       filename,
-      extension,
+      extension, //副檔名
       size,
       chapter_number,
       title,
@@ -52,20 +54,45 @@ const muxUploadHandler = async (req, res, next) => {
     if (!["mp4", "mov", "webm"].includes(extension)) {
       return next(generateError(400, `不支援${filename}的影片格式。請上傳mp4、mov、webm格式檔案`));
     }
-    //建立querybuilder一次查詢課程與章節資料
 
     //判斷是否已建立課程資料，若無，就建立空白課程以取得course id以綁定章節資料
-    const existingCourse = await courseRepo.findOneBy({ coach_id: coachId });
-    if (existingCourse.length === 0) {
+    let course = await courseRepo.findOne({
+      where: { coach_id: coachId, name: IsNull() },
+    });
+
+    //如果有未建立課程(以資料庫有該教練未填入課程名稱的課程資料為判斷依據)，就建立空白課程，如有空白課程，就取得該課程id
+    if (course.length === 0) {
+      logger.info("需建立新課程id");
       const newCourse = courseRepo.create({
         coach_id: coachId,
         is_approved: false,
       });
       await courseRepo.save(newCourse);
+      logger.info("課程id已建立");
     }
-    //查詢是否已有章節資料 **若刪除影片，為保留觀看數據不可刪除Course_Chapter的id
 
-    //在資料庫建立章節資訊
+    //建立章節資料 : 剛才建立課程的，取新課程id，已有空白課程的取舊課程id
+    course = await courseRepo.findOne({
+      where: { coach_id: coachId, name: IsNull() },
+    });
+    logger.info(`取得空白課程id ${course.id}`);
+    const newSubChapter = chapterRepo.create({
+      course_id: course.id,
+      chapter_number,
+      title,
+      sub_chapter_number,
+      subtitle,
+    });
+    await chapterRepo.save(newSubChapter);
+
+    //取得新建立的章節小節唯一ID   **TODO若刪除影片，為保留觀看數據不可刪除Course_Chapter的id
+    const chapterSubtitleSet = await chapterRepo.findOne({
+      where: {
+        course_id: course.id,
+        chapter_number: chapter_number,
+        sub_chapter_number: sub_chapter_number,
+      },
+    });
 
     //送出post request到 https://api.mux.com/video/v1/uploads
     const upload = await mux.video.uploads.create({
@@ -76,10 +103,10 @@ const muxUploadHandler = async (req, res, next) => {
         test: true, //設定該上傳影片為試用，不產生費用，但限制時長10秒鐘、24小時候刪除
         max_resolution_tier: "2160p",
         video_quality: "plus", //至少要plus才符合提供最高2160p畫質的需求，更高階可設premium，但錢包炸裂更快。
-        passthrough: chapter_subtitle_set_id, //以章節副標題id作為識別碼
+        passthrough: chapterSubtitleSet.id, //以章節副標題id作為識別碼
         meta: {
-          title: "測試影片", //影片名稱，應從教練建立課程表單取得
-          creator_id: "abc123", //應設定教練id
+          title: subtitle, //影片名稱，應從教練建立課程表單取得
+          creator_id: coachId, //應設定教練id
         },
       },
     });
@@ -93,41 +120,59 @@ const muxUploadHandler = async (req, res, next) => {
 const muxWebhookHandler = async (req, res, next) => {
   try {
     mux.webhooks.verifySignature(JSON.stringify(req.body), req.headers, webhookSecret);
-    console.log("✅ Webhook Received:", JSON.stringify(req.body, null, 2));
 
     const event = req.body;
-    //當事件為影片上傳就緒，便儲存進資料庫
-    if (event.type === "video.asset.ready") {
-      const asset = event.data;
-      const { id: asset_id, passthrough, duration } = asset;
 
-      //建立signed playback id
-      const { id: playback_id } = await mux.video.assets.createPlaybackId(asset_id, {
-        policy: "signed",
-      });
+    switch (event.type) {
+      case "video.asset.ready": {
+        const asset = event.data;
+        logger.info(`資料接收成功， ${event.type}`);
 
-      if (passthrough === undefined) {
-        return next(generateError(400, "passthrough 為空，無法儲存影片資料"));
+        const { id: asset_id, passthrough, duration, status, created_at } = asset;
+
+        //產生signed playback id
+        const { id: playback_id } = await mux.video.assets.createPlaybackId(asset_id, {
+          policy: "signed",
+        });
+
+        if (!passthrough) {
+          return next(generateError(400, "passthrough 為空。由於未傳入章節id，無法儲存影片資料"));
+        }
+        //更新到Course_Chapter資料表
+        const existingVideo = await chapterRepo.findOneBy({ mux_asset_id: asset_id });
+        if (existingVideo) {
+          return next(generateError(409, "已儲存過此影片"));
+        }
+
+        //換算上傳時間為+8時區的YYYY-MM-DD格式
+        await chapterRepo.update(
+          {
+            id: passthrough,
+          },
+          {
+            mux_asset_id: asset_id,
+            mux_playback_id: playback_id,
+            duration: duration,
+            status: status,
+            uploaded_at: unixTot8zYYYYMMDD(created_at),
+          }
+        );
+        return res.status(200).send("Webhook processed: video.asset.ready");
       }
-      //儲存到Course_Video資料表
-      const existingVideo = await chapterRepo.findOneBy({ mux_asset_id: asset_id });
-      if (existingVideo) {
-        return next(generateError(409, "已儲存過此影片"));
-      }
-      //必定已存在章節資訊，所以不用建新欄位!
-
-      // const video = chapterRepo.create({
-      //   chapter_subtitle_set_id: passthrough,
-      //   mux_asset_id: asset_id,
-      //   mux_playback_id: playback_id,
-      //   duration,
-      //   status: "ready",
-      // });
-      // await chapterRepo.save(video);
+      //處理其他事件
+      case "video.asset.uploaded":
+      case "video.asset.created":
+      case "video.upload.error":
+        //先不做處理，只回傳2xx代碼，讓mux停止retry
+        logger.info(`忽略事件: ${event.type}`);
+        return res.sendStatus(204);
+      //其他事件類型，也先不做處理，只回傳2xx代碼，讓mux停止retry
+      default:
+        logger.info(`未處理事件: ${event.type}`);
+        return res.sendStatus(204);
     }
-    res.status(200).send("OK");
   } catch (error) {
-    console.error("❌ 簽名驗證失敗：", error.message);
+    logger.warn("webhook錯誤", error.message);
     return next(error);
   }
 };

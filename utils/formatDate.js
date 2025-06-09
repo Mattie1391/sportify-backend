@@ -29,6 +29,19 @@ const addDays = (date, days) => {
   const result = new Date(date);
   result.setDate(result.getDate() + days);
   return result;
-}
+};
 
-module.exports = { formatDate, formatYYYYMMDD , parseYYYYMMDD, addDays };
+//將UNIX時間轉化為+8時區
+const dayjs = require("dayjs");
+const utc = require("dayjs/plugin/utc");
+const timezone = require("dayjs/plugin/timezone");
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const unixTot8zYYYYMMDD = (unixtime) => {
+  const unix = unixtime;
+  const result = dayjs.unix(unix).tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss.SSS");
+  return result;
+};
+
+module.exports = { formatDate, formatYYYYMMDD, parseYYYYMMDD, addDays, unixTot8zYYYYMMDD };

@@ -7,7 +7,7 @@
   </head>
   <body>
     <h1>影片上傳</h1>
-    <input type="file" id="videoInput" />
+    <input type="file" id="videoInput" accept="video/*" />
     <button id="uploadBtn">上傳影片</button>
     <progress id="progressBar" max="100" value="0"></progress>
     <p id="status"></p>
@@ -17,15 +17,44 @@
         const file = document.getElementById("videoInput").files[0];
         if (!file) return alert("請選擇影片");
 
+        const filename = file.name;
+        const extension = filename.split(".").pop();
+        const size = file.size;
+
+        //測試用的章節、小節假資料。
+        const fakeChapter = {
+          chapter_number: 5,
+          title: "321",
+          sub_chapter_number: 5,
+          subtitle: "123",
+        };
+
         // 從後端取得 direct_upload url，從res取得上傳url
-        const res = await fetch("http://localhost:8080/api/v1/mux/upload-url"); //網址寫死，需自行調整才能打開上傳頁面
+        //網址寫死，PORT請示情況改寫成如3000
+        const res = await fetch("http://localhost:8080/api/v1/mux/upload-url", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            //測試時請用POSTMAN 生成新教練TOKEN再貼上來
+            Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjU4ZGE1NjUzLTYxMWQtNDljMi1iYTMyLWEyNmY1NTViNjY4NiIsInJvbGUiOiJDT0FDSCIsImlhdCI6MTc0OTQ2Mjk4MiwiZXhwIjoxNzUyMDU0OTgyfQ.7VntU5CuV6CP54l-DuaN6y8uK98-F5yXfXuPuENJ570`,
+          },
+          body: JSON.stringify({
+            filename,
+            extension,
+            size,
+            chapter_number: fakeChapter.chapter_number, //這邊的fakeChapter等前端串接後要改成取得真的資料
+            title: fakeChapter.title,
+            sub_chapter_number: fakeChapter.sub_chapter_number,
+            subtitle: fakeChapter.subtitle,
+          }),
+        });
         const data = await res.json();
         const uploadUrl = data.url;
 
         const upload = UpChunk.createUpload({
           endpoint: uploadUrl, // Mux 提供的 direct upload URL
           file: file,
-          chunkSize: 2048, // KB (2MB per chunk)，較小對於同步上傳而言較穩定
+          chunkSize: 2048, // KB (2MB per chunk)，較小對於同步上傳而言較穩定，大量影片一起上傳時視情況可以設定到5MB
         });
 
         upload.on("error", (err) => {
