@@ -24,6 +24,11 @@ module.exports = new EntitySchema({
       length: 2048,
       nullable: true,
     },
+    file_public_id: {
+      type: "varchar",
+      length: 2048,
+      nullable: true, //儲存檔案在cloudinary的儲存id
+    },
     file_mimetype: {
       type: "varchar",
       length: 100, //檔案的媒體格式，如image/png、application/pdf
