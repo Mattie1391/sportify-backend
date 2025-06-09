@@ -79,7 +79,7 @@ module.exports = new EntitySchema({
     status: {
       type: "varchar",
       length: 32,
-      default: "waiting",
+      nullable: true,
     },
     uploaded_at: {
       //影片上傳時間

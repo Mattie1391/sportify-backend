@@ -18,8 +18,7 @@ module.exports = new EntitySchema({
     name: {
       type: "varchar",
       length: 50,
-      nullable: false,
-      unique: true,
+      nullable: true,
     },
 
     // 上課教練 ID（外鍵）
@@ -38,16 +37,15 @@ module.exports = new EntitySchema({
     // 課程類別 ID（對應技能分類）
     type_id: {
       type: "uuid",
-      nullable: false,
+      nullable: true,
     },
 
     // 課程圖片網址
     image_url: {
       type: "varchar",
       length: 2048,
-      nullable: false,
+      nullable: true,
     },
-
     // 課程評分（1.0 ~ 5.0，浮點數）
     score: {
       type: "float",
@@ -127,6 +125,11 @@ module.exports = new EntitySchema({
     },
     Rating: {
       target: "Rating",
+      type: "one-to-many",
+      inverseSide: "Course",
+    },
+    Course_Chapter: {
+      target: "Course_Chapter",
       type: "one-to-many",
       inverseSide: "Course",
     },
