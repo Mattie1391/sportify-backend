@@ -2,7 +2,6 @@ const express = require("express");
 const router = express.Router();
 const courseController = require("../controllers/course");
 const ratingController = require("../controllers/rating");
-const auth = require("../middlewares/auth");
 
 //固定路由
 //固定路由順序要放在動態路由前，如:userId，否則會被/:userId的路由攔截

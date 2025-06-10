@@ -792,9 +792,8 @@ async function getUsers(req, res, next) {
         plan: user.plan,
         course_type: user.skills?.filter(Boolean) || [],
         createdAt: formatDate(user.created_at),
-        period: hasStart && hasEnd
-          ? `${formatDate(user.start_at)} - ${formatDate(user.end_at)}`
-          : null,
+        period:
+          hasStart && hasEnd ? `${formatDate(user.start_at)} - ${formatDate(user.end_at)}` : null,
         end_at: hasEnd ? formatDate(user.end_at) : null,
         next_payment: user.is_renewal && hasEnd ? formatDate(addDays(user.end_at, 1)) : null,
       };

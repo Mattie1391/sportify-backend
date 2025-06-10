@@ -21,7 +21,7 @@ jobs:
           ACTION="${{ github.event.action }}"
           EVENT_NAME="${{ github.event_name }}"
           IS_PR_COMMENT="${{ github.event.issue.pull_request }}"
-          
+
           if [ "$EVENT_NAME" == "pull_request" ]; then
             PR_TITLE="${{ github.event.pull_request.title }}"
             PR_URL="${{ github.event.pull_request.html_url }}"

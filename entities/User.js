@@ -77,12 +77,12 @@ module.exports = new EntitySchema({
   },
 
   // === 關聯定義 ===
-relations: {
-  Subscription: {
-    target: "Subscription",
-    type: "one-to-many",
-    inverseSide: "User", // 對應 Subscription 裡的 User 關聯
-  },
+  relations: {
+    Subscription: {
+      target: "Subscription",
+      type: "one-to-many",
+      inverseSide: "User", // 對應 Subscription 裡的 User 關聯
+    },
 
     // ➤ 使用者收藏的課程（User → UserCourseFavorite 一對多）
     User_Course_Favorite: {
