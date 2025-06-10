@@ -451,7 +451,7 @@ async function getCourses(req, res, next) {
     //分頁設定
     const rawPage = req.query.page; //當前頁數
     const page = rawPage === undefined ? 1 : parseInt(rawPage); //如果rawPage===undefined，page為1，否則為parseInt(rawPage)
-    const limit = 8; //每頁最多顯示9堂課程
+    const limit = 6; //每頁最多顯示6堂課程
     if (isNaN(page) || page < 1 || !Number.isInteger(page)) {
       return next(generateError(400, "分頁參數格式不正確，頁數需為正整數"));
     }
@@ -717,6 +717,12 @@ async function getSubscriptions(req, res, next) {
     if (req.user.role === "USER") {
       userId = req.user.id;
     }
+    if (isNotValidUUID(userId)) {
+      return next(generateError(400, "使用者 ID 格式不正確"));
+    }
+    const user = await userRepo.findOneBy({ id: userId });
+    if (!user) return next(generateError(400, "使用者不存在"));
+
     //取得排序後的資料
     const [subscriptions, total] = await subscriptionRepo.findAndCount({
       where: { user_id: userId },
@@ -849,7 +855,7 @@ async function getCourseDetails(req, res, next) {
         title: coach.job_title,
         intro: coach.about_me,
         profile_image_url: coach.profile_image_url,
-        coachPage_Url: `https://example.com/courses/coaches/${coachId}/details`, //TODO:待跟前端確認
+        coachPage_Url: `https://tteddhuang.github.io/sportify-plus/coaches/${coachId}`,
       },
       chapters: chapters,
     };
