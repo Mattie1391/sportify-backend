@@ -17,7 +17,6 @@ const { isNotValidString, isNotValidUUID, isNotValidUrl } = require("../utils/va
 const generateError = require("../utils/generateError");
 const { validateField } = require("../utils/coachProfileValidators");
 const { chaptersArraySchema } = require("../utils/courseDataValidators"); //引入驗證教練課程表單的章節架構驗證模組
-const { raw } = require("body-parser");
 const { formatDate } = require("../utils/formatDate");
 
 //教練取得所有課程(可以限制特定一門課程)的每月觀看次數、總計觀看次數API

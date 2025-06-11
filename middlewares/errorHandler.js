@@ -7,6 +7,12 @@ const errorHandler = (err, req, res, next) => {
     statusCode = 400;
   }
   // multer官方提供的錯誤代碼
+  if(err.code === "LIMIT_FILE_COUNT"){
+    statusCode = 400
+    message = "上傳的檔案數量超過限制"
+  }
+
+
   if (err.code === "LIMIT_UNEXPECTED_FILE") {
     statusCode = 400;
     message = "不允許的檔案欄位，請確認欄位名稱是否正確";
