@@ -15,7 +15,9 @@ const {
   uploadBankbook,
   uploadLicense,
   uploadBackground,
+  uploadCourseThumbnail,
 } = require("../controllers/upload");
+const { updateCourseScore } = require("../services/ratingServices");
 
 //固定路由
 //取得所有課程觀看資料，或依照輸入的課程id找對應課程
@@ -24,6 +26,8 @@ router.get("/courses/views", auth, isCoach, coachController.getCoachViewStats);
 router.post("/course", auth, isCoach, coachController.postNewCourse);
 //教練取得自己所有課程
 router.get("/courses", auth, isCoach, coachController.getOwnCourses);
+//編輯課程
+router.patch("/courses/:courseId", auth, isCoach, coachController.patchCourse);
 
 //教練上傳大頭貼
 router.post("/upload-avatar", auth, isCoach, upload.single("coachAvatar"), uploadCoachAvatar);
@@ -38,6 +42,14 @@ router.post(
   isCoach,
   upload.single("background"),
   uploadBackground
+);
+//教練上傳課程封面
+router.post(
+  "/upload-course-thumbnail",
+  auth,
+  isCoach,
+  upload.single("courseThumbnail"),
+  uploadCourseThumbnail
 );
 
 //動態路由

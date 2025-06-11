@@ -23,27 +23,27 @@ module.exports = new EntitySchema({
     //章節編號（例：課程A 有4個大章節，20個小章節，課程A會有20筆章節資料，按順序搭配1-4的章節編號，1-20的副編號）
     chapter_number: {
       type: "int",
-      nullable: false,
+      nullable: true,
     },
 
     // 章節主標題（例如：「第 1 週：暖身訓練」）
     title: {
       type: "varchar",
       length: 50,
-      nullable: false,
+      nullable: true,
     },
 
     //章節副編號（例：課程A 有4個大章節，20個小章節，課程A會有20筆章節資料，按順序搭配1-20的編號）
     sub_chapter_number: {
       type: "int",
-      nullable: false,
+      nullable: true,
     },
 
     // 章節副標題（例如：「上半身熱身」）
     subtitle: {
       type: "varchar",
       length: 50,
-      nullable: false,
+      nullable: true,
     },
 
     // 建立時間（新增時自動填入）
@@ -70,6 +70,11 @@ module.exports = new EntitySchema({
     mux_playback_id: {
       type: "varchar",
       length: 64,
+      nullable: true,
+    },
+    filename: {
+      type: "varchar",
+      length: 50,
       nullable: true,
     },
     duration: {

@@ -23,10 +23,7 @@
 
         //測試用的章節、小節假資料。
         const fakeChapter = {
-          chapter_number: 5,
-          title: "321",
-          sub_chapter_number: 5,
-          subtitle: "123",
+          subChapterId: null, //新建立的小節會沒有id
         };
 
         // 從後端取得 direct_upload url，從res取得上傳url
@@ -37,20 +34,25 @@
           headers: {
             "Content-Type": "application/json",
             //測試時請用POSTMAN 生成新教練TOKEN再貼上來
-            Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjU4ZGE1NjUzLTYxMWQtNDljMi1iYTMyLWEyNmY1NTViNjY4NiIsInJvbGUiOiJDT0FDSCIsImlhdCI6MTc0OTQ2Mjk4MiwiZXhwIjoxNzUyMDU0OTgyfQ.7VntU5CuV6CP54l-DuaN6y8uK98-F5yXfXuPuENJ570`,
+            Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjU4ZGE1NjUzLTYxMWQtNDljMi1iYTMyLWEyNmY1NTViNjY4NiIsInJvbGUiOiJDT0FDSCIsImlhdCI6MTc0OTU4NjkwOSwiZXhwIjoxNzUyMTc4OTA5fQ.qqY7cuHpqjI26igwMM--WlVoNsLAx16BeuE4v_2VA9E`,
           },
           body: JSON.stringify({
-            filename,
+            subChapterId: fakeChapter.subChapterId,
             extension,
             size,
-            chapter_number: fakeChapter.chapter_number,
-            title: fakeChapter.title,
-            sub_chapter_number: fakeChapter.sub_chapter_number,
-            subtitle: fakeChapter.subtitle,
           }),
         });
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(`取得 upload URL 失敗: ${error.message || res.status}`);
+        }
         const data = await res.json();
         const uploadUrl = data.url;
+
+        if (!uploadUrl) {
+          throw new Error("後端未回傳上傳 URL");
+        }
 
         const upload = UpChunk.createUpload({
           endpoint: uploadUrl, // Mux 提供的 direct upload URL

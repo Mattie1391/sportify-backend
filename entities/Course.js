@@ -46,6 +46,14 @@ module.exports = new EntitySchema({
       length: 2048,
       nullable: true,
     },
+
+    // 課程圖片cloudinary public id
+    image_public_id: {
+      type: "varchar",
+      length: 2048,
+      nullable: true,
+    },
+
     // 課程評分（1.0 ~ 5.0，浮點數）
     score: {
       type: "float",

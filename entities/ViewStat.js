@@ -25,7 +25,7 @@ module.exports = new EntitySchema({
       type: "timestamp",
       createDate: true,
     },
-    //當日此asset(影片)的觀看次數
+    //當日此小節(影片)的觀看次數
     view_count: {
       type: "int",
       nullable: true, //不確定是否有取得觀看次數null的狀況，先設true

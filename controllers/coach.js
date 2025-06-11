@@ -19,7 +19,7 @@ const { validateField } = require("../utils/coachProfileValidators");
 const { chaptersArraySchema } = require("../utils/courseDataValidators"); //引入驗證教練課程表單的章節架構驗證模組
 const { raw } = require("body-parser");
 const { formatDate } = require("../utils/formatDate");
-
+const { chapterDestructor } = require("../utils/chapterShaper"); //引入教練課程表單中，將章節架構組裝、鋪平的工具
 //教練取得所有課程(可以限制特定一門課程)的每月觀看次數、總計觀看次數API
 async function getCoachViewStats(req, res, next) {
   try {
@@ -744,10 +744,96 @@ async function postNewCourse(req, res, next) {
   }
 }
 
+//教練編輯課程API
+async function patchCourse(req, res, next) {
+  try {
+    const coachId = req.user.id;
+    const courseId = req.params.courseId;
+    if (isNotValidUUID(courseId)) {
+      return next(generateError(400, "找不到該課程，id格式錯誤"));
+    }
+    const course = courseRepo.findOneBy({ id: courseId });
+    if (!course) {
+      return next(generateError(400, "找不到該課程"));
+    }
+
+    //取得並驗證request body內容
+    const { name, description, sports_type, image_url, image_public_id, chapters } = req.body;
+    if (
+      isNotValidString(name) ||
+      isNotValidString(description) ||
+      isNotValidString(sports_type) ||
+      isNotValidUrl(image_url) ||
+      isNotValidString(image_public_id)
+    ) {
+      return next(generateError(400, "欄位未填寫正確"));
+    }
+    //取得教練相關rawData
+    const rawData = await coachRepo
+      .createQueryBuilder("c")
+      .leftJoin("c.Coach_Skill", "cs")
+      .leftJoin("cs.Skill", "s")
+      .where("c.id = :id", { id: coachId })
+      .select(["c.id AS coach_id", "s.id AS skill_id", "s.name AS skill_name"])
+      .getRawMany();
+
+    if (rawData.length === 0) {
+      return next(generateError(400, "未能確認教練身分"));
+    }
+    if (name.length < 2 || name.length > 50) {
+      return next(generateError(400, `${name}超出字數限制`));
+    }
+    if (description.length < 2 || description.length > 2048) {
+      return next(generateError(400, `${description}超出字數限制`));
+    }
+    if (sports_type.length > 20) {
+      return next(generateError(400, `${sports_type}超出字數限制`));
+    }
+    //驗證是否是有效的專長(課程類別
+    const skill = await skillRepo.findOneBy({ name: sports_type });
+    if (skill.length === 0) {
+      return next(generateError(400, `${sports_type}不是可開課的專長，詳洽管理員`));
+    }
+    //驗證教練是否具有所填入表單的專長
+    const hasSkillCheck = rawData.filter((data) => data.skill_name === sports_type);
+    if (hasSkillCheck.length === 0) {
+      return next(generateError(400, `您不具${sports_type}專長，無法開設此課程`));
+    }
+
+    //使用Joi驗證章節框架資料
+    const { error, value } = chaptersArraySchema.validate(chapters, { abortEarly: false }); //abortEarly若為true，則發現錯誤就會中斷程式運行
+    if (error) {
+      const errors = error.details.map((detail) => {
+        return {
+          field: detail.path.join("."), // 錯誤發生的路徑，例如 chapters.0.sub_chapter.1.subtitle，與message一起存到errors裡並用logger印出
+          message: detail.message,
+        };
+      });
+      logger.warn(errors);
+      return next(generateError(400, "章節格式驗證失敗"));
+    }
+    //鋪平巢狀的req.body章節架構
+    const { chapterMap, subChapterMap } = chapterDestructor(chapters);
+    console.log(subChapterMap.get(1));
+    // console.log(subChapterMap.get(1));
+
+    //取得資料庫儲存的章節資料
+
+    res.status(200).json({
+      status: true,
+      message: "成功修改資料",
+      data: {},
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getCoachViewStats,
   getProfile,
   patchProfile,
   getOwnCourses,
   postNewCourse,
+  patchCourse,
 };

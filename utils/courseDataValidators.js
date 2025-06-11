@@ -11,6 +11,9 @@ const subChapterSchema = Joi.object({
     "string.min": "小節名稱至少需要2個字元",
     "any.required": "小節名稱為必填欄位",
   }),
+  filename: Joi.string().messages({
+    "string.base": "檔案名稱格式錯誤",
+  }),
 });
 
 //定義chapter驗證模式
