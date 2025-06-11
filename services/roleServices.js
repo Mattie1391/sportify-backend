@@ -25,7 +25,7 @@ const findRoleAndRepoByEmail = async (email) => {
   }
 
   return null;
-}
+};
 
 const findRepoByRole = async (role) => {
   switch (role) {
@@ -41,6 +41,6 @@ const findRepoByRole = async (role) => {
 };
 
 module.exports = {
-    findRoleAndRepoByEmail,
-    findRepoByRole,
+  findRoleAndRepoByEmail,
+  findRepoByRole,
 };

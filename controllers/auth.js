@@ -8,8 +8,6 @@ const config = require("../config/index");
 const secret = config.get("secret.jwtSecret");
 const expiresDay = config.get("secret.jwtExpiresDay");
 const temporaryExpiresDay = config.get("secret.jwtTemporaryExpiresDay");
-const User = require("../entities/User");
-const Coach = require("../entities/Coach");
 const Admin = require("../entities/Admin");
 const gmailUserName = config.get("email.gmailUserName");
 const gmailAppPassword = config.get("email.gmailAppPassword");
@@ -23,8 +21,8 @@ async function postSignup(req, res, next) {
     const role = req.path.includes("/coaches")
       ? "COACH"
       : req.path.includes("/users")
-      ? "USER"
-      : null;
+        ? "USER"
+        : null;
     // 密碼規則：至少8個字元，最多16個字元，至少一個數字，一個小寫字母和一個大寫字母，不允許空白字元
     const passwordPattern = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])[^\s]{8,16}$/;
 
@@ -218,7 +216,7 @@ async function postForgotPassword(req, res, next) {
     const { role, repo } = await findRoleAndRepoByEmail(email);
 
     // 從資料庫中找出對應的使用者
-    user = await repo.findOne({ where: { email } });
+    const user = await repo.findOne({ where: { email } });
 
     // 如果沒有找到使用者，返回錯誤
     if (!user) {

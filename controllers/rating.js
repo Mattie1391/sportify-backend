@@ -13,7 +13,7 @@ const { updateCourseScore } = require("../services/ratingServices");
 //utils
 const { isNotValidUUID, isUndefined, isNotValidString } = require("../utils/validators"); // 引入驗證工具函數
 const generateError = require("../utils/generateError"); // 引入自定義的錯誤生成器
-const { formatDate }= require("../utils/formatDate"); // 引入日期格式化工具函數
+const { formatDate } = require("../utils/formatDate"); // 引入日期格式化工具函數
 const paginate = require("../utils/paginate"); // 引入分頁工具函數
 
 // 取得課程評價 API
@@ -68,7 +68,11 @@ async function getRatings(req, res, next) {
     );
 
     //取得當前分頁資料，以及分頁資訊
-    const { paginatedData, pagination } = await paginate(ratingsWithUserNames, pageNumber, itemsPerPage);
+    const { paginatedData, pagination } = await paginate(
+      ratingsWithUserNames,
+      pageNumber,
+      itemsPerPage
+    );
     //若頁數超出範圍，回傳錯誤
     const totalPages = pagination.total_pages;
     if (pageNumber > totalPages && totalPages !== 0) {
@@ -84,7 +88,8 @@ async function getRatings(req, res, next) {
         meta: {
           sort: "desc", // 後端預設寫死，不寫在query
           sort_by: "time", // 留言時間新到舊排序，後端預設寫死，不寫在query
-          pagination,        },
+          pagination,
+        },
       },
     });
   } catch (error) {
@@ -225,7 +230,7 @@ async function patchRating(req, res, next) {
       return next(generateError(404, "找不到該課程"));
     }
     //驗證對該課程的評論是否存在
-    const rating = await ratingRepo.findOneBy({ course_id: courseId, user_id: userId});
+    const rating = await ratingRepo.findOneBy({ course_id: courseId, user_id: userId });
     if (!rating) {
       return next(generateError(404, "找不到您對該課程的評論紀錄"));
     }
@@ -253,7 +258,7 @@ async function patchRating(req, res, next) {
     const updateRating = await ratingRepo.update(
       { course_id: courseId, user_id: userId },
       { score, comment }
-      );
+    );
 
     //檢查是否更新成功
     if (updateRating.affected === 0) {
@@ -262,11 +267,11 @@ async function patchRating(req, res, next) {
     //取得更新後的結果並組裝成response資料
     const data = await ratingRepo.findOne({
       select: ["id", "score", "comment", "updated_at"],
-      where: { course_id: courseId, user_id: userId  },
+      where: { course_id: courseId, user_id: userId },
     });
 
     //更新課程評分
-     await updateCourseScore(courseId); 
+    await updateCourseScore(courseId);
 
     res.status(201).json({
       status: true,

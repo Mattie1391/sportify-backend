@@ -1,6 +1,6 @@
-const jwt = require('jsonwebtoken')
-const generateError = require('../utils/generateError');
-const config = require('../config/index');
+const jwt = require("jsonwebtoken");
+const generateError = require("../utils/generateError");
+const config = require("../config/index");
 
 const generateJWT = (payload, secret, options) => {
   // 產生 JWT token
@@ -22,9 +22,9 @@ const verifyJWT = (token, secret) => {
       }
     });
   });
-}
+};
 
-module.exports = { 
+module.exports = {
   generateJWT,
-  verifyJWT
+  verifyJWT,
 };

@@ -16,7 +16,7 @@ const generateError = require("../utils/generateError");
 const paginate = require("../utils/paginate");
 const { isNotValidUUID } = require("../utils/validators");
 
-//取得課程類別（依照學生總人數排序）
+//取得課程類別（依照觀看總人次排序）
 async function getCourseType(req, res, next) {
   try {
     const result = await getAllCourseTypes();
@@ -35,7 +35,7 @@ async function getCourseType(req, res, next) {
   }
 }
 
-//取得教練類別（依照學生總人數排序）
+//取得教練類別（依照觀看總人次排序）
 async function getCoachType(req, res, next) {
   try {
     const result = await getAllCourseTypes();
@@ -388,7 +388,7 @@ async function getCourseDetails(req, res, next) {
         title: coach.job_title,
         intro: coach.about_me,
         profile_image_url: coach.profile_image_url,
-        coachPage_Url: `https://example.com/courses/coaches/${coachId}/details`, //TODO:待跟前端確認
+        coachPage_Url: `https://tteddhuang.github.io/sportify-plus/coaches/${coachId}`,
       },
       chapters: chapters,
     };
