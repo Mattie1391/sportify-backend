@@ -17,7 +17,6 @@ const { isNotValidString, isNotValidUUID, isNotValidUrl } = require("../utils/va
 const generateError = require("../utils/generateError");
 const { validateField } = require("../utils/coachProfileValidators");
 const { chaptersArraySchema } = require("../utils/courseDataValidators"); //引入驗證教練課程表單的章節架構驗證模組
-const { raw } = require("body-parser");
 const { formatDate } = require("../utils/formatDate");
 
 //教練取得所有課程(可以限制特定一門課程)的每月觀看次數、總計觀看次數API
@@ -605,6 +604,7 @@ async function getOwnCourses(req, res, next) {
 }
 
 //教練建立課程API
+//目前用不到，建立課程都會通過PATCH 
 async function postNewCourse(req, res, next) {
   try {
     const coachId = req.user.id;
@@ -744,10 +744,68 @@ async function postNewCourse(req, res, next) {
   }
 }
 
+async function getEditingCourse(req,res,next){
+  try{
+    const coachId = req.user.id
+    const courseId = req.params.courseId
+    if(isNotValidUUID(courseId)){
+      return next(generateError(400,"課程ID格式不正確"))
+    }
+    //取得對應課程表單資料
+    const course = await courseRepo.findOne({where:{coach_id:coachId,id:courseId},relations:["Skill","Course_Chapter"]})
+    if(!course){
+      return next(generateError(400,"找不到該課程"))
+    }
+    //組合呈現給前端的章節資料
+    const chapters = course.Course_Chapter
+    const resChapters = []
+
+    chapters.forEach((item)=>{
+      //建構章節層的架構。檢查push目標resChapters內是否已有對應章節編號，若無，就新增一筆
+      let chapter = resChapters.find((c)=>c.chapter_number===item.chapter_number)
+      if(!chapter){
+        chapter = {
+          chapter_number:item.chapter_number,
+          chapter_title:item.title,
+          sub_chapter:[]
+        }
+        resChapters.push(chapter)
+      }
+      //推送小節層的架構到對應章節內
+      chapter.sub_chapter.push({
+        subchapter_id:item.id,
+        sub_chapter_number:item.sub_chapter_number,
+        subtitle:item.subtitle,
+        filename:item.filename,
+        status:item.status
+      })
+    })
+    //組合其他課程資料，並加入章節資料
+    const data = {
+      course_id:courseId,
+      name:course.name,
+      description:course.description,
+      sports_type:course.Skill.name,
+      image_url:course.image_url,
+      image_public_id:course.image_public_id,
+      chapters:resChapters
+    }
+    
+    res.status(200).json({
+      status:true,
+      message:"成功取得資料",
+      data:data
+    })
+  }catch(error){
+    next(error)
+  }
+}
+
 module.exports = {
   getCoachViewStats,
   getProfile,
   patchProfile,
   getOwnCourses,
   postNewCourse,
+  getEditingCourse
 };
