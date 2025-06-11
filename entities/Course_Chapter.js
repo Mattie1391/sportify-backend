@@ -76,6 +76,11 @@ module.exports = new EntitySchema({
       type: "float",
       nullable: true,
     },
+    filename:{
+      type:"varchar",
+      length: 50,
+      nullable:true
+    },
     status: {
       type: "varchar",
       length: 32,

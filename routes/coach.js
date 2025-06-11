@@ -45,5 +45,8 @@ router.post(
 router.patch("/:coachId", auth, isCoach, isSelf, coachController.patchProfile);
 //取得教練個人資料
 router.get("/:coachId", auth, isCoach, isSelf, coachController.getProfile);
+//取得教練特定課程的表單
+router.get("/courses/:courseId",auth,isCoach,coachController.getEditingCourse)
+
 
 module.exports = router;
