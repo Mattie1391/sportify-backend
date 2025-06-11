@@ -11,7 +11,7 @@ cloudinary.config({
   api_secret: api_secret,
 });
 
-// 設定cloudinary的儲存配置
+// 上傳單個檔案，設定cloudinary的儲存配置
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: async (req, file) => {
@@ -64,7 +64,6 @@ const upload = multer({
   fileFilter,
   limits: {
     fileSize: 2 * 1024 * 1024, // 2MB
-    files: 1, // 只允許上傳單一檔案
   },
 });
 
