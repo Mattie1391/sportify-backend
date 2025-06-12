@@ -66,22 +66,31 @@ const uploadBankbook = (req, res, next) => {
 //上傳教練證照
 const uploadLicense = (req, res, next) => {
   // 檢查是否有接收到檔案
-  if (!req.file) return next(generateError(400, "未收到檔案"));
+  const files = req.files
+  if (!req.files) return next(generateError(400, "未收到檔案"));
   // 檢查檔案欄位名稱
-  if (req.file.fieldname !== "license") {
-    return next(generateError(400, `欄位名稱錯誤: ${req.file.fieldname}，應為 license`));
+  const filteredFiles = req.files.filter((file)=>file.fieldname!=="license")
+  const wrongFields = filteredFiles.map(f=>f.fieldname).join(", ")
+  if (wrongFields) {
+    return next(generateError(400, `有檔案欄位名稱出錯: ${wrongFields}，只允許 license`));
   }
 
   // 建立完整url路徑
-  const data = {
-    coachId: req.user.id,
-    filename: req.file.filename, // 檔案名稱
-    publicId: req.file.filename, // Cloudinary 的 public_id = 檔案名稱
-    url: req.file.path, // Cloudinary URL
-    mimeType: req.file.mimetype, // 檔案類型
-    size: req.file.size, // 檔案大小
-  };
-  res.status(200).json({ status: true, data });
+
+  let dataArray = []
+  for(const item of files){
+    const {originalname,filename,path,mimetype,size} = item
+    dataArray.push({
+      coachId:req.user.id,
+      originalname,
+      filename,
+      publicId:filename,
+      url:path,
+      mimeType:mimetype,
+      size
+    })
+  }
+  res.status(200).json({ status: true, dataArray});
 };
 
 //上傳教練背景圖片

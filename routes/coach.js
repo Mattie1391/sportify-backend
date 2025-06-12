@@ -32,7 +32,7 @@ router.post("/upload-avatar", auth, isCoach, upload.single("coachAvatar"), uploa
 //教練上傳存摺封面
 router.post("/upload-bankbook", auth, isCoach, upload.single("bankbook"), uploadBankbook);
 //教練上傳證照
-router.post("/upload-license", auth, isCoach, upload.single("license"), uploadLicense);
+router.post("/upload-license", auth, isCoach, upload.array("license"), uploadLicense);
 //教練上傳背景圖片
 router.post(
   "/upload-background-image",
@@ -55,6 +55,9 @@ router.post(
 router.patch("/:coachId", auth, isCoach, isSelf, strTrimmer, coachController.patchProfile);
 //取得教練個人資料
 router.get("/:coachId", auth, isCoach, isSelf, coachController.getProfile);
+//取得教練特定課程的表單
+router.get("/courses/:courseId",auth,isCoach,coachController.getEditingCourse)
+
 //編輯課程
 router.patch("/courses/:courseId", auth, isCoach, strTrimmer, coachController.patchCourse);
 
