@@ -24,35 +24,23 @@ const muxUploadHandler = async (req, res, next) => {
   try {
     const coachId = req.user.id;
     //從前端取得必要的欄位資訊，用以建立章節
+    let subChapterId = req.body.subChapterId;
     const {
-      filename,
       extension, //副檔名
       size,
-      chapter_number,
-      title,
-      sub_chapter_number,
-      subtitle,
     } = req.body;
 
     //驗證資料格式
-    if (isNotValidString(filename) || isNotValidString(extension) || isNotValidInteger(size)) {
+    if (isNotValidString(extension) || isNotValidInteger(size)) {
       return next(generateError(400, "檔案相關資料格式錯誤"));
-    }
-    if (
-      isNotValidInteger(chapter_number) ||
-      isNotValidInteger(sub_chapter_number) ||
-      isNotValidString(title) ||
-      isNotValidString(subtitle)
-    ) {
-      return next(generateError(400, "章節或小節欄位填寫錯誤"));
     }
 
     //驗證檔案格式與大小
     if (size > 4 * 1024 * 1024 * 1024) {
-      return next(generateError(400, `${filename}影片過大，請勿超過4GB`));
+      return next(generateError(400, "影片過大，請勿超過4GB"));
     }
     if (!["mp4", "mov", "webm"].includes(extension.toLowerCase())) {
-      return next(generateError(400, `不支援${filename}的影片格式。請上傳mp4、mov、webm格式檔案`));
+      return next(generateError(400, "不支援的影片格式。請上傳mp4、mov、webm格式檔案"));
     }
 
     //判斷是否已建立課程資料，若無，就建立空白課程以取得course id以綁定章節資料
@@ -63,36 +51,29 @@ const muxUploadHandler = async (req, res, next) => {
     //如果有未建立課程(以資料庫有該教練未填入課程名稱的課程資料為判斷依據)，就建立空白課程，如有空白課程，就取得該課程id
     if (!course) {
       logger.info("需建立新課程id");
-      const newCourse = courseRepo.create({
+      course = courseRepo.create({
         coach_id: coachId,
         is_approved: false,
       });
-      await courseRepo.save(newCourse);
-      logger.info("課程id已建立");
+      await courseRepo.save(course);
+      logger.info(`課程id已建立:${course.id}`);
+    } else {
+      logger.info(`已有空白課程: ${course.id}`);
     }
 
-    //建立章節資料 : 剛才建立課程的，取新課程id，已有空白課程的取舊課程id
-    course = await courseRepo.findOne({
-      where: { coach_id: coachId, name: IsNull() },
-    });
-    logger.info(`取得空白課程id ${course.id}`);
-    const newSubChapter = chapterRepo.create({
-      course_id: course.id,
-      chapter_number,
-      title,
-      sub_chapter_number,
-      subtitle,
-    });
-    await chapterRepo.save(newSubChapter);
+    //檢查小節id是否有值，若無就直接新建小節id
+    let subChapter;
 
-    //取得新建立的章節小節唯一ID   **TODO若刪除影片，為保留觀看數據不可刪除Course_Chapter的id
-    const chapterSubtitleSet = await chapterRepo.findOne({
-      where: {
+    if (!subChapterId) {
+      subChapter = chapterRepo.create({
         course_id: course.id,
-        chapter_number: chapter_number,
-        sub_chapter_number: sub_chapter_number,
-      },
-    });
+      });
+      await chapterRepo.save(subChapter);
+      subChapterId = subChapter.id;
+      logger.info(`新建小節: ${subChapterId}`);
+    } else {
+      logger.info(`使用已有小節: ${subChapterId}`);
+    }
 
     //送出post request到 https://api.mux.com/video/v1/uploads
     const upload = await mux.video.uploads.create({
@@ -103,14 +84,13 @@ const muxUploadHandler = async (req, res, next) => {
         test: true, //設定該上傳影片為試用，不產生費用，但限制時長10秒鐘、24小時後刪除
         max_resolution_tier: "2160p",
         video_quality: "plus", //至少要plus才符合提供最高2160p畫質的需求，更高階可設premium，但錢包炸裂更快。
-        passthrough: chapterSubtitleSet.id, //以章節副標題id作為識別碼
+        passthrough: subChapterId, //以章節副標題id作為識別碼
         meta: {
-          title: subtitle, //影片名稱，應從教練建立課程表單取得
           creator_id: coachId, //應設定教練id
         },
       },
     });
-    res.json({ url: upload.url, id: upload.id });
+    res.json({ url: upload.url, sub_chapter_id: subChapterId });
   } catch (error) {
     next(error);
   }

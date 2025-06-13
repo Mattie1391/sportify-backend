@@ -72,14 +72,14 @@ module.exports = new EntitySchema({
       length: 64,
       nullable: true,
     },
+    filename: {
+      type: "varchar",
+      length: 50,
+      nullable: true,
+    },
     duration: {
       type: "float",
       nullable: true,
-    },
-    filename:{
-      type:"varchar",
-      length: 50,
-      nullable:true
     },
     status: {
       type: "varchar",

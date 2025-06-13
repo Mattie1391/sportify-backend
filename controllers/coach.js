@@ -291,8 +291,10 @@ async function patchProfile(req, res, next) {
             transactionalCoach[urlKey] = trimmedUrl;
             transactionalCoach[publicIdKey] = trimmedId;
             updatedFields.push(urlKey, publicIdKey);
-            //刪除cloudinary上的舊檔案
-            await cloudinary.uploader.destroy(oldPublicId);
+            //刪除cloudinary上的舊檔案，必須是id有更新，且原id不是null的情況
+            if (isIdChanged && oldPublicId) {
+              await cloudinary.uploader.destroy(oldPublicId);
+            }
           }
           //都沒改，就不會做任何處理
         }
@@ -400,7 +402,7 @@ async function patchProfile(req, res, next) {
             !fileInfo.file_public_id ||
             !fileInfo.filename
           ) {
-            throw generateError(400, "上傳檔案所需資料不足，應包含檔名、url、public_id。");
+            throw generateError(400, "證照上傳檔案所需資料不足，應包含檔名、url、public_id。");
           }
         }
         const currentLicenses = transactionalCoach.Coach_License || [];
@@ -801,11 +803,174 @@ async function getEditingCourse(req,res,next){
   }
 }
 
+//教練編輯課程API (教練建立新課程、編輯課程都用這個)
+async function patchCourse(req, res, next) {
+  try {
+    const coachId = req.user.id;
+    const courseId = req.params.courseId;
+    if (isNotValidUUID(courseId)) {
+      return next(generateError(400, "課程ID格式錯誤"));
+    }
+
+    //取得並驗證request body內容
+    const { name, description, sports_type, image_url, image_public_id, chapters } = req.body;
+    if (
+      isNotValidString(name) ||
+      isNotValidString(description) ||
+      isNotValidString(sports_type) ||
+      isNotValidUrl(image_url) ||
+      isNotValidString(image_public_id)
+    ) {
+      return next(generateError(400, "欄位未填寫正確"));
+    }
+    if (name.length < 2 || name.length > 50) {
+      return next(generateError(400, `${name}超出字數限制`));
+    }
+    if (description.length < 2 || description.length > 2048) {
+      return next(generateError(400, `${description}超出字數限制`));
+    }
+    if (sports_type.length > 20) {
+      return next(generateError(400, `${sports_type}超出字數限制`));
+    }
+
+    //取得教練與技能相關資料
+    const skillData = await skillRepo
+      .createQueryBuilder("s")
+      .leftJoin("s.CoachSkills", "cs")
+      .select(["s.id AS skill_id", "s.name AS skill_name", "cs.coach_id AS coach_id"])
+      .getRawMany();
+
+    //驗證教練是否具有所填入表單的專長
+    const hasSkill = skillData.filter(
+      (item) => item.skill_name === sports_type && item.coach_id === coachId
+    );
+    if (hasSkill.length === 0) {
+      return next(generateError(400, `您不具受認證的${sports_type}專長，無法開設此課程`));
+    }
+    //使用Joi驗證章節框架資料
+    const { error, value } = chaptersArraySchema.validate(chapters, { abortEarly: false }); //abortEarly若為true，則發現錯誤就會中斷程式運行
+    if (error) {
+      const errors = error.details.map((detail) => {
+        return {
+          field: detail.path.join("."), // 錯誤發生的路徑，例如 chapters.0.sub_chapter.1.subtitle，與message一起存到errors裡並用logger印出
+          message: detail.message,
+        };
+      });
+      logger.warn(errors);
+      return next(generateError(400, `章節格式驗證失敗, ${value}`));
+    }
+    //將章節巢狀架構鋪平
+    const chapterItems = [];
+    chapters.forEach((ch) => {
+      const { chapter_number, chapter_title, sub_chapter } = ch;
+
+      sub_chapter.forEach((sub) => {
+        const { subchapter_id, sub_chapter_number, subtitle, filename } = sub;
+        chapterItems.push({
+          id: subchapter_id,
+          coach_id: coachId,
+          chapter_number,
+          title: chapter_title,
+          sub_chapter_number,
+          subtitle,
+          filename,
+        });
+      });
+    });
+
+    //檢查章節數字是否重複 **前端刪除章節/小節後不遞補，就不用查連號
+    //使用set儲存唯一值，並跟章節數量比對是否一致
+    const chNumbers = chapters.map((ch) => ch.chapter_number);
+    const hasSameChNumbre = new Set(chNumbers).size !== chNumbers.length;
+    if (hasSameChNumbre) {
+      return next(generateError(400, "chapter_number有重複"));
+    }
+    //檢查章節跳號
+    const sorted = [...chNumbers].sort((a, b) => a - b);
+    const hasGap = sorted.some((num, i) => num !== i + 1);
+    if (hasGap) {
+      return next(generateError(400, "chapter_number有跳號"));
+    }
+
+    //檢查小節重複或跳號
+    function checkSubNumbres(chapters) {
+      const result = [];
+
+      chapters.forEach((ch) => {
+        const chNum = ch.chapter_number;
+        const subs = ch.sub_chapter || [];
+
+        const numbres = subs.map((sub) => sub.sub_chapter_number);
+        const sorted = [...numbres].sort((a, b) => a - b);
+
+        const hasSame = new Set(numbres).size !== numbres.length;
+        const hasGap = sorted.some((num, i) => num !== i + 1);
+
+        if (hasSame) {
+          result.push(`第${chNum}章有重複的小節編號`);
+        }
+        if (hasGap) {
+          result.push(`第${chNum}章有小節跳號`);
+        }
+      });
+      return result;
+    }
+
+    const subSameOrGapChecking = checkSubNumbres(chapters);
+
+    if (subSameOrGapChecking.length > 0) {
+      return next(generateError(400, subSameOrGapChecking));
+    }
+    //構建Course資料表的更新內容
+
+    let course = await courseRepo.findOne({
+      where: { id: courseId },
+      select: ["id", "name", "description", "type_id", "image_url", "image_public_id"],
+    });
+
+    //判斷課程封面是否有更新(需url與public_id都有改變)
+    const isUrlChanged = image_url !== course.image_url;
+    const isPublicIdChange = image_public_id !== course.image_public_id;
+    if (isUrlChanged !== isPublicIdChange) {
+      return next(generateError(400, "檔案資訊不一致，必須同時更改 URL 與 Public ID"));
+    }
+
+    if (isUrlChanged && isPublicIdChange) {
+      //若public id改變，先存舊public id以備cloudinary刪除
+      if (isPublicIdChange && course.image_public_id) {
+        const oldPublicId = course.image_public_id;
+        await cloudinary.uploader.destroy(oldPublicId);
+      }
+      //course儲存欲存入資料庫的新資料
+      course = {
+        id: courseId,
+        name,
+        description,
+        type_id: hasSkill[0].skill_id,
+        image_url,
+        image_public_id,
+      };
+    }
+    //將改動存入Course、Course_Chapter資料表
+    await courseChapterRepo.save(chapterItems);
+    await courseRepo.save(course);
+
+    res.status(200).json({
+      status: true,
+      message: "已儲存資料",
+      data: { course: course, chapters: chapterItems },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getCoachViewStats,
   getProfile,
   patchProfile,
   getOwnCourses,
   postNewCourse,
-  getEditingCourse
+  getEditingCourse,
+  patchCourse,
 };
