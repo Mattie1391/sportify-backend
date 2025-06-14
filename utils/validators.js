@@ -21,6 +21,11 @@ const isNotValidArray = (arr) => {
   return !Array.isArray(arr);
 };
 
+//驗證輸入年份月份
+function isValidMonthFormat(str) {
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(str);
+}
+
 module.exports = {
   isUndefined,
   isNotValidString,
@@ -29,4 +34,5 @@ module.exports = {
   isNotValidUUID: (str) => !validator.isUUID(str),
   isNotValidEmail: (str) => !validator.isEmail(str),
   isNotValidUrl: (str) => !validator.isURL(str),
+  isValidMonthFormat,
 };
