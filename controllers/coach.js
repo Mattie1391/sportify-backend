@@ -144,7 +144,9 @@ async function getProfile(req, res, next) {
         nickname: coach.nickname,
         skills: coachSkills || [], //技能陣列
         profile_image_url: coach.profile_image_url,
+        profile_image_public_id: coach.profile_image_public_id,
         background_image_url: coach.background_image_url,
+        background_image_public_id: coach.background_image_public_id,
         job_title: coach.job_title,
         about_me: coach.about_me,
         hobby: coach.hobby,
@@ -160,6 +162,7 @@ async function getProfile(req, res, next) {
         bank_code: coach.bank_code,
         bank_account: coach.bank_account,
         bankbook_copy_url: coach.bankbook_copy_url,
+        bankbook_copy_public_id: coach.bankbook_copy_public_id,
         skill_description: coach.skill_description,
         experience_years: coach.experience_years,
         created_at: formatDate(coach.created_at),
@@ -173,6 +176,8 @@ async function getProfile(req, res, next) {
         coachLicenses = coachLicenseData.map((cl) => ({
           id: cl.id,
           name: cl.filename,
+          file_public_id: cl.file_public_id,
+          file_url: cl.file_url,
         }));
       }
 
@@ -498,6 +503,7 @@ async function patchProfile(req, res, next) {
         bank_code: finalCoachData.bank_code,
         bank_account: finalCoachData.bank_account,
         bankbook_copy_url: finalCoachData.bankbook_copy_url,
+        bankbook_copy_public_id: finalCoachData.bankbook_copy_public_id,
         job_title: finalCoachData.job_title,
         about_me: finalCoachData.about_me,
         skill: req.body.skill, //沿用req.body的字串形式
@@ -606,7 +612,7 @@ async function getOwnCourses(req, res, next) {
 }
 
 //教練建立課程API
-//目前用不到，建立課程都會通過PATCH 
+//目前用不到，建立課程都會通過PATCH
 async function postNewCourse(req, res, next) {
   try {
     const coachId = req.user.id;
@@ -746,60 +752,63 @@ async function postNewCourse(req, res, next) {
   }
 }
 
-async function getEditingCourse(req,res,next){
-  try{
-    const coachId = req.user.id
-    const courseId = req.params.courseId
-    if(isNotValidUUID(courseId)){
-      return next(generateError(400,"課程ID格式不正確"))
+async function getEditingCourse(req, res, next) {
+  try {
+    const coachId = req.user.id;
+    const courseId = req.params.courseId;
+    if (isNotValidUUID(courseId)) {
+      return next(generateError(400, "課程ID格式不正確"));
     }
     //取得對應課程表單資料
-    const course = await courseRepo.findOne({where:{coach_id:coachId,id:courseId},relations:["Skill","Course_Chapter"]})
-    if(!course){
-      return next(generateError(400,"找不到該課程"))
+    const course = await courseRepo.findOne({
+      where: { coach_id: coachId, id: courseId },
+      relations: ["Skill", "Course_Chapter"],
+    });
+    if (!course) {
+      return next(generateError(400, "找不到該課程"));
     }
     //組合呈現給前端的章節資料
-    const chapters = course.Course_Chapter
-    const resChapters = []
+    const chapters = course.Course_Chapter;
+    const resChapters = [];
 
-    chapters.forEach((item)=>{
+    chapters.forEach((item) => {
       //建構章節層的架構。檢查push目標resChapters內是否已有對應章節編號，若無，就新增一筆
-      let chapter = resChapters.find((c)=>c.chapter_number===item.chapter_number)
-      if(!chapter){
+      let chapter = resChapters.find((c) => c.chapter_number === item.chapter_number);
+      if (!chapter) {
         chapter = {
-          chapter_number:item.chapter_number,
-          chapter_title:item.title,
-          sub_chapter:[]
-        }
-        resChapters.push(chapter)
+          chapter_number: item.chapter_number,
+          chapter_title: item.title,
+          sub_chapter: [],
+        };
+        resChapters.push(chapter);
       }
       //推送小節層的架構到對應章節內
       chapter.sub_chapter.push({
-        subchapter_id:item.id,
-        sub_chapter_number:item.sub_chapter_number,
-        subtitle:item.subtitle,
-        filename:item.filename,
-        status:item.status
-      })
-    })
+        subchapter_id: item.id,
+        sub_chapter_number: item.sub_chapter_number,
+        subtitle: item.subtitle,
+        filename: item.filename,
+        status: item.status,
+      });
+    });
     //組合其他課程資料，並加入章節資料
     const data = {
-      course_id:courseId,
-      name:course.name,
-      description:course.description,
-      sports_type:course.Skill.name,
-      image_url:course.image_url,
-      image_public_id:course.image_public_id,
-      chapters:resChapters
-    }
-    
+      course_id: courseId,
+      name: course.name,
+      description: course.description,
+      sports_type: course.Skill.name,
+      image_url: course.image_url,
+      image_public_id: course.image_public_id,
+      chapters: resChapters,
+    };
+
     res.status(200).json({
-      status:true,
-      message:"成功取得資料",
-      data:data
-    })
-  }catch(error){
-    next(error)
+      status: true,
+      message: "成功取得資料",
+      data: data,
+    });
+  } catch (error) {
+    next(error);
   }
 }
 

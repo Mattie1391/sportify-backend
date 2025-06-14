@@ -90,7 +90,7 @@ const muxUploadHandler = async (req, res, next) => {
         },
       },
     });
-    res.json({ url: upload.url, sub_chapter_id: subChapterId });
+    res.json({ url: upload.url, sub_chapter_id: subChapterId, course_id: course.id });
   } catch (error) {
     next(error);
   }
