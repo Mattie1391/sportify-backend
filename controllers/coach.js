@@ -116,18 +116,6 @@ async function getProfile(req, res, next) {
     if (!coach) {
       return next(generateError(404, "查無此教練"));
     }
-    //檢查頭貼網址是否正確，不正確則設為null
-    if (!coach.profile_image_url || isNotValidUrl(coach.profile_image_url)) {
-      coach.profile_image_url = null;
-    }
-    //檢查背景圖片網址是否正確，不正確則設為null
-    if (!coach.background_image_url || isNotValidUrl(coach.background_image_url)) {
-      coach.background_image_url = null;
-    }
-    //檢查銀行存摺影像網址是否正確，不正確則設為null
-    if (!coach.bankbook_copy_url || isNotValidUrl(coach.bankbook_copy_url)) {
-      coach.bankbook_copy_url = null;
-    }
     const coachSkillData = await coachSkillRepo.find({
       where: { coach_id: coachId },
       relations: ["Skill"],
