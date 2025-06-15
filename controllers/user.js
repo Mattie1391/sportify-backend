@@ -2,6 +2,11 @@ const bcrypt = require("bcryptjs");
 const cloudinary = require("cloudinary").v2;
 const logger = require("../config/logger");
 const { MoreThan, Like, In } = require("typeorm");
+const config = require("../config/index");
+const { Mux } = require("@mux/mux-node");
+const { muxSigningKey, muxSigningKeySecret } = config.get("mux");
+const mux = new Mux();
+
 //repo
 const AppDataSource = require("../db/data-source");
 const userRepo = AppDataSource.getRepository("User");
@@ -10,6 +15,8 @@ const courseRepo = AppDataSource.getRepository("Course");
 const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
 const favoriteRepo = AppDataSource.getRepository("User_Course_Favorite");
 const subscriptionRepo = AppDataSource.getRepository("Subscription");
+const planRepo = AppDataSource.getRepository("Plan");
+
 //services
 const {
   getLatestSubscription,
@@ -834,6 +841,33 @@ async function getCourseDetails(req, res, next) {
     if (!currentChapter) {
       return next(generateError(404, "查無此章節"));
     }
+    //為製作播放url token，取得此人目前訂閱方案
+    const latestSubscription = await getLatestSubscription(userId);
+    const planId = latestSubscription.plan_id;
+    const plan = await planRepo.findOneBy({ id: planId });
+    const subChapter = await courseChapterRepo.findOneBy({ id: chapterId });
+    const playbackId = subChapter.mux_playback_id;
+    if (!playbackId) {
+      return next(generateError(404, "該課程章節維護中，無法取得影片"));
+    }
+    //取得此人有權觀看的最大解析度
+    const maxRes = plan.max_resolution + "p";
+
+    //依照學員訂閱等及製作mux播放jwt token
+    let baseOptions = {
+      keyId: muxSigningKey,
+      keySecret: muxSigningKeySecret,
+      expiration: "6h",
+      params: {
+        max_resolution: maxRes,
+        viewer_id: userId,
+      },
+    };
+    const token = await mux.jwt.signPlaybackId(playbackId, { ...baseOptions, type: "video" });
+
+    //生成播放網址
+    const streamURL = `https://stream.mux.com/${playbackId}.m3u8?token=${token}`;
+
     //整理回傳資料
     const data = {
       course: {
@@ -846,7 +880,7 @@ async function getCourseDetails(req, res, next) {
         numbers_of_view: course.numbers_of_view,
         hours: course.total_hours,
         image_url: course.image_url,
-        video_url: course.trailer_url, //TODO:待確認網址格式，所有課程的第一部影片皆需設為公開
+        video_url: streamURL,
         description: course.description,
       },
       coach: {

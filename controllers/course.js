@@ -3,6 +3,7 @@ const skillRepo = AppDataSource.getRepository("Skill");
 const coachRepo = AppDataSource.getRepository("Coach");
 const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
 const courseRepo = AppDataSource.getRepository("Course");
+const chapterRepo = AppDataSource.getRepository("Course_Chapter");
 
 //services
 const { getAllCourseTypes } = require("../services/typeServices");
@@ -14,7 +15,7 @@ const { checkValidQuerys } = require("../services/queryServices");
 //utils
 const generateError = require("../utils/generateError");
 const paginate = require("../utils/paginate");
-const { isNotValidUUID } = require("../utils/validators");
+const { isNotValidUUID, isNotValidString } = require("../utils/validators");
 
 //取得課程類別（依照觀看總人次排序）
 async function getCourseType(req, res, next) {
@@ -366,10 +367,16 @@ async function getCourseDetails(req, res, next) {
     if (!coach) return next(generateError(404, "查無此教練"));
 
     //取得章節資訊
-    const { chapters } = await getChapters(courseId);
+    const { chapters, firstChapterId } = await getChapters(courseId);
     if (!chapters || chapters.length === 0) {
       return next(generateError(404, "查無章節"));
     }
+
+    //製作播放url
+    if (!firstChapterId) {
+      return next(generateError(404, "無法取得該課程試看章節"));
+    }
+    const streamURL = `https://stream.mux.com/${firstChapterId}.m3u8`;
 
     const data = {
       course: {
@@ -379,7 +386,7 @@ async function getCourseDetails(req, res, next) {
         numbers_of_view: course.numbers_of_view,
         hours: course.total_hours,
         image_url: course.image_url,
-        trailer_url: course.trailer_url, //TODO:待確認網址格式，所有課程的第一部影片皆需設為公開
+        trailer_url: streamURL,
         description: course.description,
       },
       coach: {
@@ -402,6 +409,52 @@ async function getCourseDetails(req, res, next) {
     next(error);
   }
 }
+//取得首頁的播放連結(專門用於非上課網頁的，故不用驗證)
+const getHomepagePlayUrl = async (req, res, next) => {
+  try {
+    //輸入運動種類(從名稱取得id，名稱讓前端針對頁面寫死?)
+    const { skill } = req.query;
+    if (!skill) {
+      return next(generateError(400, "運動種類為必填"));
+    }
+
+    // 從運動種類找最熱門課程的id;
+    const course = await courseRepo
+      .createQueryBuilder("c")
+      .leftJoin("c.Skill", "s")
+      .select("c.id AS course_id")
+      .where("s.name = :name", { name: skill })
+      .orderBy("c.numbers_of_view", "DESC")
+      .getRawOne();
+
+    if (!course) {
+      return next(generateError(404, "查無該類別最熱門課程"));
+    }
+
+    //取得該課程的第一章第一節playbackId
+    const subChapter = await chapterRepo.findOneBy({
+      course_id: course.id,
+      chapter_number: 1,
+      sub_chapter_number: 1,
+    });
+
+    if (!subChapter) {
+      return next(generateError(404, "無法取得該課程試看章節"));
+    }
+
+    //製作播放url
+    const streamURL = `https://stream.mux.com/${subChapter.mux_playback_id}.m3u8`;
+
+    //用小節id取得播放影片
+    res.status(200).json({
+      status: true,
+      message: "成功取得播放URL",
+      data: streamURL,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 module.exports = {
   getCourseType,
@@ -412,4 +465,5 @@ module.exports = {
   getCoachCourses,
   getCoachDetails,
   getCourseDetails,
+  getHomepagePlayUrl,
 };

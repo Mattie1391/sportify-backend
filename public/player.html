@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>HLS client</title>
+    <!-- 引入hls.js庫到網頁 -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+  </head>
+  <body>
+    <!-- 創建影片播放器 -->
+    <!-- 指定寬高才能播放 -->
+    <video id="videoPlayer" controls width="640" height="360"></video>
+    <button onclick="videoPlayer.play()">播放</button>
+  </body>
+  <script>
+    // 在javascript初始化hls.js，並指定影片url，綁定到videoPlayer元素
+    const videoPlayer = document.getElementById("videoPlayer");
+    const videoSrc = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
+    if (Hls.isSupported()) {
+      const hls = new Hls();
+      hls.loadSource(videoSrc);
+      hls.attachMedia(videoPlayer);
+
+      //hls錯誤事件
+      hls.on(HLS.Events.ERROR, function (event, data) {
+        console.error("HLS error", data);
+      });
+    } else if (videoPlayer.canPlayType("application/vnd.apple.mpegurl")) {
+      videoPlayer.src = videoSrc;
+    }
+    //監聽播放失敗錯誤
+    videoPlayer.addEventListener("error", function (e) {
+      console.error("Video Error", e);
+    });
+  </script>
+</html>
