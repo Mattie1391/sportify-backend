@@ -92,7 +92,7 @@ module.exports = new EntitySchema({
     is_verified: {
       type: "boolean",
       default: false, // 是否已驗證教練身分，預設為 false
-      nullable: true,
+      nullable: false, // 不可為空
     },
     realname: {
       type: "varchar",
