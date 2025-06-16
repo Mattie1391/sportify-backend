@@ -6,8 +6,8 @@
       ref="videoRef"
       controls
       class="video-player"
-      @play="isPlaying = true"
-      @pause="isPlaying = false"
+      @play="handlePlay"
+      @pause="handlePause"
     ></video>
 
     <!-- 影片中央播放按鈕 -->
@@ -93,7 +93,10 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from "vue";
 import Hls from "hls.js";
+//嵌入mux data模組
+import mux from "mux-embed";
 
+//設定接受外部傳入的播放網址
 const props = defineProps({
   src: {
     type: String,
@@ -112,15 +115,45 @@ const selectedLevel = ref(-1); //設定負一代表自動畫質
 const currentLevelText = ref("");
 const isPlaying = ref(false);
 
+//監控觀看進度相關
+//設定檢查間隔
+let checkInterval = null;
+//設定播放進度要達90%
+const WATCH_THRESHOLD = 0.9;
+let progressTimer = null;
+
 const setupPlayer = () => {
   if (Hls.isSupported()) {
     hlsInstance.value = new Hls();
     //下載解析.m3u8播放清單，包含解析度層級
     hlsInstance.value.loadSource(props.src);
     hlsInstance.value.attachMedia(videoRef.value);
+    //mux監控播放
+    mux.monitor(videoRef.value, {
+      debug: true,
+      Hls,
+      data: {
+        env_key: import.meta.env.VITE_MUX_ENV_KEY,
+        //metadata
+        //site metadata
+        viewer_user_id: "aapl12345", //mux data可正確取得，可以輸入userId
+        //player_metadata
+        player_name: "Sportify Plus HLS Player",
+        player_init_time: Date.now(),
+        video_id: props.videoId, //目前沒有正確取得，但影響不大
+        video_title: props.title, //目前沒有正確取得，但影響不大
+        // video_series: "", //可選，課程名稱
+        video_stream_type: "on-demand",
+      },
+    });
 
     hlsInstance.value.on(Hls.Events.ERROR, (event, data) => {
       console.error("HLS 播放錯誤：", data);
+      mux.emit("Sportify Plus HLS Player", "error", {
+        player_error_code: data.details || "fatal_error",
+        player_error_message: data.reason || data.type || "Unkwown fatal eror",
+        player_error_context: JSON.stringify(data),
+      });
     });
     //解析完成後，觸發此事件，允許你取得可用畫質hls.levels資訊
     hlsInstance.value.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -150,6 +183,13 @@ const playVideo = () => {
     });
   }
 };
+
+function handlePlay() {
+  isPlaying.value = true;
+}
+function handlePause() {
+  isPlaying.value = false;
+}
 
 onMounted(setupPlayer);
 
