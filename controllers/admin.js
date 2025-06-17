@@ -486,6 +486,49 @@ async function patchReviewCourse(req, res, next) {
   }
 }
 
+//審核教練資格
+async function patchReviewCoach(req, res, next) {
+  try {
+    // 取得 route param coachId 並驗證
+    const { coachId } = req.params;
+    if (!coachId || isNotValidUUID(coachId)) {
+      return next(generateError(400, "教練 ID 格式不正確"));
+    }
+
+    // 檢查 body 參數
+    const { status, reviewComment } = req.body;
+    const allowedStatus = ["approved", "rejected"];
+    if (!status || !allowedStatus.includes(status)) {
+      return next(generateError(400, "status 參數錯誤，必須為 approved 或 rejected"));
+    }
+
+    // 取得教練資料
+    const coach = await coachRepo.findOne({ where: { id: coachId } });
+    if (!coach) {
+      return next(generateError(404, "查無此教練"));
+    }
+
+    // 更新教練審核狀態
+    coach.is_verified = status === "approved";
+    await coachRepo.save(coach);
+
+    // 回傳訊息
+    if (status === "approved") {
+      return res.status(200).json({
+        status: true,
+        message: "教練資格審核成功，狀態已更新為 approved",
+      });
+    } else {
+      return res.status(200).json({
+        status: true,
+        message: "教練資格審核未通過，狀態已更新為 rejected",
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+}
+
 //取得課程列表
 async function getCourses(req, res, next) {
   try {
@@ -809,4 +852,5 @@ module.exports = {
   getCourseTypes,
   getDataAnalysis,
   getUsers,
+  patchReviewCoach,
 };
