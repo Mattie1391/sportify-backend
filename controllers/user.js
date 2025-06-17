@@ -1,7 +1,7 @@
 const bcrypt = require("bcryptjs");
 const cloudinary = require("cloudinary").v2;
 const logger = require("../config/logger");
-const { MoreThan, Like, In } = require("typeorm");
+const { MoreThan, Like } = require("typeorm");
 const config = require("../config/index");
 const { Mux } = require("@mux/mux-node");
 const { muxSigningKey, muxSigningKeySecret } = config.get("mux");

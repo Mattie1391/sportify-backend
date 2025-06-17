@@ -19,7 +19,7 @@ const { checkValidQuerys } = require("../services/queryServices");
 //utils
 const generateError = require("../utils/generateError");
 const paginate = require("../utils/paginate");
-const { isNotValidUUID, isNotValidString } = require("../utils/validators");
+const { isNotValidUUID } = require("../utils/validators");
 
 //取得課程類別（依照觀看總人次排序）
 async function getCourseType(req, res, next) {
@@ -377,7 +377,7 @@ async function getCourseDetails(req, res, next) {
     if (!coach) return next(generateError(404, "查無此教練"));
 
     //取得章節資訊
-    const { chapters, firstChapterId, playbackId } = await getChapters(courseId);
+    const { chapters, playbackId } = await getChapters(courseId);
     if (!chapters || chapters.length === 0) {
       return next(generateError(404, "查無章節"));
     }
