@@ -848,7 +848,6 @@ async function patchCourse(req, res, next) {
     //驗證教練是否的確是此課程表單的創建者
     let course = await courseRepo.findOne({
       where: { id: courseId, coach_id: coachId },
-      // select: ["id", "name", "description", "type_id", "image_url", "image_public_id"],
     });
     if (!course) {
       return next(generateError(400, "查無此課程表單"));
@@ -886,7 +885,7 @@ async function patchCourse(req, res, next) {
       });
     });
 
-    //檢查章節數字是否重複 **前端刪除章節/小節後不遞補，就不用查連號
+    //檢查章節數字是否重複
     //使用set儲存唯一值，並跟章節數量比對是否一致
     const chNumbers = chapters.map((ch) => ch.chapter_number);
     const hasSameChNumbre = new Set(chNumbers).size !== chNumbers.length;
@@ -939,6 +938,35 @@ async function patchCourse(req, res, next) {
       image_public_id: course.image_public_id,
     };
 
+    //檢查小節是否都屬於該課程
+    let subChapterIds = [];
+    for (const sub of chapterItems) {
+      subChapterIds.push(sub.id);
+    }
+    //查資料庫已存在的小節id
+    const existingSubsArr = await courseChapterRepo
+      .createQueryBuilder("cc")
+      .select(["cc.id AS id"])
+      .where("cc.id IN (:...ids)", { ids: subChapterIds })
+      .getRawMany();
+    const ids = existingSubsArr.map((obj) => obj.id);
+    //再拿這些資料庫建過檔的id重新查詢是正確課程的id
+    const subsOfRightCourse = await courseChapterRepo.find({
+      where: {
+        id: In(ids),
+        course_id: courseId,
+      },
+      select: ["id"],
+    });
+    const rightIds = await subsOfRightCourse.map((obj) => obj.id);
+
+    //過濾不屬於該課程的id
+    let idsOfWrongCourse = ids.filter((id) => !rightIds.includes(id));
+
+    if (idsOfWrongCourse.length > 0) {
+      return next(generateError(400, `這些小節不屬於此課程: ${idsOfWrongCourse.join(", ")}`));
+    }
+
     //判斷課程封面是否有更新(需url與public_id都有改變)
     const isUrlChanged = image_url !== courseToUpdate.image_url;
     const isPublicIdChange = image_public_id !== courseToUpdate.image_public_id;
@@ -952,7 +980,7 @@ async function patchCourse(req, res, next) {
         const oldPublicId = courseToUpdate.image_public_id;
         await cloudinary.uploader.destroy(oldPublicId);
       }
-      //course儲存欲存入資料庫的新資料
+      //course更新一次欲存入資料庫的新資料
       courseToUpdate = {
         id: courseId,
         name,
@@ -963,7 +991,7 @@ async function patchCourse(req, res, next) {
       };
     }
 
-    //將改動存入Course、Course_Chapter資料表
+    // 將改動存入Course、Course_Chapter資料表
     await courseChapterRepo.save(chapterItems);
     await courseRepo.save(courseToUpdate);
 
