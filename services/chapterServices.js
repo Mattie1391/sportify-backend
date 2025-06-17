@@ -22,12 +22,14 @@ const getChapters = async (courseId) => {
     group.subtitles.push(chapter.subtitle);
   });
 
-  //回傳第一章節的第一小節id
+  //回傳第一章節的第一小節id與playback id
   const firstChapterId = chapters[0].id;
+  const playbackId = chapters[0].mux_playback_id;
 
   return {
     chapters: chaptersData,
     firstChapterId,
+    playbackId,
   };
 };
 

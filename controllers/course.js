@@ -3,6 +3,11 @@ const skillRepo = AppDataSource.getRepository("Skill");
 const coachRepo = AppDataSource.getRepository("Coach");
 const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
 const courseRepo = AppDataSource.getRepository("Course");
+const chapterRepo = AppDataSource.getRepository("Course_Chapter");
+const config = require("../config/index");
+const { Mux } = require("@mux/mux-node");
+const { muxSigningKeyForPublic, muxSigningKeySecretForPublic } = config.get("mux");
+const mux = new Mux();
 
 //services
 const { getAllCourseTypes } = require("../services/typeServices");
@@ -372,10 +377,29 @@ async function getCourseDetails(req, res, next) {
     if (!coach) return next(generateError(404, "查無此教練"));
 
     //取得章節資訊
-    const { chapters } = await getChapters(courseId);
+    const { chapters, playbackId } = await getChapters(courseId);
     if (!chapters || chapters.length === 0) {
       return next(generateError(404, "查無章節"));
     }
+
+    //製作播放url
+    let baseOptions = {
+      keyId: muxSigningKeyForPublic,
+      keySecret: muxSigningKeySecretForPublic,
+      expiration: "1h", //設定url 1小時有效
+      start_time: 0,
+      end_time: 300,
+      params: {
+        max_resolution: "1080p", //試看不求最高畫質?
+      },
+    };
+    const token = await mux.jwt.signPlaybackId(playbackId, {
+      ...baseOptions,
+      type: "video",
+    });
+
+    //生成播放網址
+    const streamURL = `https://stream.mux.com/${playbackId}.m3u8?token=${token}`;
 
     const data = {
       course: {
@@ -385,7 +409,7 @@ async function getCourseDetails(req, res, next) {
         numbers_of_view: course.numbers_of_view,
         hours: course.total_hours,
         image_url: course.image_url,
-        trailer_url: course.trailer_url, //TODO:待確認網址格式，所有課程的第一部影片皆需設為公開
+        trailer_url: streamURL,
         description: course.description,
       },
       coach: {
@@ -408,6 +432,68 @@ async function getCourseDetails(req, res, next) {
     next(error);
   }
 }
+//取得首頁的播放連結(專門用於非上課網頁的，故不用驗證)
+const getHomepagePlayUrl = async (req, res, next) => {
+  try {
+    //輸入運動種類(從名稱取得id，名稱讓前端針對頁面寫死?)
+    const { skill } = req.query;
+    if (!skill) {
+      return next(generateError(400, "運動種類為必填"));
+    }
+
+    // 從運動種類找最熱門課程的id;
+    const course = await courseRepo
+      .createQueryBuilder("c")
+      .leftJoin("c.Skill", "s")
+      .select("c.id AS course_id")
+      .where("s.name = :name", { name: skill })
+      .orderBy("c.numbers_of_view", "DESC")
+      .getRawOne();
+
+    if (!course) {
+      return next(generateError(404, "查無該類別最熱門課程"));
+    }
+
+    //取得該課程的第一章第一節playbackId
+    const subChapter = await chapterRepo.findOneBy({
+      course_id: course.id,
+      chapter_number: 1,
+      sub_chapter_number: 1,
+    });
+
+    if (!subChapter) {
+      return next(generateError(404, "無法取得該課程試看章節"));
+    }
+
+    //製作播放url
+    let baseOptions = {
+      keyId: muxSigningKeyForPublic,
+      keySecret: muxSigningKeySecretForPublic,
+      expiration: "6h", //設定url 6小時有效
+      start_time: 0, //播放開始時間
+      end_time: 30, //播放區段結束時間30秒
+      params: {
+        max_resolution: "1080p", //試看不求最高畫質?
+      },
+    };
+    const token = await mux.jwt.signPlaybackId(subChapter.mux_playback_id, {
+      ...baseOptions,
+      type: "video",
+    });
+
+    //生成播放網址
+    const streamURL = `https://stream.mux.com/${subChapter.mux_playback_id}.m3u8?token=${token}`;
+
+    //用小節id取得播放影片
+    res.status(200).json({
+      status: true,
+      message: "成功取得播放URL",
+      data: streamURL,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 module.exports = {
   getCourseType,
@@ -418,4 +504,5 @@ module.exports = {
   getCoachCourses,
   getCoachDetails,
   getCourseDetails,
+  getHomepagePlayUrl,
 };

@@ -23,7 +23,7 @@ const mux = new Mux({
 const muxUploadHandler = async (req, res, next) => {
   try {
     const coachId = req.user.id;
-    //從前端取得必要的欄位資訊，用以建立章節
+    //從前端取得必要的欄位資訊，用以建立章節。章節與小節號碼是為了辨明第一章第一節要為公開影片
     let subChapterId = req.body.subChapterId;
     const {
       extension, //副檔名
@@ -74,7 +74,6 @@ const muxUploadHandler = async (req, res, next) => {
     } else {
       logger.info(`使用已有小節: ${subChapterId}`);
     }
-
     //送出post request到 https://api.mux.com/video/v1/uploads
     const upload = await mux.video.uploads.create({
       cors_origin: "*", //上線後要改為同網域內
@@ -96,7 +95,7 @@ const muxUploadHandler = async (req, res, next) => {
   }
 };
 
-// //mux webhook通知上傳結果
+//mux webhook通知上傳結果
 const muxWebhookHandler = async (req, res, next) => {
   try {
     mux.webhooks.verifySignature(JSON.stringify(req.body), req.headers, webhookSecret);

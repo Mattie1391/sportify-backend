@@ -855,7 +855,7 @@ async function patchCourse(req, res, next) {
     }
 
     //使用Joi驗證章節框架資料
-    const { error, value } = chaptersArraySchema.validate(chapters, { abortEarly: false }); //abortEarly若為true，則發現錯誤就會中斷程式運行
+    const { error } = chaptersArraySchema.validate(chapters, { abortEarly: false }); //abortEarly若為true，則發現錯誤就會中斷程式運行
     if (error) {
       const errors = error.details.map((detail) => {
         return {
