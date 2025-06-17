@@ -1,3 +1,15 @@
+<!-- 
+ 這裡是播放邏輯元件，處理影片播放的生命週期，包括
+ 1 串接api
+ 2 擷取播放連結
+ 3 初始化hls.js
+ 4 錯誤處理
+ 5 監控播放進度
+ }
+ </script>
+
+-->
+
 <template>
   <div class="player-wrapper">
     <!-- 給vue一個參考名稱videoRef，如此就可在setup用const videoRef = ref(null)抓到DOM -->
@@ -93,29 +105,28 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from "vue";
 import Hls from "hls.js";
+import { extractPlaybackUrl } from "@/utils/extractPlaybackUrl.js";
 //嵌入mux data模組
 import mux from "mux-embed";
 
 //設定接受外部傳入的各種參數
 const props = defineProps({
-  src: {
-    type: String,
-    required: true,
-  },
   apiUrl: {
     type: String,
     required: true,
   },
   apiName: { type: String, required: true },
+  jwtToken: { type: String, default: "" }, //需要jwt驗證的api存token用
+  subChapterId: { type: String, default: "" },
 });
 
 //ref()建立reactive參考容器{value:null}而非直接宣告變數的方式，使vue能追蹤值的變化，而不是原始物件
 //之後只有非ref()變數才會直接操作本體
 const videoRef = ref(null);
 const hlsInstance = ref(null);
-
+const playUrl = ref("");
 const levels = ref([]);
-const selectedLevel = ref(-1); //設定負一代表自動畫質
+const selectedLevel = ref(-1); //-1 代表自動畫質
 //用來顯示播放畫質
 const currentLevelText = ref("");
 const isPlaying = ref(false);
@@ -142,11 +153,11 @@ function reportCompletion() {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImE5NDA1ZGNmLTc1OGQtNDFlMi05Y2Y4LTNjODI1ZTM0NGM5YyIsInJvbGUiOiJVU0VSIiwiaWF0IjoxNzUwMTAzMzM4LCJleHAiOjE3NTI2OTUzMzh9.yjICg8AC1soawiRm_zoV2rl_hp9mzU6xXURjB9VbO6g`,
+      Authorization: `Bearer ${props.jwtToken}`,
     },
     body: JSON.stringify({
       //user_id後端由jwt取得
-      sub_chapter_id: "708ea385-871c-42b9-aab8-bbf8bbdbfa91",
+      sub_chapter_id: props.subChapterId,
       watched_seconds: watchedSeconds.size, //統計用
       is_completed: true,
     }),
@@ -163,7 +174,8 @@ const setupPlayer = () => {
       fragLoadingTimeOut: 20000, //首片段fragment載入時間，初始預設超過10秒會定時報錯
     });
     //下載解析.m3u8播放清單，包含解析度層級
-    hlsInstance.value.loadSource(props.src);
+    console.log(playUrl);
+    hlsInstance.value.loadSource(playUrl.value);
     hlsInstance.value.attachMedia(video);
 
     //解析完成後，觸發此事件，允許你取得可用畫質hls.levels資訊
@@ -195,7 +207,7 @@ const setupPlayer = () => {
     });
     //蘋果的Safari、IOS不支援手動選畫質
   } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-    video.src = props.src;
+    video.src = playUrl.value;
     if (canAutoPlay) {
       video.play().catch((err) => {
         console.warn("無法自動播放：", err);
@@ -210,12 +222,10 @@ const setupPlayer = () => {
       env_key: import.meta.env.VITE_MUX_ENV_KEY,
       //metadata
       //site metadata
-      viewer_user_id: "aapl12345", //mux data可正確取得，可以輸入userId，但沒太大必要
+      viewer_user_id: "aapl12345", //mux data可正確取得我們的userid，可以輸入userId，但沒太大必要
       //player_metadata
       player_name: "Sportify Plus HLS Player",
       player_init_time: Date.now(),
-      video_id: props.videoId, //目前沒有正確取得，但影響不大
-      video_title: props.title, //目前沒有正確取得，但影響不大
       video_stream_type: "on-demand",
     },
   });
@@ -262,8 +272,24 @@ function handlePlay() {
 function handlePause() {
   isPlaying.value = false;
 }
-//當元件被掛載到畫面上(DOM準備好)就執行setupPlayer
-onMounted(setupPlayer);
+//當元件被掛載到畫面上(DOM準備好)，就依照api名稱與路由取得對應位置的播放url
+onMounted(async () => {
+  try {
+    const headers = props.jwtToken ? { Authorization: `Bearer ${props.jwtToken}` } : {};
+
+    const res = await fetch(props.apiUrl, { headers });
+    const result = await res.json();
+    playUrl.value = extractPlaybackUrl(props.apiName, result.data);
+
+    if (playUrl.value) {
+      setupPlayer();
+    } else {
+      console.warn("無法取得播放連結");
+    }
+  } catch (err) {
+    console.error("取得播放資料失敗：", err);
+  }
+});
 
 //當元件從畫面上移除時(例如切換頁面)，要清除播放器實例
 // hls destroy移除事件監聽與停止串流、釋放記憶體
@@ -274,12 +300,15 @@ onBeforeUnmount(() => {
 });
 
 watch(
-  () => props.src, //當播放連結改變(父層傳來src改變)，重建hls播放器
-  () => {
-    if (hlsInstance.value) {
-      hlsInstance.value.destroy(); //銷毀舊播放器
-    }
-    setupPlayer(); //重新載入
+  () => props.apiUrl, //當路由改變時
+  async () => {
+    if (hlsInstance.value) hlsInstance.value.destroy(); //銷毀舊播放器，再重新取得播放連結
+    const res = await fetch(props.apiUrl, {
+      headers: props.jwtToken ? { Authorization: `Bearer ${props.jwtToken}` } : {},
+    });
+    const result = await res.json();
+    playUrl.value = extractPlaybackUrl(props.apiName, result.data);
+    setupPlayer(); //重新啟動播放器
   }
 );
 </script>
