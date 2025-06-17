@@ -79,9 +79,11 @@ async function getCoaches(req, res, next) {
         "c.id AS coach_id", //教練id
         "c.nickname AS coach_name", //教練名稱
         "c.job_title AS coach_title", //教練title
+        "c.profile_image_url AS coach_profile_image_url", //教練頭像
         "c.about_me AS coach_about_me", //教練自我介紹
         "SUM(course.numbers_of_view) AS numbers_of_view", //教練觀看人次總數
       ])
+      .where("c.is_verified = :isVerified", { isVerified: true }) //只取得已認證的教練資料
       .groupBy("c.id") // 將相同教練的資料聚合,計算每個教練的總觀看人次
       .orderBy("numbers_of_view", sort) //按觀看人次排序，讓熱門課程類別排在前面
       .getRawMany();
@@ -184,6 +186,7 @@ async function getCourses(req, res, next) {
       .innerJoin("c.Skill", "s") //s=Skill
       .innerJoin("c.Coach", "coach")
       .select(fullCourseFields)
+      .where("c.is_approved = :isApproved", { isApproved: true }) //只取得已審核的課程資料
       .orderBy(sortParam, "DESC") //根據前端參數，載入排序設定
       .getRawMany();
 
@@ -254,6 +257,7 @@ async function getRecommandCourses(req, res, next) {
       .innerJoin("c.Skill", "s") //s=Skill
       .innerJoin("c.Coach", "coach")
       .select(fullCourseFields)
+      .where("c.is_approved = :isApproved", { isApproved: true }) //只取得已審核的課程資料
       .orderBy("c.numbers_of_view", "DESC") //按照課程觀看人次排序
       .getRawMany();
 
@@ -299,6 +303,7 @@ async function getCoachCourses(req, res, next) {
       .innerJoin("c.Coach", "coach")
       .select(fullCourseFields)
       .where("coach.id = :coachId", { coachId })
+      .andWhere("c.is_approved = :isApproved", { isApproved: true })
       .orderBy("c.numbers_of_view", "DESC") //按照課程觀看人次排序
       .getRawMany();
 
@@ -342,6 +347,7 @@ async function getCoachDetails(req, res, next) {
       motto: coach.motto,
       profile_image_url: coach.profile_image_url,
       background_image_url: coach.background_image_url,
+      is_verified: coach.is_verified,
     };
 
     res.status(200).json({

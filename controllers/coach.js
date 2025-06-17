@@ -116,18 +116,6 @@ async function getProfile(req, res, next) {
     if (!coach) {
       return next(generateError(404, "查無此教練"));
     }
-    //檢查頭貼網址是否正確，不正確則設為null
-    if (!coach.profile_image_url || isNotValidUrl(coach.profile_image_url)) {
-      coach.profile_image_url = null;
-    }
-    //檢查背景圖片網址是否正確，不正確則設為null
-    if (!coach.background_image_url || isNotValidUrl(coach.background_image_url)) {
-      coach.background_image_url = null;
-    }
-    //檢查銀行存摺影像網址是否正確，不正確則設為null
-    if (!coach.bankbook_copy_url || isNotValidUrl(coach.bankbook_copy_url)) {
-      coach.bankbook_copy_url = null;
-    }
     const coachSkillData = await coachSkillRepo.find({
       where: { coach_id: coachId },
       relations: ["Skill"],
@@ -856,6 +844,16 @@ async function patchCourse(req, res, next) {
     if (hasSkill.length === 0) {
       return next(generateError(400, `您不具受認證的${sports_type}專長，無法開設此課程`));
     }
+
+    //驗證教練是否的確是此課程表單的創建者
+    let course = await courseRepo.findOne({
+      where: { id: courseId, coach_id: coachId },
+      // select: ["id", "name", "description", "type_id", "image_url", "image_public_id"],
+    });
+    if (!course) {
+      return next(generateError(400, "查無此課程表單"));
+    }
+
     //使用Joi驗證章節框架資料
     const { error, value } = chaptersArraySchema.validate(chapters, { abortEarly: false }); //abortEarly若為true，則發現錯誤就會中斷程式運行
     if (error) {
@@ -866,8 +864,9 @@ async function patchCourse(req, res, next) {
         };
       });
       logger.warn(errors);
-      return next(generateError(400, `章節格式驗證失敗, ${value}`));
+      return next(generateError(400, `章節格式驗證失敗，${error.message}`));
     }
+
     //將章節巢狀架構鋪平
     const chapterItems = [];
     chapters.forEach((ch) => {
@@ -877,7 +876,7 @@ async function patchCourse(req, res, next) {
         const { subchapter_id, sub_chapter_number, subtitle, filename } = sub;
         chapterItems.push({
           id: subchapter_id,
-          coach_id: coachId,
+          course_id: courseId,
           chapter_number,
           title: chapter_title,
           sub_chapter_number,
@@ -931,27 +930,30 @@ async function patchCourse(req, res, next) {
       return next(generateError(400, subSameOrGapChecking));
     }
     //構建Course資料表的更新內容
-
-    let course = await courseRepo.findOne({
-      where: { id: courseId },
-      select: ["id", "name", "description", "type_id", "image_url", "image_public_id"],
-    });
+    let courseToUpdate = {
+      id: course.id,
+      name: course.name,
+      description: course.description,
+      type_id: course.type_id,
+      image_url: course.image_url,
+      image_public_id: course.image_public_id,
+    };
 
     //判斷課程封面是否有更新(需url與public_id都有改變)
-    const isUrlChanged = image_url !== course.image_url;
-    const isPublicIdChange = image_public_id !== course.image_public_id;
+    const isUrlChanged = image_url !== courseToUpdate.image_url;
+    const isPublicIdChange = image_public_id !== courseToUpdate.image_public_id;
     if (isUrlChanged !== isPublicIdChange) {
       return next(generateError(400, "檔案資訊不一致，必須同時更改 URL 與 Public ID"));
     }
 
     if (isUrlChanged && isPublicIdChange) {
       //若public id改變，先存舊public id以備cloudinary刪除
-      if (isPublicIdChange && course.image_public_id) {
-        const oldPublicId = course.image_public_id;
+      if (isPublicIdChange && courseToUpdate.image_public_id) {
+        const oldPublicId = courseToUpdate.image_public_id;
         await cloudinary.uploader.destroy(oldPublicId);
       }
       //course儲存欲存入資料庫的新資料
-      course = {
+      courseToUpdate = {
         id: courseId,
         name,
         description,
@@ -960,14 +962,15 @@ async function patchCourse(req, res, next) {
         image_public_id,
       };
     }
+
     //將改動存入Course、Course_Chapter資料表
     await courseChapterRepo.save(chapterItems);
-    await courseRepo.save(course);
+    await courseRepo.save(courseToUpdate);
 
     res.status(200).json({
       status: true,
       message: "已儲存資料",
-      data: { course: course, chapters: chapterItems },
+      data: { course: courseToUpdate, chapters: chapterItems },
     });
   } catch (error) {
     next(error);
