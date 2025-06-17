@@ -10,7 +10,7 @@ const config = require("../config/index");
 const { muxTokenId, muxTokenSecret, webhookSecret } = config.get("mux");
 
 //utils
-const { isNotValidString, isNotValidInteger } = require("../utils/validators");
+const { isNotValidString, isNotValidInteger, isNotValidUUID } = require("../utils/validators");
 const { unixTot8zYYYYMMDD } = require("../utils/formatDate");
 //建立mux api客戶端實例，設定存取憑證。建立後可用以調用各種mux提供的API方法。
 const mux = new Mux({
@@ -24,14 +24,14 @@ const muxUploadHandler = async (req, res, next) => {
   try {
     const coachId = req.user.id;
     //從前端取得必要的欄位資訊，用以建立章節。章節與小節號碼是為了辨明第一章第一節要為公開影片
-    let subChapterId = req.body.subChapterId;
     const {
       extension, //副檔名
       size,
+      subChapterId,
     } = req.body;
 
     //驗證資料格式
-    if (isNotValidString(extension) || isNotValidInteger(size)) {
+    if (isNotValidString(extension) || isNotValidInteger(size) || isNotValidUUID(subChapterId)) {
       return next(generateError(400, "檔案相關資料格式錯誤"));
     }
 
@@ -61,18 +61,18 @@ const muxUploadHandler = async (req, res, next) => {
       logger.info(`已有空白課程: ${course.id}`);
     }
 
-    //檢查小節id是否有值，若無就直接新建小節id
-    let subChapter;
+    //檢查小節id是否已經儲存，若無則在資料庫建檔
+    const hasSubChapter = chapterRepo.findOneBy({ id: subChapterId });
 
-    if (!subChapterId) {
-      subChapter = chapterRepo.create({
+    if (!hasSubChapter) {
+      const subChapterToSave = chapterRepo.create({
         course_id: course.id,
+        id: subChapterId,
       });
-      await chapterRepo.save(subChapter);
-      subChapterId = subChapter.id;
-      logger.info(`新建小節: ${subChapterId}`);
+      await chapterRepo.save(subChapterToSave);
+      logger.info(`${subChapterId}建檔成功`);
     } else {
-      logger.info(`使用已有小節: ${subChapterId}`);
+      logger.info(`${subChapterId}已建過檔`);
     }
     //送出post request到 https://api.mux.com/video/v1/uploads
     const upload = await mux.video.uploads.create({
@@ -118,8 +118,9 @@ const muxWebhookHandler = async (req, res, next) => {
         if (existingVideo) {
           return next(generateError(409, "已儲存過此影片"));
         }
+        logger.info(`已接收${passthrough}對應影片${asset_id}。將更新資料庫`);
 
-        await chapterRepo.update(
+        const updateVideoAsset = await chapterRepo.update(
           {
             id: passthrough,
           },
@@ -131,6 +132,10 @@ const muxWebhookHandler = async (req, res, next) => {
             uploaded_at: unixTot8zYYYYMMDD(created_at), //換算上傳時間，轉換unix時間為+8時區的時間格式
           }
         );
+        if (updateVideoAsset.affected === 0) {
+          return next(generateError(400, "影片資料儲存失敗"));
+        }
+        logger.info("已更新資料庫");
         return res.status(200).send("Webhook processed: video.asset.ready");
       }
       //處理其他事件

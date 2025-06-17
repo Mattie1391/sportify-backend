@@ -11,7 +11,6 @@ module.exports = new EntitySchema({
     id: {
       primary: true,
       type: "uuid",
-      generated: "uuid",
     },
 
     // 課程 ID，對應到哪一門課程（外鍵）

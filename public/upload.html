@@ -23,7 +23,7 @@
 
         //測試用的章節、小節假資料。
         const fakeChapter = {
-          subChapterId: null, //新建立的小節會沒有id
+          subChapterId: "00199d82-8e51-49bd-9780-2f5f989087cd", //新建立的小節會沒有id
         };
 
         // 從後端取得 direct_upload url，從res取得上傳url
@@ -34,7 +34,7 @@
           headers: {
             "Content-Type": "application/json",
             //測試時請用POSTMAN 生成新教練TOKEN再貼上來
-            Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjU4ZGE1NjUzLTYxMWQtNDljMi1iYTMyLWEyNmY1NTViNjY4NiIsInJvbGUiOiJDT0FDSCIsImlhdCI6MTc0OTU4NjkwOSwiZXhwIjoxNzUyMTc4OTA5fQ.qqY7cuHpqjI26igwMM--WlVoNsLAx16BeuE4v_2VA9E`,
+            Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjUzMjg3ZTFjLWM5ZWEtNGQ1OS1iYzAyLTY1ZWZiYjMxMGNlNiIsInJvbGUiOiJDT0FDSCIsImlhdCI6MTc1MDE2ODkyMSwiZXhwIjoxNzUyNzYwOTIxfQ.mp43s_7Sggxo4j0ydoP-VlcWplsbWllwG9yfE0o7LsY`,
           },
           body: JSON.stringify({
             subChapterId: fakeChapter.subChapterId,
