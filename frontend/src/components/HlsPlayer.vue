@@ -49,7 +49,7 @@
 .quality-control {
   position: absolute;
   right: 10px;
-  bottom: 45px;
+  bottom: 60px;
   background-color: rgba(0, 0, 0, 0.6);
   padding: 4px 8px;
   border-radius: 4px;
@@ -96,12 +96,17 @@ import Hls from "hls.js";
 //嵌入mux data模組
 import mux from "mux-embed";
 
-//設定接受外部傳入的播放網址
+//設定接受外部傳入的各種參數
 const props = defineProps({
   src: {
     type: String,
     required: true,
   },
+  apiUrl: {
+    type: String,
+    required: true,
+  },
+  apiName: { type: String, required: true },
 });
 
 //ref()建立reactive參考容器{value:null}而非直接宣告變數的方式，使vue能追蹤值的變化，而不是原始物件
@@ -116,59 +121,124 @@ const currentLevelText = ref("");
 const isPlaying = ref(false);
 
 //監控觀看進度相關
-//設定檢查間隔
-let checkInterval = null;
 //設定播放進度要達90%
 const WATCH_THRESHOLD = 0.9;
+//每十秒檢查一次
+const INTERVAL = 10000;
+//是否已請求view-progress
+let reported = false;
 let progressTimer = null;
+//設定已觀看時間
+const watchedSeconds = new Set();
+let completed = false;
 
+function reportCompletion() {
+  if (!completed) {
+    completed = true;
+    console.log("已觀看90%進度，可送後端");
+  }
+  //後端api是  post觀看進度
+  fetch("/api/v1/users/view-progress", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImE5NDA1ZGNmLTc1OGQtNDFlMi05Y2Y4LTNjODI1ZTM0NGM5YyIsInJvbGUiOiJVU0VSIiwiaWF0IjoxNzUwMTAzMzM4LCJleHAiOjE3NTI2OTUzMzh9.yjICg8AC1soawiRm_zoV2rl_hp9mzU6xXURjB9VbO6g`,
+    },
+    body: JSON.stringify({
+      //user_id後端由jwt取得
+      sub_chapter_id: "708ea385-871c-42b9-aab8-bbf8bbdbfa91",
+      watched_seconds: watchedSeconds.size, //統計用
+      is_completed: true,
+    }),
+  }).then((res) => console.log("成功送出進度，res,status"));
+}
+
+//建立hls播放器、載入來源、掛載事件
 const setupPlayer = () => {
+  const video = videoRef.value;
+  let canAutoPlay = true;
+
   if (Hls.isSupported()) {
-    hlsInstance.value = new Hls();
+    hlsInstance.value = new Hls({
+      fragLoadingTimeOut: 20000, //首片段fragment載入時間，初始預設超過10秒會定時報錯
+    });
     //下載解析.m3u8播放清單，包含解析度層級
     hlsInstance.value.loadSource(props.src);
-    hlsInstance.value.attachMedia(videoRef.value);
-    //mux監控播放
-    mux.monitor(videoRef.value, {
-      debug: true,
-      Hls,
-      data: {
-        env_key: import.meta.env.VITE_MUX_ENV_KEY,
-        //metadata
-        //site metadata
-        viewer_user_id: "aapl12345", //mux data可正確取得，可以輸入userId
-        //player_metadata
-        player_name: "Sportify Plus HLS Player",
-        player_init_time: Date.now(),
-        video_id: props.videoId, //目前沒有正確取得，但影響不大
-        video_title: props.title, //目前沒有正確取得，但影響不大
-        // video_series: "", //可選，課程名稱
-        video_stream_type: "on-demand",
-      },
-    });
+    hlsInstance.value.attachMedia(video);
 
+    //解析完成後，觸發此事件，允許你取得可用畫質hls.levels資訊
+    hlsInstance.value.on(Hls.Events.MANIFEST_PARSED, () => {
+      levels.value = hlsInstance.value.levels;
+
+      //預設畫質自動設定
+      hlsInstance.value.currentLevel = -1;
+
+      if (canAutoPlay) {
+        video.play().catch((err) => {
+          console.warn("無法自動播放", err);
+        });
+      }
+    });
+    //當調整畫質後，顯示為當前選擇的畫質
+    hlsInstance.value.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+      const current = hlsInstance.value.levels[data.level];
+      currentLevelText.value = `${current.height}`;
+    });
+    //監聽hls錯誤事件
     hlsInstance.value.on(Hls.Events.ERROR, (event, data) => {
-      console.error("HLS 播放錯誤：", data);
+      console.warn("HLS 播放錯誤：", data);
       mux.emit("Sportify Plus HLS Player", "error", {
         player_error_code: data.details || "fatal_error",
         player_error_message: data.reason || data.type || "Unkwown fatal eror",
         player_error_context: JSON.stringify(data),
       });
     });
-    //解析完成後，觸發此事件，允許你取得可用畫質hls.levels資訊
-    hlsInstance.value.on(Hls.Events.MANIFEST_PARSED, () => {
-      levels.value = hlsInstance.value.levels;
-    });
-    //當畫質變動後觸發此事件
-    hlsInstance.value.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
-      const current = hlsInstance.value.levels[data.level];
-      currentLevelText.value = `${current.height}`;
-    });
-  } else if (videoRef.value.canPlayType("application/vnd.apple.mpegurl")) {
-    videoRef.value.src = props.src;
+    //蘋果的Safari、IOS不支援手動選畫質
+  } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = props.src;
+    if (canAutoPlay) {
+      video.play().catch((err) => {
+        console.warn("無法自動播放：", err);
+      });
+    }
   }
+  //mux監控裝置
+  mux.monitor(video, {
+    debug: true,
+    Hls,
+    data: {
+      env_key: import.meta.env.VITE_MUX_ENV_KEY,
+      //metadata
+      //site metadata
+      viewer_user_id: "aapl12345", //mux data可正確取得，可以輸入userId，但沒太大必要
+      //player_metadata
+      player_name: "Sportify Plus HLS Player",
+      player_init_time: Date.now(),
+      video_id: props.videoId, //目前沒有正確取得，但影響不大
+      video_title: props.title, //目前沒有正確取得，但影響不大
+      video_stream_type: "on-demand",
+    },
+  });
+  //追蹤實際看過的秒數
+  progressTimer = setInterval(() => {
+    if (video.duration && !isNaN(video.currentTime)) {
+      const current = Math.floor(video.currentTime);
+      watchedSeconds.add(current);
+
+      const percentWatched = watchedSeconds.size / Math.floor(video.duration);
+
+      if (percentWatched >= WATCH_THRESHOLD && !reported) {
+        reported = true; //只觸發一次請求view-progress api
+        reportCompletion();
+        clearInterval(progressTimer);
+      }
+    }
+  }, INTERVAL);
+  //若播放結束，也觸發完成
+  video.addEventListener("ended", reportCompletion);
 };
 
+//變更畫質
 const changeLevel = () => {
   if (hlsInstance.value) {
     hlsInstance.value.currentLevel = Number(selectedLevel.value);
@@ -184,15 +254,19 @@ const playVideo = () => {
   }
 };
 
+//處理按播放
 function handlePlay() {
   isPlaying.value = true;
 }
+//處理按暫停
 function handlePause() {
   isPlaying.value = false;
 }
-
+//當元件被掛載到畫面上(DOM準備好)就執行setupPlayer
 onMounted(setupPlayer);
 
+//當元件從畫面上移除時(例如切換頁面)，要清除播放器實例
+// hls destroy移除事件監聽與停止串流、釋放記憶體
 onBeforeUnmount(() => {
   if (hlsInstance.value) {
     hlsInstance.value.destroy();
@@ -200,12 +274,12 @@ onBeforeUnmount(() => {
 });
 
 watch(
-  () => props.src,
+  () => props.src, //當播放連結改變(父層傳來src改變)，重建hls播放器
   () => {
     if (hlsInstance.value) {
-      hlsInstance.value.destroy();
+      hlsInstance.value.destroy(); //銷毀舊播放器
     }
-    setupPlayer();
+    setupPlayer(); //重新載入
   }
 );
 </script>
