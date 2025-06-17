@@ -4,6 +4,10 @@ const coachRepo = AppDataSource.getRepository("Coach");
 const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
 const courseRepo = AppDataSource.getRepository("Course");
 const chapterRepo = AppDataSource.getRepository("Course_Chapter");
+const config = require("../config/index");
+const { Mux } = require("@mux/mux-node");
+const { muxSigningKeyForPublic, muxSigningKeySecretForPublic } = config.get("mux");
+const mux = new Mux();
 
 //services
 const { getAllCourseTypes } = require("../services/typeServices");
@@ -367,16 +371,29 @@ async function getCourseDetails(req, res, next) {
     if (!coach) return next(generateError(404, "查無此教練"));
 
     //取得章節資訊
-    const { chapters, firstChapterId } = await getChapters(courseId);
+    const { chapters, firstChapterId, playbackId } = await getChapters(courseId);
     if (!chapters || chapters.length === 0) {
       return next(generateError(404, "查無章節"));
     }
 
     //製作播放url
-    if (!firstChapterId) {
-      return next(generateError(404, "無法取得該課程試看章節"));
-    }
-    const streamURL = `https://stream.mux.com/${firstChapterId}.m3u8`;
+    let baseOptions = {
+      keyId: muxSigningKeyForPublic,
+      keySecret: muxSigningKeySecretForPublic,
+      expiration: "1h", //設定url 1小時有效
+      start_time: 0,
+      end_time: 300,
+      params: {
+        max_resolution: "1080p", //試看不求最高畫質?
+      },
+    };
+    const token = await mux.jwt.signPlaybackId(playbackId, {
+      ...baseOptions,
+      type: "video",
+    });
+
+    //生成播放網址
+    const streamURL = `https://stream.mux.com/${playbackId}.m3u8?token=${token}`;
 
     const data = {
       course: {
@@ -443,7 +460,23 @@ const getHomepagePlayUrl = async (req, res, next) => {
     }
 
     //製作播放url
-    const streamURL = `https://stream.mux.com/${subChapter.mux_playback_id}.m3u8`;
+    let baseOptions = {
+      keyId: muxSigningKeyForPublic,
+      keySecret: muxSigningKeySecretForPublic,
+      expiration: "6h", //設定url 6小時有效
+      start_time: 0, //播放開始時間
+      end_time: 30, //播放區段結束時間30秒
+      params: {
+        max_resolution: "1080p", //試看不求最高畫質?
+      },
+    };
+    const token = await mux.jwt.signPlaybackId(subChapter.mux_playback_id, {
+      ...baseOptions,
+      type: "video",
+    });
+
+    //生成播放網址
+    const streamURL = `https://stream.mux.com/${subChapter.mux_playback_id}.m3u8?token=${token}`;
 
     //用小節id取得播放影片
     res.status(200).json({

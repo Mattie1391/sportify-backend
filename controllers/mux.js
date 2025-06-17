@@ -1,7 +1,6 @@
 const AppDataSource = require("../db/data-source");
 const courseRepo = AppDataSource.getRepository("Course");
 const chapterRepo = AppDataSource.getRepository("Course_Chapter");
-const planRepo = AppDataSource.getRepository("Plan");
 const generateError = require("../utils/generateError");
 const logger = require("../config/logger");
 const { IsNull } = require("typeorm");
@@ -29,10 +28,7 @@ const muxUploadHandler = async (req, res, next) => {
     const {
       extension, //副檔名
       size,
-      chapter_number,
-      sub_chapter_number,
     } = req.body;
-    const chSubSet = `${chapter_number}-${sub_chapter_number}`;
 
     //驗證資料格式
     if (isNotValidString(extension) || isNotValidInteger(size)) {
@@ -78,44 +74,22 @@ const muxUploadHandler = async (req, res, next) => {
     } else {
       logger.info(`使用已有小節: ${subChapterId}`);
     }
-    //判斷是否是第一章第一節，若是，就設為公開影片 todo
-    if (chSubSet === "1-1") {
-      logger.info(`這是第${chSubSet}小節。將上傳為公開影片`);
-      //送出post request到 https://api.mux.com/video/v1/uploads
-      const upload = await mux.video.uploads.create({
-        cors_origin: "*", //上線後要改為同網域內
-        timeout: 7200, //上傳任務時限。由於上傳任務多，先設20分鐘看看。
-        new_asset_settings: {
-          playback_policy: ["public"],
-          test: true, //設定該上傳影片為試用，不產生費用，但限制時長10秒鐘、24小時後刪除
-          max_resolution_tier: "2160p",
-          video_quality: "plus", //至少要plus才符合提供最高2160p畫質的需求，更高階可設premium，但錢包炸裂更快。
-          passthrough: subChapterId, //以章節副標題id作為識別碼
-          meta: {
-            creator_id: coachId, //應設定教練id
-          },
+    //送出post request到 https://api.mux.com/video/v1/uploads
+    const upload = await mux.video.uploads.create({
+      cors_origin: "*", //上線後要改為同網域內
+      timeout: 7200, //上傳任務時限。由於上傳任務多，先設20分鐘看看。
+      new_asset_settings: {
+        playback_policy: ["signed"],
+        test: true, //設定該上傳影片為試用，不產生費用，但限制時長10秒鐘、24小時後刪除
+        max_resolution_tier: "2160p",
+        video_quality: "plus", //至少要plus才符合提供最高2160p畫質的需求，更高階可設premium，但錢包炸裂更快。
+        passthrough: subChapterId, //以章節副標題id作為識別碼
+        meta: {
+          creator_id: coachId, //應設定教練id
         },
-      });
-      res.json({ url: upload.url, sub_chapter_id: subChapterId, course_id: course.id });
-    } else {
-      logger.info(`這是第${chSubSet}小節。將上傳為私人影片`);
-      //送出post request到 https://api.mux.com/video/v1/uploads
-      const upload = await mux.video.uploads.create({
-        cors_origin: "*", //上線後要改為同網域內
-        timeout: 7200, //上傳任務時限。由於上傳任務多，先設20分鐘看看。
-        new_asset_settings: {
-          playback_policy: ["signed"],
-          test: true, //設定該上傳影片為試用，不產生費用，但限制時長10秒鐘、24小時後刪除
-          max_resolution_tier: "2160p",
-          video_quality: "plus", //至少要plus才符合提供最高2160p畫質的需求，更高階可設premium，但錢包炸裂更快。
-          passthrough: subChapterId, //以章節副標題id作為識別碼
-          meta: {
-            creator_id: coachId, //應設定教練id
-          },
-        },
-      });
-      res.json({ url: upload.url, sub_chapter_id: subChapterId, course_id: course.id });
-    }
+      },
+    });
+    res.json({ url: upload.url, sub_chapter_id: subChapterId, course_id: course.id });
   } catch (error) {
     next(error);
   }

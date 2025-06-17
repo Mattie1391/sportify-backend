@@ -16,6 +16,7 @@ const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
 const favoriteRepo = AppDataSource.getRepository("User_Course_Favorite");
 const subscriptionRepo = AppDataSource.getRepository("Subscription");
 const planRepo = AppDataSource.getRepository("Plan");
+const viewProgressRepo = AppDataSource.getRepository("View_Progress");
 
 //services
 const {
@@ -853,7 +854,7 @@ async function getCourseDetails(req, res, next) {
     //取得此人有權觀看的最大解析度
     const maxRes = plan.max_resolution + "p";
 
-    //依照學員訂閱等及製作mux播放jwt token
+    //依照學員訂閱等級製作mux播放jwt token
     let baseOptions = {
       keyId: muxSigningKey,
       keySecret: muxSigningKeySecret,
@@ -959,6 +960,55 @@ async function getCourseChaptersSidebar(req, res, next) {
   }
 }
 
+//更新學員觀看進度
+async function postViewProgress(req, res, next) {
+  try {
+    const userId = req.user.id;
+    const { sub_chapter_id, is_completed } = req.body;
+    //驗證輸入的資料格式
+    if (isNotValidUUID(sub_chapter_id) || typeof is_completed !== "boolean") {
+      return next(generateError(400, "資料格式錯誤"));
+    }
+    const chapter = await courseChapterRepo.findOneBy({ id: sub_chapter_id });
+    if (!chapter) {
+      return next(generateError(404, "查無該章節對應的課程"));
+    }
+    //判斷訂閱是否有效
+    const hasActiveSubscription = req.user.hasActiveSubscription;
+    if (!hasActiveSubscription) {
+      return next(generateError(403, "尚未訂閱或訂閱已失效，無可觀看課程類別"));
+    }
+    //若訂閱有效，判斷此人是否可觀看此類別
+    const canWatchType = await checkCourseAccess(userId, chapter.course_id);
+    if (!canWatchType) throw generateError(403, "未訂閱該課程類別");
+
+    //檢查是否已有觀看紀錄。即使已有，只要不更新資料庫，仍回報success
+    const hasWatched = await viewProgressRepo.findOneBy({
+      user_id: userId,
+      sub_chapter_id: sub_chapter_id,
+    });
+    if (!hasWatched) {
+      const viewProgress = viewProgressRepo.create({
+        user_id: userId,
+        sub_chapter_id,
+        is_completed,
+      });
+      await viewProgressRepo.save(viewProgress);
+      res.status(201).json({
+        status: true,
+        message: "已新增章節觀看進度",
+      });
+    } else {
+      res.status(200).json({
+        status: true,
+        message: "已有觀看進度，不再更新",
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getProfile,
   getPlans,
@@ -973,4 +1023,5 @@ module.exports = {
   getSubscriptions,
   getCourseDetails,
   getCourseChaptersSidebar,
+  postViewProgress,
 };

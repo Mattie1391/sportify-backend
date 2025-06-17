@@ -174,7 +174,7 @@ const setupPlayer = () => {
       fragLoadingTimeOut: 20000, //首片段fragment載入時間，初始預設超過10秒會定時報錯
     });
     //下載解析.m3u8播放清單，包含解析度層級
-    console.log(playUrl);
+    console.log(playUrl.value);
     hlsInstance.value.loadSource(playUrl.value);
     hlsInstance.value.attachMedia(video);
 
@@ -280,6 +280,7 @@ onMounted(async () => {
     const res = await fetch(props.apiUrl, { headers });
     const result = await res.json();
     playUrl.value = extractPlaybackUrl(props.apiName, result.data);
+    console.log(playUrl.value);
 
     if (playUrl.value) {
       setupPlayer();

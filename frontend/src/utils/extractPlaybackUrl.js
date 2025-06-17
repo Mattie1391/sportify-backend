@@ -9,7 +9,7 @@ export function extractPlaybackUrl(apiName, data) {
       return data?.course?.video_url ?? "";
 
     case "HomePageTrailer": //api/v1/courses/get-play-url
-      return data?.url ?? "";
+      return data ?? "";
 
     default:
       console.warn(`未知的API名稱: ${apiName}`);

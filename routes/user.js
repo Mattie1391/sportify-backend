@@ -34,6 +34,8 @@ router.post("/payment-confirm", paymentController.postPaymentConfirm);
 router.post("/cancel-payment", auth, isUser, paymentController.postCancelPayment);
 //上傳大頭貼
 router.post("/upload-avatar", auth, isUser, upload.single("avatar"), uploadAvatar);
+//更新使用者觀看進度
+router.post("/view-progress", auth, isUser, userController.postViewProgress);
 
 //動態路由
 
