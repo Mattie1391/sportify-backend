@@ -33,6 +33,8 @@ router.get("/courses/:courseId/ratings", auth, isAdmin, ratingController.getRati
 router.delete("/courses/:courseId/ratings/:ratingId", auth, isAdmin, ratingController.deleteRating);
 //審核課程是否上架
 router.patch("/courses/:courseId/review", auth, isAdmin, adminController.patchReviewCourse);
+//審核教練資格
+router.patch("/coaches/:coachId/review", auth, isAdmin, adminController.patchReviewCoach);
 //取得教練詳細資訊
 router.get("/coaches/:coachId", auth, isAdmin, adminController.getCoachDetails);
 //取得使用者訂閱紀錄
