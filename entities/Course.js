@@ -64,7 +64,7 @@ module.exports = new EntitySchema({
       default: 0,
     },
 
-    // 課程總時數（分鐘）
+    // 課程總時數（小時）
     total_hours: {
       type: "int",
       nullable: true,

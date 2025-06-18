@@ -12,6 +12,7 @@ const { muxTokenId, muxTokenSecret, webhookSecret } = config.get("mux");
 //utils
 const { isNotValidString, isNotValidInteger, isNotValidUUID } = require("../utils/validators");
 const { unixTot8zYYYYMMDD } = require("../utils/formatDate");
+const maskString = require("../utils/maskString");
 //建立mux api客戶端實例，設定存取憑證。建立後可用以調用各種mux提供的API方法。
 const mux = new Mux({
   muxTokenId,
@@ -56,9 +57,9 @@ const muxUploadHandler = async (req, res, next) => {
         is_approved: false,
       });
       await courseRepo.save(course);
-      logger.info(`課程id已建立:${course.id}`);
+      logger.info(`課程id已建立:${maskString(course.id, 5)}`);
     } else {
-      logger.info(`已有空白課程: ${course.id}`);
+      logger.info(`已有空白課程: ${maskString(course.id, 5)}`);
     }
 
     //檢查小節id是否已經儲存，若無則在資料庫建檔
@@ -70,20 +71,24 @@ const muxUploadHandler = async (req, res, next) => {
         id: subChapterId,
       });
       await chapterRepo.save(subChapterToSave);
-      logger.info(`${subChapterId}建檔成功`);
+      logger.info(`小節id ${maskString(subChapterId, 5)}建檔成功`);
     } else {
-      logger.info(`${subChapterId}已建過檔`);
+      logger.info(`小節id ${maskString(subChapterId, 5)}已建過檔`);
     }
+    //將course_id、subChapterId壓縮成json格式字串，以從passthrough傳出
+    const passthroughData = JSON.stringify({
+      course_id: course.id,
+      sub_chapter_id: subChapterId,
+    });
     //送出post request到 https://api.mux.com/video/v1/uploads
     const upload = await mux.video.uploads.create({
       cors_origin: "*", //上線後要改為同網域內
       timeout: 7200, //上傳任務時限。由於上傳任務多，先設20分鐘看看。
       new_asset_settings: {
         playback_policy: ["signed"],
-        test: true, //設定該上傳影片為試用，不產生費用，但限制時長10秒鐘、24小時後刪除
         max_resolution_tier: "2160p",
-        video_quality: "plus", //至少要plus才符合提供最高2160p畫質的需求，更高階可設premium，但錢包炸裂更快。
-        passthrough: subChapterId, //以章節副標題id作為識別碼
+        video_quality: "plus",
+        passthrough: passthroughData, //以章節副標題id作為識別碼
         meta: {
           creator_id: coachId, //應設定教練id
         },
@@ -107,24 +112,49 @@ const muxWebhookHandler = async (req, res, next) => {
         const asset = event.data;
         logger.info(`資料接收成功， ${event.type}`);
 
-        const { id: asset_id, passthrough, duration, status, created_at } = asset;
+        const { id: asset_id, duration, passthrough, status, created_at } = asset;
         const playbackId = asset.playback_ids[0].id;
 
         if (!passthrough) {
           return next(generateError(400, "passthrough 為空。由於未傳入章節id，無法儲存影片資料"));
         }
+        const { course_id, sub_chapter_id } = JSON.parse(passthrough);
         //更新到Course_Chapter資料表
         const existingVideo = await chapterRepo.findOneBy({ mux_asset_id: asset_id });
         if (existingVideo) {
           return next(generateError(409, "已儲存過此影片"));
         }
-        logger.info(`已接收${passthrough}對應影片${asset_id}。將更新資料庫`);
+        logger.info(
+          `已接收passthrough。asset_id為 ${maskString(asset_id, 5)} 課程id為 ${maskString(course_id, 5)} 開始更新資料庫`
+        );
+
+        //檢查資料庫有無課程建檔，沒有的話就新建一個空殼課程
+        let course = await courseRepo.findOneBy({ id: course_id });
+        if (!course) {
+          course = courseRepo.create({
+            coach_id: course_id,
+            is_approved: false,
+          });
+          await courseRepo.save(course);
+        }
+        //檢查資料庫有無小節建檔，沒有的話新建一個
+        const hasSubChapter = await chapterRepo.findOneBy({ id: sub_chapter_id });
+
+        if (!hasSubChapter) {
+          const subChapterToSave = chapterRepo.create({
+            course_id: course.id,
+            id: sub_chapter_id,
+          });
+          await chapterRepo.save(subChapterToSave);
+        }
+        //確定已有小節檔案的情況，就更新影片資訊
 
         const updateVideoAsset = await chapterRepo.update(
           {
-            id: passthrough,
+            id: sub_chapter_id,
           },
           {
+            course_id: course_id,
             mux_asset_id: asset_id,
             mux_playback_id: playbackId,
             duration: duration,
@@ -136,6 +166,21 @@ const muxWebhookHandler = async (req, res, next) => {
           return next(generateError(400, "影片資料儲存失敗"));
         }
         logger.info("已更新資料庫");
+        //取得所有該課程影片的時長(單位為秒數)
+        const subChapters = await chapterRepo
+          .createQueryBuilder("c")
+          .select("SUM(c.duration)", "total_duration")
+          .where("c.course_id = :course_id", { course_id: course_id })
+          .getRawOne();
+
+        //換算加總值為小時
+        const total_hours = Math.ceil(subChapters.total_duration / 3600);
+        await courseRepo.update(
+          { id: course_id },
+          {
+            total_hours: total_hours,
+          }
+        );
         return res.status(200).send("Webhook processed: video.asset.ready");
       }
       //處理其他事件
