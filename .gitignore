@@ -4,5 +4,5 @@ node_modules/
 pgdata/
 dist/
 db/seed.js
-
-
+public/upload.html
+public/player.html

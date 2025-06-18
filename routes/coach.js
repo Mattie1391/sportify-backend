@@ -18,7 +18,7 @@ const {
   uploadBackground,
   uploadCourseThumbnail,
 } = require("../controllers/upload");
-const { updateCourseScore } = require("../services/ratingServices");
+// const { updateCourseScore } = require("../services/ratingServices");
 
 //固定路由
 //取得所有課程觀看資料，或依照輸入的課程id找對應課程
@@ -56,7 +56,7 @@ router.patch("/:coachId", auth, isCoach, isSelf, strTrimmer, coachController.pat
 //取得教練個人資料
 router.get("/:coachId", auth, isCoach, isSelf, coachController.getProfile);
 //取得教練特定課程的表單
-router.get("/courses/:courseId",auth,isCoach,coachController.getEditingCourse)
+router.get("/courses/:courseId", auth, isCoach, coachController.getEditingCourse);
 
 //編輯課程
 router.patch("/courses/:courseId", auth, isCoach, strTrimmer, coachController.patchCourse);
