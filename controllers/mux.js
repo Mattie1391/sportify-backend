@@ -29,11 +29,17 @@ const muxUploadHandler = async (req, res, next) => {
       extension, //副檔名
       size,
       subChapterId,
+      courseId, //如果是編輯已存在的課程表單，則請前端送入courseId，否則會是空值
     } = req.body;
 
     //驗證資料格式
-    if (isNotValidString(extension) || isNotValidInteger(size) || isNotValidUUID(subChapterId)) {
-      return next(generateError(400, "檔案相關資料格式錯誤"));
+    if (
+      isNotValidString(extension) ||
+      isNotValidInteger(size) ||
+      isNotValidUUID(subChapterId) ||
+      (courseId && isNotValidUUID(courseId))
+    ) {
+      return next(generateError(400, "請求資料格式錯誤"));
     }
 
     //驗證檔案格式與大小
@@ -44,30 +50,34 @@ const muxUploadHandler = async (req, res, next) => {
       return next(generateError(400, "不支援的影片格式。請上傳mp4、mov、webm格式檔案"));
     }
 
-    //判斷是否已建立課程資料，若無，就建立空白課程以取得course id以綁定章節資料
-    let course = await courseRepo.findOne({
-      where: { coach_id: coachId, name: IsNull() },
-    });
-
-    //如果有未建立課程(以資料庫有該教練未填入課程名稱的課程資料為判斷依據)，就建立空白課程，如有空白課程，就取得該課程id
-    if (!course) {
-      logger.info("需建立新課程id");
-      course = courseRepo.create({
-        coach_id: coachId,
-        is_approved: false,
+    //取得可用的courseId(編輯已存在課程的情況)，否則是檢查或建立空白課程(建立新課程)
+    let courseIdToUse = courseId;
+    if (!courseId) {
+      let emptyCourse = await courseRepo.findOne({
+        where: { coach_id: coachId, name: IsNull() },
       });
-      await courseRepo.save(course);
-      logger.info(`課程id已建立:${maskString(course.id, 5)}`);
+      if (!emptyCourse) {
+        logger.info("需建立新課程id");
+        emptyCourse = courseRepo.create({
+          coach_id: coachId,
+          is_approved: false,
+        });
+        await courseRepo.save(emptyCourse);
+        logger.info(`課程id已建立:${maskString(emptyCourse.id, 5)}`);
+      } else {
+        logger.info(`已有空白課程: ${maskString(emptyCourse.id, 5)}`);
+      }
+      courseIdToUse = emptyCourse.id;
     } else {
-      logger.info(`已有空白課程: ${maskString(course.id, 5)}`);
+      logger.info(`此為已建立的課程: ${maskString(courseId, 5)}`);
     }
 
-    //檢查小節id是否已經儲存，若無則在資料庫建檔
-    const hasSubChapter = chapterRepo.findOneBy({ id: subChapterId });
+    //檢查小節id是否已經建檔，若無則在資料庫建檔
+    const hasSubChapter = await chapterRepo.findOneBy({ id: subChapterId });
 
     if (!hasSubChapter) {
       const subChapterToSave = chapterRepo.create({
-        course_id: course.id,
+        course_id: courseIdToUse,
         id: subChapterId,
       });
       await chapterRepo.save(subChapterToSave);
@@ -75,9 +85,10 @@ const muxUploadHandler = async (req, res, next) => {
     } else {
       logger.info(`小節id ${maskString(subChapterId, 5)}已建過檔`);
     }
+
     //將course_id、subChapterId壓縮成json格式字串，以從passthrough傳出
     const passthroughData = JSON.stringify({
-      course_id: course.id,
+      course_id: courseIdToUse,
       sub_chapter_id: subChapterId,
     });
     //送出post request到 https://api.mux.com/video/v1/uploads
@@ -94,7 +105,11 @@ const muxUploadHandler = async (req, res, next) => {
         },
       },
     });
-    res.json({ url: upload.url, sub_chapter_id: subChapterId, course_id: course.id });
+    res.json({
+      url: upload.url,
+      sub_chapter_id: subChapterId,
+      course_id: courseIdToUse,
+    });
   } catch (error) {
     next(error);
   }
