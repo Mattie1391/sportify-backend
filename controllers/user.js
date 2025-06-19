@@ -939,6 +939,7 @@ async function getCourseChaptersSidebar(req, res, next) {
         : "未提供";
 
       return {
+        chapterId: chapter.id,
         name: chapter.subtitle,
         length: lengthStr,
         isFinished: index < 2, // 假設前兩個已完成
