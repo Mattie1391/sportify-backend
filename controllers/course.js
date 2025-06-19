@@ -235,7 +235,7 @@ async function getCourses(req, res, next) {
   }
 }
 
-//取得你可能會喜歡課程列表
+//取得你可能會喜歡課程列表(推薦網站前三筆熱門課程)
 async function getRecommandCourses(req, res, next) {
   try {
     const courseId = req.params.courseId;
@@ -432,6 +432,7 @@ async function getCourseDetails(req, res, next) {
     next(error);
   }
 }
+
 //取得首頁的播放連結(專門用於非上課網頁的，故不用驗證)
 const getHomepagePlayUrl = async (req, res, next) => {
   try {
@@ -495,6 +496,62 @@ const getHomepagePlayUrl = async (req, res, next) => {
   }
 };
 
+//取得課程-首頁搜索框
+const getKeywordCourses = async (req, res, next) => {
+  try {
+    const { keyword } = req.query;
+    // 禁止前端亂輸入參數，如 banana=999
+    const invalidQuerys = checkValidQuerys(req.query, ["keyword"]);
+    if (invalidQuerys.length > 0) {
+      return next(generateError(400, `不允許的參數：${invalidQuerys.join(", ")}`));
+    }
+    if (!keyword) {
+      return next(generateError(400, "關鍵字為必填"));
+    }
+    if (typeof keyword !== "string") {
+      return next(generateError(400, "關鍵字應為字串格式"));
+    }
+    //搜索順序，技能名稱>課程名稱>教練名稱
+    const searchFields = ["s.name", "c.name", "coach.nickname"];
+    let courses = [];
+    let message = "成功取得關聯資料";
+    // 依序搜尋各個欄位
+    for (const field of searchFields) {
+      courses = await courseRepo
+        .createQueryBuilder("c")
+        .innerJoin("c.Skill", "s")
+        .innerJoin("c.Coach", "coach")
+        .where(`${field} LIKE :keyword`, { keyword: `%${keyword}%` })
+        .andWhere("c.is_approved = :isApproved", { isApproved: true })
+        .select(fullCourseFields)
+        .getRawMany();
+      if (courses.length > 0) break; // 找到就停止
+    }
+
+    // 沒找到就推薦熱門課程
+    if (courses.length === 0) {
+      message = "查無關鍵字，改為推薦平台熱門課程，按照觀看人次排序";
+      courses = await courseRepo
+        .createQueryBuilder("c")
+        .innerJoin("c.Skill", "s")
+        .innerJoin("c.Coach", "coach")
+        .select(fullCourseFields)
+        .where("c.is_approved = :isApproved", { isApproved: true })
+        .orderBy("c.numbers_of_view", "DESC")
+        .getRawMany();
+    }
+
+    res.status(200).json({
+      status: true,
+      message,
+      keyword: keyword,
+      data: courses,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getCourseType,
   getCoachType,
@@ -504,5 +561,6 @@ module.exports = {
   getCoachCourses,
   getCoachDetails,
   getCourseDetails,
+  getKeywordCourses,
   getHomepagePlayUrl,
 };
