@@ -115,7 +115,7 @@ const muxUploadHandler = async (req, res, next) => {
   }
 };
 
-//mux webhook通知上傳結果
+//mux 接收webhook通知
 const muxWebhookHandler = async (req, res, next) => {
   //外層try : 驗證webhook有效性
   try {
@@ -206,6 +206,7 @@ const muxWebhookHandler = async (req, res, next) => {
         }
       }
       //處理其他事件
+      case "video.asset.deleted":
       case "video.asset.uploaded":
       case "video.asset.created":
       case "video.upload.error":

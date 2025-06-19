@@ -9,6 +9,14 @@ const skillRepo = AppDataSource.getRepository("Skill");
 const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
 const coachLisenseRepo = AppDataSource.getRepository("Coach_License");
 const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
+const { Mux } = require("@mux/mux-node");
+const config = require("../config/index");
+const { muxTokenId, muxTokenSecret } = config.get("mux");
+//建立mux api客戶端實例，設定存取憑證。建立後可用以調用各種mux提供的API方法。
+const mux = new Mux({
+  muxTokenId,
+  muxTokenSecret,
+});
 
 //services
 
@@ -18,6 +26,7 @@ const generateError = require("../utils/generateError");
 const { validateField } = require("../utils/coachProfileValidators");
 const { chaptersArraySchema } = require("../utils/courseDataValidators"); //引入驗證教練課程表單的章節架構驗證模組
 const { formatDate } = require("../utils/formatDate");
+const maskString = require("../utils/maskString"); //引入遮蔽敏感資訊(如用戶相關id)的模糊化字串工具
 
 //教練取得所有課程(可以限制特定一門課程)的每月觀看次數、總計觀看次數API
 async function getCoachViewStats(req, res, next) {
@@ -559,7 +568,7 @@ async function getOwnCourses(req, res, next) {
     //改寫is_verified的值為已審核/未審核
     coachProfile.is_verified = coachProfile.is_verified === true ? "已審核" : "未審核";
 
-    //取得教練所有課程
+    //取得教練所有課程(由於課程表單必須都填滿才送出，所以空殼課程要隱藏)
     const courses = await courseRepo
       .createQueryBuilder("c")
       .leftJoin("c.Skill", "s")
@@ -575,6 +584,7 @@ async function getOwnCourses(req, res, next) {
         "c.is_approved AS is_approved",
       ])
       .where("c.coach_id = :id", { id: coachId })
+      .andWhere("c.name IS NOT NULL AND c.name <> '' ")
       .orderBy("c.numbers_of_view", "DESC")
       .addOrderBy("c.is_approved", "DESC")
       .getRawMany();
@@ -711,6 +721,13 @@ async function patchCourse(req, res, next) {
     if (!course) {
       return next(generateError(400, "查無此課程表單"));
     }
+    //驗證課程是否有撞名
+    const sameCourseName = await courseRepo.find({
+      where: { name: name },
+    });
+    if (sameCourseName.length > 1) {
+      return next(generateError(409, `已有相同課程名稱${name}`));
+    }
 
     //使用Joi驗證章節框架資料
     const { error } = chaptersArraySchema.validate(chapters, { abortEarly: false }); //abortEarly若為true，則發現錯誤就會中斷程式運行
@@ -789,6 +806,7 @@ async function patchCourse(req, res, next) {
     }
     //構建Course資料表的更新內容
     let courseToUpdate = {
+      id: courseId,
       coach_id: coachId,
       name: name,
       description: description,
@@ -798,7 +816,7 @@ async function patchCourse(req, res, next) {
       is_approved: course.is_approved,
     };
 
-    //檢查小節是否都屬於該課程
+    //檢查req body送入的小節id是否一致屬於該課程id
     let subChapterIds = [];
     for (const sub of chapterItems) {
       subChapterIds.push(sub.id);
@@ -824,7 +842,40 @@ async function patchCourse(req, res, next) {
     let idsOfWrongCourse = ids.filter((id) => !rightIds.includes(id));
 
     if (idsOfWrongCourse.length > 0) {
-      return next(generateError(400, `這些小節不屬於此課程: ${idsOfWrongCourse.join(", ")}`));
+      logger.warn(`課程編號${courseId}更新失敗，小節更新到錯誤課程`);
+      return next(generateError(400, "課程更新失敗，因章節小節未能正確儲存"));
+    }
+
+    //刪除更動後沒有使用到的小節id、影片
+    //取得所有資料庫內的該課程id
+    const allSubArr = await courseChapterRepo.find({
+      where: { course_id: courseId },
+      select: ["id", "mux_asset_id"],
+    });
+    const allSubIds = allSubArr.map((s) => s.id);
+
+    //比對資料庫有，但req.body沒有的id，代表此次改動後該被刪除
+    const subChapterToDeleteIds = allSubIds.filter((id) => !subChapterIds.includes(id));
+
+    //找到要刪除的小節包含mux_asset_id
+    const subChapterToDelete = allSubArr.filter((s) => subChapterToDeleteIds.includes(s.id));
+    //刪除mux資源
+    for (const sub of subChapterToDelete) {
+      if (sub.mux_asset_id) {
+        try {
+          await mux.video.assets.delete(sub.mux_asset_id);
+          logger.info(`刪除 Mux 資源: ${maskString(sub.mux_asset_id, 5)}`);
+        } catch (err) {
+          logger.error(`刪除失敗: ${maskString(sub.mux_asset_id, 5)}`, err);
+        }
+      }
+    }
+    //刪除小節資料
+    if (subChapterToDeleteIds.length > 0) {
+      await courseChapterRepo.delete(subChapterToDelete);
+      logger.info(
+        `刪除課程 ${maskString(courseId, 5)} 的棄用小節共 ${subChapterToDeleteIds.length}筆成功}`
+      );
     }
 
     //判斷課程封面是否有更新(需url與public_id都有改變)
@@ -842,6 +893,7 @@ async function patchCourse(req, res, next) {
       }
       //course更新一次欲存入資料庫的新資料
       courseToUpdate = {
+        id: courseId,
         coach_id: coachId,
         name,
         description,
@@ -865,7 +917,6 @@ async function patchCourse(req, res, next) {
     next(error);
   }
 }
-
 module.exports = {
   getCoachViewStats,
   getProfile,
