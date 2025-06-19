@@ -931,18 +931,22 @@ async function getCourseChaptersSidebar(req, res, next) {
     });
 
     // 不再需要從 videoRepo 取得影片，因為影片資訊（例如 duration）直接存在 chapter 中
-
-    const fakeProgress = chapters.map((chapter, index) => {
+    // 取得各章節的觀看進度
+    const viewProgress = await viewProgressRepo.find({
+      where: { user_id: req.user.id },
+      select: ["sub_chapter_id", "is_completed"],
+    });
+    const userProgress = chapters.map((chapter) => {
       const duration = chapter.duration || 0;
       const lengthStr = duration
         ? `${Math.floor(duration / 60)}分${Math.round(duration % 60)}秒`
         : "未提供";
 
       return {
+        chapterId: chapter.id,
         name: chapter.subtitle,
         length: lengthStr,
-        isFinished: index < 2, // 假設前兩個已完成
-        isCurrentWatching: index === 2, // 假設第三個正在觀看
+        isFinished: viewProgress.find(c=> c.sub_chapter_id === chapter.id)?.is_completed || false, // 檢查是否已完成觀看
       };
     });
 
@@ -952,7 +956,7 @@ async function getCourseChaptersSidebar(req, res, next) {
       message: "成功取得資料",
       data: {
         courseName: course.name,
-        chapter: fakeProgress,
+        chapter: userProgress,
       },
     });
   } catch (error) {

@@ -249,7 +249,7 @@ async function getCoaches(req, res, next) {
     // 取得教練資料
     const rawCoaches = await AppDataSource.getRepository("Coach")
       .createQueryBuilder("c")
-      .innerJoin("c.Course", "course")
+      .leftJoin("c.Course", "course")
       .select([
         "c.id AS coach_id",
         "c.nickname AS coach_name",
