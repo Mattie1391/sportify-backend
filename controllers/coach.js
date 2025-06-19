@@ -599,147 +599,6 @@ async function getOwnCourses(req, res, next) {
   }
 }
 
-//教練建立課程API
-//目前用不到，建立課程都會通過PATCH
-async function postNewCourse(req, res, next) {
-  try {
-    const coachId = req.user.id;
-    //驗證JWT token解出的教練id格式，及是否有此教練
-    if (!coachId || isNotValidString(coachId) || coachId.length === 0 || isNotValidUUID(coachId)) {
-      return next(generateError(400, "教練ID格式不正確"));
-    }
-    const { name, description, sports_type, image_url } = req.body;
-    if (
-      isNotValidString(name) ||
-      isNotValidString(description) ||
-      isNotValidString(sports_type) ||
-      isNotValidUrl(image_url)
-    ) {
-      return next(generateError(400, "欄位未填寫正確"));
-    }
-    //取得教練相關rawData
-    const rawData = await coachRepo
-      .createQueryBuilder("c")
-      .leftJoin("c.Coach_Skill", "cs")
-      .leftJoin("cs.Skill", "s")
-      .where("c.id = :id", { id: coachId })
-      .select(["c.id AS coach_id", "s.id AS skill_id", "s.name AS skill_name"])
-      .getRawMany();
-
-    if (rawData.length === 0) {
-      return next(generateError(400, "未能確認教練身分"));
-    }
-    if (name.length < 2 || name.length > 50) {
-      return next(generateError(400, `${name}超出字數限制`));
-    }
-    if (description.length < 2 || description.length > 2048) {
-      return next(generateError(400, `${description}超出字數限制`));
-    }
-    if (sports_type.length > 20) {
-      return next(generateError(400, `${sports_type}超出字數限制`));
-    }
-    //驗證是否是有效的專長(課程類別
-    const skill = await skillRepo.findOneBy({ name: sports_type });
-    if (skill.length === 0) {
-      return next(generateError(400, `${sports_type}不是可開課的專長，詳洽管理員`));
-    }
-    //驗證教練是否具有所填入表單的專長
-    const hasSkillCheck = rawData.filter((data) => data.skill_name === sports_type);
-    if (hasSkillCheck.length === 0) {
-      return next(generateError(400, `您不具${sports_type}專長，無法開設此課程`));
-    }
-
-    //使用Joi驗證章節框架資料
-    const data = req.body.chapters;
-    const { error, value } = chaptersArraySchema.validate(data, { abortEarly: false }); //abortEarly若為true，則發現錯誤就會中斷程式運行
-    if (error) {
-      const errors = error.details.map((detail) => {
-        return {
-          field: detail.path.join("."), // 錯誤發生的路徑，例如 chapters.0.sub_chapter.1.subtitle，與message一起存到errors裡並用logger印出
-          message: detail.message,
-        };
-      });
-      logger.warn(errors);
-      return next(generateError(400, "章節格式驗證失敗"));
-    }
-    //將課程資料存入course資料表
-    //驗證是否有相同課程名稱
-    let course = await courseRepo.find({ where: { name: name } });
-    if (course.length > 0) {
-      return next(generateError(409, "課程名稱已存在，不可重複建立"));
-    }
-    const newCourse = courseRepo.create({
-      name,
-      coach_id: coachId,
-      description,
-      type_id: skill.id,
-      image_url,
-      is_approved: false,
-    });
-    await courseRepo.save(newCourse);
-    //將章節資料存入course_chapter資料表
-    const savedData = await courseRepo.findOneBy({ coach_id: coachId, name: name });
-    const chapterRecordsToCreate = [];
-
-    for (const chapter of value) {
-      const { chapter_number, chapter_name, sub_chapter } = chapter;
-
-      for (const subItem of sub_chapter) {
-        const { sub_chapter_number, subtitle } = subItem;
-
-        const newChapterRecord = courseChapterRepo.create({
-          course_id: savedData.id,
-          chapter_number,
-          title: chapter_name,
-          sub_chapter_number,
-          subtitle,
-        });
-        chapterRecordsToCreate.push(newChapterRecord);
-      }
-    }
-    //typeorm可以批量插入資料庫
-    const insertedChapters = await courseChapterRepo.save(chapterRecordsToCreate);
-
-    //組合回傳結果
-    //重新組裝章節架構
-    const responseChapters = [];
-    const chapterMap = new Map();
-    for (const item of insertedChapters) {
-      const { chapter_number, title, sub_chapter_number, subtitle, id } = item;
-
-      if (!chapterMap.has(chapter_number)) {
-        chapterMap.set(chapter_number, {
-          chapter_number: chapter_number,
-          chapter_name: title,
-          sub_chapter: [],
-        });
-      }
-      chapterMap.get(chapter_number).sub_chapter.push({
-        id: id,
-        sub_chapter_number: sub_chapter_number,
-        subtitle: subtitle,
-      });
-    }
-    responseChapters.push(...chapterMap.values());
-
-    const result = {
-      course_id: savedData.course_id,
-      name: savedData.name,
-      description: savedData.description,
-      sports_type: savedData.name,
-      chapters: responseChapters,
-    };
-
-    res.status(201).json({
-      status: true,
-      message: "成功新增資料",
-      data: { course: result },
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
 async function getEditingCourse(req, res, next) {
   try {
     const coachId = req.user.id;
@@ -930,12 +789,13 @@ async function patchCourse(req, res, next) {
     }
     //構建Course資料表的更新內容
     let courseToUpdate = {
-      id: course.id,
-      name: course.name,
-      description: course.description,
+      coach_id: coachId,
+      name: name,
+      description: description,
       type_id: course.type_id,
-      image_url: course.image_url,
-      image_public_id: course.image_public_id,
+      image_url: image_url,
+      image_public_id: image_public_id,
+      is_approved: course.is_approved,
     };
 
     //檢查小節是否都屬於該課程
@@ -968,26 +828,27 @@ async function patchCourse(req, res, next) {
     }
 
     //判斷課程封面是否有更新(需url與public_id都有改變)
-    const isUrlChanged = image_url !== courseToUpdate.image_url;
-    const isPublicIdChange = image_public_id !== courseToUpdate.image_public_id;
+    const isUrlChanged = image_url !== course.image_url;
+    const isPublicIdChange = image_public_id !== course.image_public_id;
     if (isUrlChanged !== isPublicIdChange) {
       return next(generateError(400, "檔案資訊不一致，必須同時更改 URL 與 Public ID"));
     }
 
     if (isUrlChanged && isPublicIdChange) {
-      //若public id改變，先存舊public id以備cloudinary刪除
-      if (isPublicIdChange && courseToUpdate.image_public_id) {
-        const oldPublicId = courseToUpdate.image_public_id;
+      //若public id改變，且此前沒有上傳過檔案(public id為null)先存舊public id以備cloudinary刪除
+      if (isPublicIdChange && course.image_public_id) {
+        const oldPublicId = course.image_public_id;
         await cloudinary.uploader.destroy(oldPublicId);
       }
       //course更新一次欲存入資料庫的新資料
       courseToUpdate = {
-        id: courseId,
+        coach_id: coachId,
         name,
         description,
         type_id: hasSkill[0].skill_id,
         image_url,
         image_public_id,
+        is_approved: course.is_approved,
       };
     }
 
@@ -1010,7 +871,6 @@ module.exports = {
   getProfile,
   patchProfile,
   getOwnCourses,
-  postNewCourse,
   getEditingCourse,
   patchCourse,
 };

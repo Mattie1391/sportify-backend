@@ -117,6 +117,7 @@ const muxUploadHandler = async (req, res, next) => {
 
 //mux webhook通知上傳結果
 const muxWebhookHandler = async (req, res, next) => {
+  //外層try : 驗證webhook有效性
   try {
     mux.webhooks.verifySignature(JSON.stringify(req.body), req.headers, webhookSecret);
 
@@ -130,73 +131,79 @@ const muxWebhookHandler = async (req, res, next) => {
         const { id: asset_id, duration, passthrough, status, created_at } = asset;
         const playbackId = asset.playback_ids[0].id;
 
-        if (!passthrough) {
-          return next(generateError(400, "passthrough 為空。由於未傳入章節id，無法儲存影片資料"));
-        }
-        const { course_id, sub_chapter_id } = JSON.parse(passthrough);
-        //更新到Course_Chapter資料表
-        const existingVideo = await chapterRepo.findOneBy({ mux_asset_id: asset_id });
-        if (existingVideo) {
-          return next(generateError(409, "已儲存過此影片"));
-        }
-        logger.info(
-          `已接收passthrough。asset_id為 ${maskString(asset_id, 5)} 課程id為 ${maskString(course_id, 5)} 開始更新資料庫`
-        );
-
-        //檢查資料庫有無課程建檔，沒有的話就新建一個空殼課程
-        let course = await courseRepo.findOneBy({ id: course_id });
-        if (!course) {
-          course = courseRepo.create({
-            coach_id: course_id,
-            is_approved: false,
-          });
-          await courseRepo.save(course);
-        }
-        //檢查資料庫有無小節建檔，沒有的話新建一個
-        const hasSubChapter = await chapterRepo.findOneBy({ id: sub_chapter_id });
-
-        if (!hasSubChapter) {
-          const subChapterToSave = chapterRepo.create({
-            course_id: course.id,
-            id: sub_chapter_id,
-          });
-          await chapterRepo.save(subChapterToSave);
-        }
-        //確定已有小節檔案的情況，就更新影片資訊
-
-        const updateVideoAsset = await chapterRepo.update(
-          {
-            id: sub_chapter_id,
-          },
-          {
-            course_id: course_id,
-            mux_asset_id: asset_id,
-            mux_playback_id: playbackId,
-            duration: duration,
-            status: status,
-            uploaded_at: unixTot8zYYYYMMDD(created_at), //換算上傳時間，轉換unix時間為+8時區的時間格式
+        //內層try : 業務邏輯與資料處理
+        try {
+          if (!passthrough) {
+            return next(generateError(400, "passthrough 為空。由於未傳入章節id，無法儲存影片資料"));
           }
-        );
-        if (updateVideoAsset.affected === 0) {
-          return next(generateError(400, "影片資料儲存失敗"));
-        }
-        logger.info("已更新資料庫");
-        //取得所有該課程影片的時長(單位為秒數)
-        const subChapters = await chapterRepo
-          .createQueryBuilder("c")
-          .select("SUM(c.duration)", "total_duration")
-          .where("c.course_id = :course_id", { course_id: course_id })
-          .getRawOne();
-
-        //換算加總值為小時
-        const total_hours = Math.ceil(subChapters.total_duration / 3600);
-        await courseRepo.update(
-          { id: course_id },
-          {
-            total_hours: total_hours,
+          const { course_id, sub_chapter_id } = JSON.parse(passthrough);
+          //更新到Course_Chapter資料表
+          const existingVideo = await chapterRepo.findOneBy({ mux_asset_id: asset_id });
+          if (existingVideo) {
+            return next(generateError(409, "已儲存過此影片"));
           }
-        );
-        return res.status(200).send("Webhook processed: video.asset.ready");
+          logger.info(
+            `已接收passthrough。asset_id為 ${maskString(asset_id, 5)} 課程id為 ${maskString(course_id, 5)} 開始更新資料庫`
+          );
+
+          //檢查資料庫有無課程建檔，沒有的話就新建一個空殼課程
+          let course = await courseRepo.findOneBy({ id: course_id });
+          if (!course) {
+            course = courseRepo.create({
+              coach_id: course_id,
+              is_approved: false,
+            });
+            await courseRepo.save(course);
+          }
+          //檢查資料庫有無小節建檔，沒有的話新建一個
+          const hasSubChapter = await chapterRepo.findOneBy({ id: sub_chapter_id });
+
+          if (!hasSubChapter) {
+            const subChapterToSave = chapterRepo.create({
+              course_id: course.id,
+              id: sub_chapter_id,
+            });
+            await chapterRepo.save(subChapterToSave);
+          }
+          //確定已有小節檔案的情況，就更新影片資訊
+
+          const updateVideoAsset = await chapterRepo.update(
+            {
+              id: sub_chapter_id,
+            },
+            {
+              course_id: course_id,
+              mux_asset_id: asset_id,
+              mux_playback_id: playbackId,
+              duration: duration,
+              status: status,
+              uploaded_at: unixTot8zYYYYMMDD(created_at), //換算上傳時間，轉換unix時間為+8時區的時間格式
+            }
+          );
+          if (updateVideoAsset.affected === 0) {
+            return next(generateError(400, "影片資料儲存失敗"));
+          }
+          logger.info("已更新資料庫");
+          //取得所有該課程影片的時長(單位為秒數)
+          const subChapters = await chapterRepo
+            .createQueryBuilder("c")
+            .select("SUM(c.duration)", "total_duration")
+            .where("c.course_id = :course_id", { course_id: course_id })
+            .getRawOne();
+
+          //換算加總值為小時
+          const total_hours = Math.ceil(subChapters.total_duration / 3600);
+          await courseRepo.update(
+            { id: course_id },
+            {
+              total_hours: total_hours,
+            }
+          );
+          return res.status(200).send("Webhook processed: video.asset.ready");
+        } catch (dataError) {
+          logger.error("Webhook處理失敗，資料庫邏輯錯誤", dataError);
+          return res.status(200).send("Webhook received but failed to process");
+        }
       }
       //處理其他事件
       case "video.asset.uploaded":
@@ -211,8 +218,8 @@ const muxWebhookHandler = async (req, res, next) => {
         return res.sendStatus(204);
     }
   } catch (error) {
-    logger.warn("webhook錯誤", error.message);
-    return next(error);
+    logger.warn("webhook錯誤", error.name, error.message);
+    return res.status(400).send("Webhook signature/format error");
   }
 };
 

@@ -23,8 +23,6 @@ const {
 //固定路由
 //取得所有課程觀看資料，或依照輸入的課程id找對應課程
 router.get("/courses/views", auth, isCoach, coachController.getCoachViewStats);
-//建立新課程
-router.post("/course", auth, isCoach, coachController.postNewCourse);
 //教練取得自己所有課程
 router.get("/courses", auth, isCoach, coachController.getOwnCourses);
 //教練上傳大頭貼
