@@ -255,9 +255,11 @@ async function getCoaches(req, res, next) {
         "c.nickname AS coach_name",
         "c.job_title AS coach_title",
         "c.about_me AS coach_about_me",
+        "c.is_verified AS coach_is_verified", 
         "SUM(course.numbers_of_view) AS numbers_of_view",
       ])
       .groupBy("c.id")
+      .addGroupBy("c.is_verified")
       .orderBy("numbers_of_view", sort)
       .getRawMany();
 
