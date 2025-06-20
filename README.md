@@ -90,18 +90,40 @@ http://localhost:3000/
 ## 環境變數說明
 
 ```env
-PORT= #定義應用程式運行的伺服器端口號
-DB_HOST= #定義資料庫主機的地址，通常是伺服器的 IP 或域名。
-DB_PORT= #定義資料庫服務的連接端口號。
-DB_USERNAME= #定義資料庫服務的連接端口號。
-DB_PASSWORD= #定義連接資料庫所需的密碼。
-DB_NAME= #定義應用程式使用的資料庫名稱。
-JWT_EXPIRES_DAY= #定義 JSON Web Token (JWT) 的有效期限。
-JWT_TEMPORARY_EXPIRES_DAY= #定義臨時 JSON Web Token (如重設密碼的 Token) 的有效期限。
-JWT_SECRET= #定義用於加密和驗證 JWT 的密鑰。
-GMAIL_USER_NAME= #定義應用程式使用的 Gmail 帳戶名稱，通常用於發送電子郵件
-GMAIL_APP_PASSWORD= #定義 Gmail 帳戶的應用程式密碼，用於安全地發送電子郵件。
-DB_SYNCHRONIZE= #定義是否自動同步資料庫的表結構。
+PORT= # 定義應用程式運行的伺服器端口號
+DB_HOST= # 定義資料庫主機的地址，通常是伺服器的 IP 或域名
+DB_PORT= # 定義資料庫服務的連接端口號
+DB_USERNAME= # 定義資料庫的使用者名稱
+DB_PASSWORD= # 定義連接資料庫所需的密碼
+DB_NAME= # 定義應用程式使用的資料庫名稱
+JWT_EXPIRES_DAY= # 定義 JSON Web Token (JWT) 的有效期限
+JWT_TEMPORARY_EXPIRES_DAY= # 定義臨時 JWT 的有效期限
+JWT_SECRET= # 用於加密與驗證 JWT 的密鑰
+GMAIL_USER_NAME= # Gmail 發信帳號
+GMAIL_APP_PASSWORD= # Gmail 應用程式密碼
+DB_SYNCHRONIZE= # 是否自動同步資料庫結構（開發建議為 true）
+
+# === 金流設定（綠界） ===
+MERCHANT_ID= # 特店編號（Merchant ID）
+HASH_KEY= # 串接金鑰 HashKey
+HASH_IV= # 串接金鑰 HashIV
+RETURN_URL= # 付款完成導回網址
+NOTIFY_URL= # 付款狀態通知網址
+
+# === Cloudinary（圖片與影片雲端儲存）===
+CLOUDINARY_CLOUD_NAME= # Cloudinary 帳戶名稱
+CLOUDINARY_API_KEY= # Cloudinary API 金鑰
+CLOUDINARY_API_SECRET= # Cloudinary API 密鑰
+
+# === Mux（影片串流服務）===
+MUX_TOKEN_ID= # Mux API 金鑰 ID
+MUX_TOKEN_SECRET= # Mux API 金鑰密鑰
+
+MUX_SIGNING_KEY= # Mux 影片簽章金鑰
+MUX_SIGNING_KEY_SECRET= # 對應的私密簽章金鑰（Base64）
+
+MUX_SIGNING_KEY_FOR_PUBLIC= # 用於公開影片的簽章金鑰
+MUX_SIGNING_KEY_SECRET_FOR_PUBLIC= # 公開影片簽章金鑰的私密部分
 ```
 
 ---
