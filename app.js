@@ -7,6 +7,7 @@ const AppDataSource = require("./db/data-source");
 const generateError = require("./utils/generateError");
 const errorHandler = require("./middlewares/errorHandler");
 
+//取得路由
 const indexRouter = require("./routes/index");
 const userRouter = require("./routes/user");
 const authRouter = require("./routes/auth");
@@ -14,6 +15,9 @@ const courseRouter = require("./routes/course");
 const adminRouter = require("./routes/admin");
 const coachRouter = require("./routes/coach");
 const muxRouter = require("./routes/mux");
+
+//排程
+const { scheduleMuxDaliyStats } = require("./services/viewStatsCatcher");
 
 const app = express();
 
@@ -39,6 +43,10 @@ app.use("/api/v1/courses", courseRouter);
 app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/coaches", coachRouter);
 app.use("/api/v1/mux", muxRouter);
+
+//啟動排程
+//每日取得昨天所有觀看數據
+scheduleMuxDaliyStats();
 
 // 錯誤處理中介軟體
 app.use(function (req, res, next) {
