@@ -130,63 +130,60 @@ async function getProfile(req, res, next) {
       relations: ["Skill"],
     });
     // 取得教練技能資料
+    const coachSkills = [];
     if (coachSkillData.length > 0) {
-      const coachSkills = coachSkillData.map((cs) => ({
-        name: cs.Skill.name,
-      }));
-
-      const coachData = {
-        id: coach.id,
-        email: coach.email,
-        nickname: coach.nickname,
-        skills: coachSkills || [], //技能陣列
-        profile_image_url: coach.profile_image_url,
-        profile_image_public_id: coach.profile_image_public_id,
-        background_image_url: coach.background_image_url,
-        background_image_public_id: coach.background_image_public_id,
-        job_title: coach.job_title,
-        about_me: coach.about_me,
-        hobby: coach.hobby,
-        experience: coach.experience,
-        favorite_words: coach.favorite_words,
-        motto: coach.motto,
-        is_verified: coach.is_verified,
-        realname: coach.realname,
-        id_number: coach.id_number,
-        phone_number: coach.phone_number,
-        birthday: coach.birthday,
-        lisence: coach.lisence,
-        bank_code: coach.bank_code,
-        bank_account: coach.bank_account,
-        bankbook_copy_url: coach.bankbook_copy_url,
-        bankbook_copy_public_id: coach.bankbook_copy_public_id,
-        skill_description: coach.skill_description,
-        experience_years: coach.experience_years,
-        created_at: formatDate(coach.created_at),
-        updated_at: formatDate(coach.updated_at),
-      };
-      const coachLicenseData = await coachLisenseRepo.find({
-        where: { coach_id: coachId },
-      });
-      let coachLicenses = [];
-      if (coachLicenseData.length > 0) {
-        coachLicenses = coachLicenseData.map((cl) => ({
-          id: cl.id,
-          name: cl.filename,
-          file_public_id: cl.file_public_id,
-          file_url: cl.file_url,
-        }));
-      }
-
-      res.status(200).json({
-        status: true,
-        message: "成功取得資料",
-        data: {
-          coachDetails: coachData,
-          licenses: coachLicenses || [],
-        },
-      });
+      coachSkillData.map((cs) => coachSkills.push(cs.Skill.name));
     }
+    const coachData = {
+      id: coach.id,
+      email: coach.email,
+      nickname: coach.nickname,
+      skills: coachSkills || [], //技能陣列
+      profile_image_url: coach.profile_image_url,
+      profile_image_public_id: coach.profile_image_public_id,
+      background_image_url: coach.background_image_url,
+      background_image_public_id: coach.background_image_public_id,
+      job_title: coach.job_title,
+      about_me: coach.about_me,
+      hobby: coach.hobby,
+      experience: coach.experience,
+      favorite_words: coach.favorite_words,
+      motto: coach.motto,
+      is_verified: coach.is_verified,
+      realname: coach.realname,
+      id_number: coach.id_number,
+      phone_number: coach.phone_number,
+      birthday: coach.birthday,
+      lisence: coach.lisence,
+      bank_code: coach.bank_code,
+      bank_account: coach.bank_account,
+      bankbook_copy_url: coach.bankbook_copy_url,
+      bankbook_copy_public_id: coach.bankbook_copy_public_id,
+      skill_description: coach.skill_description,
+      experience_years: coach.experience_years,
+      created_at: formatDate(coach.created_at),
+      updated_at: formatDate(coach.updated_at),
+    };
+    const coachLicenseData = await coachLisenseRepo.find({
+      where: { coach_id: coachId },
+    });
+    let coachLicenses = [];
+    if (coachLicenseData.length > 0) {
+      coachLicenses = coachLicenseData.map((cl) => ({
+        id: cl.id,
+        name: cl.filename,
+        file_public_id: cl.file_public_id,
+        file_url: cl.file_url,
+      }));
+    }
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: {
+        coachDetails: coachData,
+        licenses: coachLicenses || [],
+      },
+    });
   } catch (error) {
     next(error);
   }
@@ -726,7 +723,7 @@ async function patchCourse(req, res, next) {
       where: { name: name },
     });
     if (sameCourseName.length > 1) {
-      return next(generateError(409, `已有相同課程名稱${name}`));
+      return next(generateError(409, `已有相同課程名稱 ${name}`));
     }
 
     //使用Joi驗證章節框架資料
@@ -739,7 +736,7 @@ async function patchCourse(req, res, next) {
         };
       });
       logger.warn(errors);
-      return next(generateError(400, `章節格式驗證失敗，${error.message}`));
+      return next(generateError(400, `章節格式驗證失敗，請檢查每個章節是否都有輸入內容並上傳影片`));
     }
 
     //將章節巢狀架構鋪平
@@ -843,7 +840,7 @@ async function patchCourse(req, res, next) {
 
     if (idsOfWrongCourse.length > 0) {
       logger.warn(`課程編號${courseId}更新失敗，小節更新到錯誤課程`);
-      return next(generateError(400, "課程更新失敗，因章節小節未能正確儲存"));
+      return next(generateError(400, "章節小節未能正確儲存"));
     }
 
     //刪除更動後沒有使用到的小節id、影片

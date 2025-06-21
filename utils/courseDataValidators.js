@@ -37,16 +37,16 @@ const chapterSchema = Joi.object({
   }),
   sub_chapter: Joi.array().items(subChapterSchema).min(1).required().messages({
     "array.base": "小節必須是陣列",
-    "array.min": "小節至少要有一個元素",
-    "any.required": "小節至少要有一個元素",
+    "array.min": "至少要有一個小節",
+    "any.required": "至少要有一個小節",
   }),
 });
 
 //定義整個course data的驗證模式
 const chaptersArraySchema = Joi.array().items(chapterSchema).min(1).required().messages({
   "array.base": "章節必須是陣列",
-  "array.min": "章節至少要有一個元素",
-  "any.required": "章節至少要有一個元素",
+  "array.min": "至少要有一個章節",
+  "any.required": "至少要有一個章節",
 });
 
 module.exports = {
