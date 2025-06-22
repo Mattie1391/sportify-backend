@@ -249,15 +249,17 @@ async function getCoaches(req, res, next) {
     // 取得教練資料
     const rawCoaches = await AppDataSource.getRepository("Coach")
       .createQueryBuilder("c")
-      .innerJoin("c.Course", "course")
+      .leftJoin("c.Course", "course")
       .select([
         "c.id AS coach_id",
         "c.nickname AS coach_name",
         "c.job_title AS coach_title",
         "c.about_me AS coach_about_me",
+        "c.is_verified AS coach_is_verified", 
         "SUM(course.numbers_of_view) AS numbers_of_view",
       ])
       .groupBy("c.id")
+      .addGroupBy("c.is_verified")
       .orderBy("numbers_of_view", sort)
       .getRawMany();
 
@@ -347,18 +349,6 @@ async function getCoachDetails(req, res, next) {
     const coach = await coachRepo.findOneBy({ id: coachId });
     if (!coach) {
       return next(generateError(404, "查無此教練"));
-    }
-    //檢查頭貼網址是否正確，不正確則設為null
-    if (!coach.profile_image_url || isNotValidUrl(coach.profile_image_url)) {
-      coach.profile_image_url = null;
-    }
-    //檢查背景圖片網址是否正確，不正確則設為null
-    if (!coach.background_image_url || isNotValidUrl(coach.background_image_url)) {
-      coach.background_image_url = null;
-    }
-    //檢查銀行存摺影像網址是否正確，不正確則設為null
-    if (!coach.bankbook_copy_url || isNotValidUrl(coach.bankbook_copy_url)) {
-      coach.bankbook_copy_url = null;
     }
     const coachSkillData = await coachSkillRepo.find({
       where: { coach_id: coachId },
@@ -491,6 +481,49 @@ async function patchReviewCourse(req, res, next) {
       return res.status(200).json({
         status: true,
         message: "課程審核未通過，狀態已更新為 rejected",
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+}
+
+//審核教練資格
+async function patchReviewCoach(req, res, next) {
+  try {
+    // 取得 route param coachId 並驗證
+    const { coachId } = req.params;
+    if (!coachId || isNotValidUUID(coachId)) {
+      return next(generateError(400, "教練 ID 格式不正確"));
+    }
+
+    // 檢查 body 參數
+    const { status, reviewComment } = req.body;
+    const allowedStatus = ["approved", "rejected"];
+    if (!status || !allowedStatus.includes(status)) {
+      return next(generateError(400, "status 參數錯誤，必須為 approved 或 rejected"));
+    }
+
+    // 取得教練資料
+    const coach = await coachRepo.findOne({ where: { id: coachId } });
+    if (!coach) {
+      return next(generateError(404, "查無此教練"));
+    }
+
+    // 更新教練審核狀態
+    coach.is_verified = status === "approved";
+    await coachRepo.save(coach);
+
+    // 回傳訊息
+    if (status === "approved") {
+      return res.status(200).json({
+        status: true,
+        message: "教練資格審核成功，狀態已更新為 approved",
+      });
+    } else {
+      return res.status(200).json({
+        status: true,
+        message: "教練資格審核未通過，狀態已更新為 rejected",
       });
     }
   } catch (error) {
@@ -821,4 +854,5 @@ module.exports = {
   getCourseTypes,
   getDataAnalysis,
   getUsers,
+  patchReviewCoach,
 };

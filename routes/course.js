@@ -14,6 +14,10 @@ router.get("/coach-type", courseController.getCoachType);
 router.get("/", courseController.getCourses);
 //取得教練列表
 router.get("/coaches", courseController.getCoaches);
+//取得首頁的試看播放url
+router.get("/get-play-url", courseController.getHomepagePlayUrl);
+//取得課程-首頁搜索框
+router.get("/search-courses", courseController.getKeywordCourses);
 
 //動態路由
 //取得課程評價

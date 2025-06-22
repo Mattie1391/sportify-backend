@@ -11,7 +11,6 @@ module.exports = new EntitySchema({
     id: {
       primary: true,
       type: "uuid",
-      generated: "uuid",
     },
 
     // 課程 ID，對應到哪一門課程（外鍵）
@@ -72,14 +71,14 @@ module.exports = new EntitySchema({
       length: 64,
       nullable: true,
     },
+    filename: {
+      type: "varchar",
+      length: 50,
+      nullable: true,
+    },
     duration: {
       type: "float",
       nullable: true,
-    },
-    filename:{
-      type:"varchar",
-      length: 50,
-      nullable:true
     },
     status: {
       type: "varchar",

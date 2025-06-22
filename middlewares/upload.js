@@ -17,7 +17,11 @@ const storage = new CloudinaryStorage({
   params: async (req, file) => {
     //取用req.body或檔案來源來判斷性質
     const type = req.body?.type || file.fieldname || "default";
-    if (!["avatar", "coachAvatar", "background", "bankbook", "license"].includes(type)) {
+    if (
+      !["avatar", "coachAvatar", "background", "bankbook", "license", "courseThumbnail"].includes(
+        type
+      )
+    ) {
       throw new Error("不支援的上傳類型");
     }
     let folder = "";
@@ -39,6 +43,8 @@ const storage = new CloudinaryStorage({
       case "license":
         folder = "coach/license";
         break;
+      case "courseThumbnail":
+        folder = "coach/course-thumbnail";
     }
     return {
       folder,

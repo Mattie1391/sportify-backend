@@ -1,7 +1,12 @@
 const bcrypt = require("bcryptjs");
 const cloudinary = require("cloudinary").v2;
 const logger = require("../config/logger");
-const { MoreThan, Like, In } = require("typeorm");
+const { MoreThan, Like } = require("typeorm");
+const config = require("../config/index");
+const { Mux } = require("@mux/mux-node");
+const { muxSigningKey, muxSigningKeySecret } = config.get("mux");
+const mux = new Mux();
+
 //repo
 const AppDataSource = require("../db/data-source");
 const userRepo = AppDataSource.getRepository("User");
@@ -10,6 +15,9 @@ const courseRepo = AppDataSource.getRepository("Course");
 const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
 const favoriteRepo = AppDataSource.getRepository("User_Course_Favorite");
 const subscriptionRepo = AppDataSource.getRepository("Subscription");
+const planRepo = AppDataSource.getRepository("Plan");
+const viewProgressRepo = AppDataSource.getRepository("View_Progress");
+
 //services
 const {
   getLatestSubscription,
@@ -834,6 +842,33 @@ async function getCourseDetails(req, res, next) {
     if (!currentChapter) {
       return next(generateError(404, "查無此章節"));
     }
+    //為製作播放url token，取得此人目前訂閱方案
+    const latestSubscription = await getLatestSubscription(userId);
+    const planId = latestSubscription.plan_id;
+    const plan = await planRepo.findOneBy({ id: planId });
+    const subChapter = await courseChapterRepo.findOneBy({ id: chapterId });
+    const playbackId = subChapter.mux_playback_id;
+    if (!playbackId) {
+      return next(generateError(404, "該課程章節維護中，無法取得影片"));
+    }
+    //取得此人有權觀看的最大解析度
+    const maxRes = plan.max_resolution + "p";
+
+    //依照學員訂閱等級製作mux播放jwt token
+    let baseOptions = {
+      keyId: muxSigningKey,
+      keySecret: muxSigningKeySecret,
+      expiration: "6h",
+      params: {
+        max_resolution: maxRes,
+        viewer_id: userId,
+      },
+    };
+    const token = await mux.jwt.signPlaybackId(playbackId, { ...baseOptions, type: "video" });
+
+    //生成播放網址
+    const streamURL = `https://stream.mux.com/${playbackId}.m3u8?token=${token}`;
+
     //整理回傳資料
     const data = {
       course: {
@@ -846,7 +881,7 @@ async function getCourseDetails(req, res, next) {
         numbers_of_view: course.numbers_of_view,
         hours: course.total_hours,
         image_url: course.image_url,
-        video_url: course.trailer_url, //TODO:待確認網址格式，所有課程的第一部影片皆需設為公開
+        video_url: streamURL,
         description: course.description,
       },
       coach: {
@@ -896,18 +931,22 @@ async function getCourseChaptersSidebar(req, res, next) {
     });
 
     // 不再需要從 videoRepo 取得影片，因為影片資訊（例如 duration）直接存在 chapter 中
-
-    const fakeProgress = chapters.map((chapter, index) => {
+    // 取得各章節的觀看進度
+    const viewProgress = await viewProgressRepo.find({
+      where: { user_id: req.user.id },
+      select: ["sub_chapter_id", "is_completed"],
+    });
+    const userProgress = chapters.map((chapter) => {
       const duration = chapter.duration || 0;
       const lengthStr = duration
         ? `${Math.floor(duration / 60)}分${Math.round(duration % 60)}秒`
         : "未提供";
 
       return {
+        chapterId: chapter.id,
         name: chapter.subtitle,
         length: lengthStr,
-        isFinished: index < 2, // 假設前兩個已完成
-        isCurrentWatching: index === 2, // 假設第三個正在觀看
+        isFinished: viewProgress.find(c=> c.sub_chapter_id === chapter.id)?.is_completed || false, // 檢查是否已完成觀看
       };
     });
 
@@ -917,9 +956,58 @@ async function getCourseChaptersSidebar(req, res, next) {
       message: "成功取得資料",
       data: {
         courseName: course.name,
-        chapter: fakeProgress,
+        chapter: userProgress,
       },
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+//更新學員觀看進度
+async function postViewProgress(req, res, next) {
+  try {
+    const userId = req.user.id;
+    const { sub_chapter_id, is_completed } = req.body;
+    //驗證輸入的資料格式
+    if (isNotValidUUID(sub_chapter_id) || typeof is_completed !== "boolean") {
+      return next(generateError(400, "資料格式錯誤"));
+    }
+    const chapter = await courseChapterRepo.findOneBy({ id: sub_chapter_id });
+    if (!chapter) {
+      return next(generateError(404, "查無該章節對應的課程"));
+    }
+    //判斷訂閱是否有效
+    const hasActiveSubscription = req.user.hasActiveSubscription;
+    if (!hasActiveSubscription) {
+      return next(generateError(403, "尚未訂閱或訂閱已失效，無可觀看課程類別"));
+    }
+    //若訂閱有效，判斷此人是否可觀看此類別
+    const canWatchType = await checkCourseAccess(userId, chapter.course_id);
+    if (!canWatchType) throw generateError(403, "未訂閱該課程類別");
+
+    //檢查是否已有觀看紀錄。即使已有，只要不更新資料庫，仍回報success
+    const hasWatched = await viewProgressRepo.findOneBy({
+      user_id: userId,
+      sub_chapter_id: sub_chapter_id,
+    });
+    if (!hasWatched) {
+      const viewProgress = viewProgressRepo.create({
+        user_id: userId,
+        sub_chapter_id,
+        is_completed,
+      });
+      await viewProgressRepo.save(viewProgress);
+      res.status(201).json({
+        status: true,
+        message: "已新增章節觀看進度",
+      });
+    } else {
+      res.status(200).json({
+        status: true,
+        message: "已有觀看進度，不再更新",
+      });
+    }
   } catch (error) {
     next(error);
   }
@@ -939,4 +1027,5 @@ module.exports = {
   getSubscriptions,
   getCourseDetails,
   getCourseChaptersSidebar,
+  postViewProgress,
 };
