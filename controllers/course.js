@@ -84,6 +84,7 @@ async function getCoaches(req, res, next) {
         "SUM(course.numbers_of_view) AS numbers_of_view", //教練觀看人次總數
       ])
       .where("c.is_verified = :isVerified", { isVerified: true }) //只取得已認證的教練資料
+      .andWhere("course.is_approved = :isApproved", { isApproved: true }) //必須有已審核的課程資料
       .groupBy("c.id") // 將相同教練的資料聚合,計算每個教練的總觀看人次
       .orderBy("numbers_of_view", sort) //按觀看人次排序，讓熱門課程類別排在前面
       .getRawMany();
@@ -521,7 +522,7 @@ const getKeywordCourses = async (req, res, next) => {
         .createQueryBuilder("c")
         .innerJoin("c.Skill", "s")
         .innerJoin("c.Coach", "coach")
-        .where(`${field} LIKE :keyword`, { keyword: `%${keyword}%` })
+        .where(`LOWER(${field}) LIKE LOWER(:keyword)`, { keyword: `%${keyword}%` })
         .andWhere("c.is_approved = :isApproved", { isApproved: true })
         .select(fullCourseFields)
         .getRawMany();
