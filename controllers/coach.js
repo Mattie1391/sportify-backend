@@ -11,6 +11,7 @@ const skillRepo = AppDataSource.getRepository("Skill");
 const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
 const coachLisenseRepo = AppDataSource.getRepository("Coach_License");
 const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
+const paymentRepo = AppDataSource.getRepository("Payment_Transfer");
 const { Mux } = require("@mux/mux-node");
 const config = require("../config/index");
 const { muxTokenId, muxTokenSecret } = config.get("mux");
