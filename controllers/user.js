@@ -944,6 +944,7 @@ async function getCourseChaptersSidebar(req, res, next) {
 
       return {
         chapterId: chapter.id,
+        title: chapter.title,
         name: chapter.subtitle,
         length: lengthStr,
         isFinished: viewProgress.find(c=> c.sub_chapter_id === chapter.id)?.is_completed || false, // 檢查是否已完成觀看
