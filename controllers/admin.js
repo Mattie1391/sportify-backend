@@ -255,7 +255,7 @@ async function getCoaches(req, res, next) {
         "c.nickname AS coach_name",
         "c.job_title AS coach_title",
         "c.about_me AS coach_about_me",
-        "c.is_verified AS coach_is_verified", 
+        "c.is_verified AS coach_is_verified",
         "SUM(course.numbers_of_view) AS numbers_of_view",
       ])
       .groupBy("c.id")

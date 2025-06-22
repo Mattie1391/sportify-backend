@@ -1,6 +1,8 @@
 const { In } = require("typeorm");
 const logger = require("../config/logger");
 const cloudinary = require("cloudinary").v2;
+const dayjs = require("dayjs");
+
 const AppDataSource = require("../db/data-source");
 const courseRepo = AppDataSource.getRepository("Course");
 const viewRepo = AppDataSource.getRepository("View_Stat");
@@ -9,6 +11,7 @@ const skillRepo = AppDataSource.getRepository("Skill");
 const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
 const coachLisenseRepo = AppDataSource.getRepository("Coach_License");
 const courseChapterRepo = AppDataSource.getRepository("Course_Chapter");
+const paymentRepo = AppDataSource.getRepository("Payment_Transfer");
 const { Mux } = require("@mux/mux-node");
 const config = require("../config/index");
 const { muxTokenId, muxTokenSecret } = config.get("mux");
@@ -21,7 +24,12 @@ const mux = new Mux({
 //services
 
 //utils
-const { isNotValidString, isNotValidUUID, isNotValidUrl } = require("../utils/validators"); // 引入驗證工具函數
+const {
+  isNotValidString,
+  isNotValidUUID,
+  isNotValidUrl,
+  isValidMonthFormat,
+} = require("../utils/validators"); // 引入驗證工具函數
 const generateError = require("../utils/generateError");
 const { validateField } = require("../utils/coachProfileValidators");
 const { chaptersArraySchema } = require("../utils/courseDataValidators"); //引入驗證教練課程表單的章節架構驗證模組
@@ -29,19 +37,21 @@ const { formatDate } = require("../utils/formatDate");
 const maskString = require("../utils/maskString"); //引入遮蔽敏感資訊(如用戶相關id)的模糊化字串工具
 
 //教練取得所有課程(可以限制特定一門課程)的每月觀看次數、總計觀看次數API
-async function getCoachViewStats(req, res, next) {
+async function getCoachAnalysis(req, res, next) {
   try {
     //禁止前端亂輸入參數，如banana=999
-    const validQuery = ["courseId"];
+    const validQuery = ["courseId", "month"]; //month是用以選擇特定收益月份
     const queryKeys = Object.keys(req.query);
     const invalidQuery = queryKeys.filter((key) => !validQuery.includes(key));
     if (invalidQuery.length > 0) {
       return next(generateError(400, `不允許的參數：${invalidQuery.join(", ")}`));
     }
     const coachId = req.user.id;
+    //驗證req.body與query string的資訊
     const courseId = req.query.courseId || null;
+    const month = req.query.month || null;
     if (courseId !== null && (isNotValidString(courseId) || isNotValidUUID(courseId))) {
-      return next(generateError(400, "ID格式不正確"));
+      return next(generateError(400, "課程ID格式不正確"));
     }
     const course = await courseRepo.findOneBy({ id: courseId });
     if (!course) {
@@ -50,64 +60,245 @@ async function getCoachViewStats(req, res, next) {
     if (courseId !== null && coachId !== course.coach_id) {
       return next(generateError(403, "權限不足，您未擁有這門課程"));
     }
-    //建立查詢器
-    let queryBuilder = viewRepo
-      .createQueryBuilder("v") //將對View_Stat資料表的query暱稱為v
-      .leftJoin("course", "c", "c.id=v.course_id") //併入course表(暱稱c)
-      .select("v.course_id", "course_id") //選取課程id，將回傳的欄位命名為course_id
-      .addSelect("c.name", "course_name") //選取課程名稱，欄位命名為course_name
-      .addSelect(`DATE_TRUNC('month', v.date)`, "period") //用PostgesSQL函數DATE_TRUNC擷取timestamp到月份(到當月1號00:00:00)
-      .addSelect("SUM(view_count)", "view_counts") //加總月度觀看次數，並命名欄位為"view_counts
-      .groupBy("v.course_id") //依課程id排序(如果未指定課程的話)
-      .addGroupBy("c.name") //依課程名稱分組
-      .addGroupBy("period") //再依月份分組
-      .orderBy("period", "ASC"); //採月份舊在前新在後
 
-    //邏輯判斷，若前端有傳入course id，就只能查該門課程的觀看次數，若未傳入(else)，則是該教練所有課程的觀看次數加總
-    if (courseId) {
-      queryBuilder = queryBuilder.where("v.course_id = :courseId AND c.coach_id = :coachId", {
-        courseId,
-        coachId,
-      }); //:courseId是防止SQL injection的參數佔位符，會被courseId的值取代
-    } else {
-      queryBuilder = queryBuilder.where("c.coach_id = :coachId", { coachId });
+    if (month && !isValidMonthFormat(month)) {
+      return next(generateError(400, "月份格式錯誤，請使用 YYYY-MM 格式"));
     }
-    const rawData = await queryBuilder.getRawMany();
+    //建立供教練選擇的課程選項列
+    const courseOptions = await courseRepo.find({
+      where: { coach_id: coachId, is_approved: "true" },
+      select: ["id", "name"],
+    });
 
-    //加總所有課程觀看次數
-    const total_views = rawData.reduce((sum, row) => sum + parseInt(row.view_counts), 0);
-    //整理資料格式，創建一個空白陣列，並用reduce、push將每筆row資料加入陣列當中。累加過程會儲存在acc變數中。
-    const result = rawData.reduce((acc, row) => {
-      const key = row.course_id;
-      const course = acc.find((item) => item.course_id === key); //在acc中找尋對應課程id的統計資料，
+    //將課程選項化為courseId
+    const courseIds = courseOptions.map((c) => c.id);
+    //若還沒有已上架的課程，則回傳空資料
+    if (!courseIds.length)
+      return res.status(200).json({
+        courseOptions,
+        status: true,
+        message: "您還沒有開通課程，尚無報表可供查詢",
+        data: null,
+      });
 
-      //轉換為台灣時區當日8點
-      const raw = new Date(row.period);
-      const utc8 = new Date(raw.getTime() + 8 * 60 * 60 * 1000);
-      const year = utc8.getFullYear();
-      const month = utc8.getMonth() + 1;
+    //依照courseId做篩選查詢。若未輸入id，則返回教練開設的所有課程
+    const courseFilter = courseId ? "v.course_id = :courseId" : "v.course_id IN (:...courseIds)"; //將courseIds展開以列出所有值
+    const courseParams = courseId ? { courseId } : { courseIds };
 
-      const record = {
-        // iso_month:`${year}-${month.toString().padStart(2,"0")}`,
-        month: `${year}年${month}月`,
-        view_counts: parseInt(row.view_counts),
-      };
-      //若有未加入過的課程在加總，適用if條件新建一個物件，若是已有課程的新的月份資料，就分類到該課程的物件裡
-      if (!course) {
-        acc.push({
-          course_id: row.course_id,
-          course_name: row.course_name,
-          views_by_month: [record],
+    //查詢by課程、所有月份觀看次數統計
+    const viewStats = await viewRepo
+      .createQueryBuilder("v")
+      .leftJoin("v.Course", "c")
+      .select([
+        "v.course_id AS course_id",
+        "DATE_TRUNC('month', v.date) AS month",
+        "SUM(v.view_count) AS view_count",
+        "c.name AS name",
+      ])
+      .where(courseFilter, courseParams)
+      .groupBy("course_id")
+      .addGroupBy("name")
+      .addGroupBy("month")
+      .orderBy("course_id")
+      .addOrderBy("month", "ASC")
+      .getRawMany();
+
+    //調整觀看次數呈現的資料格式
+    for (const i of viewStats) {
+      i.month = i.month ? dayjs(i.month).format("YYYY-MM") : "未知";
+    }
+
+    //目前收益分成沒有計算by課程的要素，所以只有不分課程時才呈現
+    // 但若深究分成計算方式，也會需要依照課程執行
+
+    //設定若有只訂月份時的查詢範圍
+    const monthBegin = dayjs(`${month}-01`).startOf("month").toDate();
+    const monthEnd = dayjs(monthBegin).endOf("month").toDate();
+
+    const revenueStats = await paymentRepo
+      .createQueryBuilder("p")
+      .select([
+        "DATE_TRUNC('month', p.transfered_at) AS month",
+        "SUM(p.amount) AS revenue",
+        "p.is_transfered AS is_transfered",
+      ])
+      .where("p.coach_id = :coachId", { coachId })
+      .andWhere("p.transfered_at BETWEEN :monthBegin AND :monthEnd", { monthBegin, monthEnd })
+      .groupBy("month")
+      .addGroupBy("is_transfered")
+      .orderBy("month", "ASC")
+      .getRawMany();
+
+    //計算總收益(包括未匯款)
+    let revenueOfAllTime = revenueStats.reduce((sum, r) => sum + Number(r.revenue), 0);
+
+    //調整收益分成的金錢資料格式
+    for (const i of revenueStats) {
+      i.month = i.month ? dayjs(i.month).format("YYYY-MM") : "未知";
+      i.revenue = i.revenue
+        ? new Intl.NumberFormat("zh-TW", {
+            style: "currency",
+            currency: "NTD",
+          }).format(i.revenue)
+        : "0";
+      i.is_transfered = i.is_transfered === true ? "已支付" : "未支付";
+    }
+
+    //加總觀看次數(特定課程或所有課程)
+    let totalViewsByCourse = viewStats.reduce((sum, v) => sum + Number(v.view_count), 0);
+
+    //製作圓餅圖呈現的百分比資料，因為圖表套件會自行套用百分比，只提供數值
+    let pie_chart = [];
+    for (const month of viewStats) {
+      const viewCount = Number(month.view_count);
+      const percentage =
+        totalViewsByCourse > 0 ? Math.round((viewCount / totalViewsByCourse) * 100) : 0;
+      pie_chart.push({ month: month.month, percentage: percentage });
+    }
+
+    //調整總觀看次數資料格式
+    totalViewsByCourse = totalViewsByCourse
+      ? new Intl.NumberFormat().format(totalViewsByCourse)
+      : "0";
+
+    //調整總收益的金錢資料格式
+    revenueOfAllTime = revenueOfAllTime
+      ? new Intl.NumberFormat("zh-TW", {
+          style: "currency",
+          currency: "NTD",
+        }).format(revenueOfAllTime)
+      : "0";
+
+    //建立三個月前至今逐月的觀看次數變化(底下的手風琴選單)
+
+    //取得三個月前至今的時間範圍
+    const now = dayjs();
+    const startMonth = now.startOf("month").subtract(3, "month"); //取得三個月前，設定三個月前首日起始
+    const endMonth = now.endOf("month"); //累計到本月底
+
+    const startDate = startMonth.toDate();
+    const endDate = endMonth.toDate();
+
+    //取得特定課程前三個月至今每月的觀看紀錄
+    const viewByLast3M = await viewRepo
+      .createQueryBuilder("v")
+      .leftJoin("v.CourseChapter", "cc")
+      .select([
+        "cc.id AS subchapter_id",
+        "DATE_TRUNC('month', v.date) AS month",
+        "SUM(v.view_count) AS monthly_views",
+        "cc.chapter_number AS chapter_number",
+        "cc.title AS title",
+      ])
+      .where("cc.course_id = :courseId", { courseId })
+      .andWhere("v.date BETWEEN :startDate AND :endDate", { startDate, endDate })
+      .groupBy("cc.id")
+      .addGroupBy("cc.chapter_number")
+      .addGroupBy("cc.title")
+      .addGroupBy("month")
+      .orderBy("cc.chapter_number", "ASC")
+      .addOrderBy("month", "ASC")
+      .getRawMany();
+
+    //單獨取得章節的總收看次數
+    const viewsOfAllTime = await viewRepo
+      .createQueryBuilder("v")
+      .leftJoin("v.CourseChapter", "cc")
+      .select([
+        "SUM(v.view_count) AS total_views",
+        "cc.chapter_number AS chaptern_umber",
+        "cc.title AS title",
+      ])
+      .where("cc.course_id = :courseId", { courseId })
+      .groupBy("cc.chapter_number")
+      .addGroupBy("cc.title")
+      .orderBy("chapter_number", "ASC")
+      .getRawMany();
+
+    //建立依照章節名稱分組的觀看次數資料 : 三個月至今每個月、章節總觀看次數、本月新增次數、上個月新增次數
+    const statsByChapter = new Map();
+
+    //在陣列內建立每個月的資料架構
+    for (const stat of viewByLast3M) {
+      const title = stat.title;
+      const chNumber = stat.chapter_number;
+      const month = dayjs(stat.month).format("YYYY-MM");
+      const viewCount = Number(stat.monthly_views);
+
+      if (!statsByChapter.has(title)) {
+        statsByChapter.set(title, {
+          chapterNumber: chNumber,
+          title,
+          monthly: {},
+          totalViews: 0,
+          currentMonth: 0,
+          lastMonth: 0,
         });
-      } else {
-        course.views_by_month.push(record);
       }
-      return acc;
-    }, []);
+      const chapter = statsByChapter.get(title);
+      chapter.monthly[month] = viewCount;
+    }
+    //將特定章節的總觀看次數賦予到每章節的totalViews上
+    for (const stat of viewsOfAllTime) {
+      const title = stat.title;
+      if (statsByChapter.has(title)) {
+        statsByChapter.get(title).totalViews = Number(stat.total_views);
+      }
+    }
+    //轉成陣列
+    const chapterStats = Array.from(statsByChapter.values());
+
+    //計算統計資料
+    const currentMonthStr = now.format("YYYY-MM");
+    const lastMonthStr = now.subtract(1, "month").format("YYYY-MM");
+
+    for (const chapter of chapterStats) {
+      chapter.currentMonth = chapter.monthly[currentMonthStr] || 0;
+      chapter.lastMonth = chapter.monthly[lastMonthStr] || 0;
+
+      //轉換觀看次數數字為千分位標註逗號的字串
+      chapter.currentMonth = chapter.currentMonth
+        ? new Intl.NumberFormat().format(chapter.currentMonth)
+        : "0";
+      chapter.lastMonth = chapter.lastMonth
+        ? new Intl.NumberFormat().format(chapter.lastMonth)
+        : "0";
+      chapter.totalViews = chapter.totalViews
+        ? new Intl.NumberFormat().format(chapter.totalViews)
+        : "0";
+      for (const m in chapter.monthly) {
+        chapter.monthly[m] = chapter.monthly[m]
+          ? new Intl.NumberFormat().format(chapter.monthly[m])
+          : "0";
+      }
+    }
+
+    //取得教練各人資訊
+    const coachInfo = await coachRepo.findOneBy({ id: coachId });
+
+    //組裝所有資料
+    const analysisData = {
+      coach: {
+        coach_id: coachId,
+        nickname: coachInfo.nickname,
+        profile_image_url: coachInfo.profile_image_url,
+      },
+      summary: {
+        total_income: revenueOfAllTime,
+        total_views: totalViewsByCourse,
+      },
+      view_stats: {
+        pie_chart,
+        bar_chart: viewStats,
+      },
+      income_detail: revenueStats,
+      chapter_report: statsByChapter,
+    };
+
     res.status(200).json({
       status: true,
       message: "成功取得資料",
-      data: { total_views: total_views, view_stat: result },
+      data: analysisData,
     });
   } catch (error) {
     next(error);
@@ -915,7 +1106,7 @@ async function patchCourse(req, res, next) {
   }
 }
 module.exports = {
-  getCoachViewStats,
+  getCoachAnalysis,
   getProfile,
   patchProfile,
   getOwnCourses,
