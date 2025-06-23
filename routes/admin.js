@@ -39,5 +39,7 @@ router.patch("/coaches/:coachId/review", auth, isAdmin, adminController.patchRev
 router.get("/coaches/:coachId", auth, isAdmin, adminController.getCoachDetails);
 //取得使用者訂閱紀錄
 router.get("/subscriptions/:userId", auth, isAdmin, userController.getSubscriptions);
+//取得課程詳細資訊
+router.get("/courses/:courseId", auth, isAdmin, adminController.getCourseDetails);
 
 module.exports = router;
