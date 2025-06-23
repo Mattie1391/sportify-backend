@@ -1,5 +1,6 @@
 const AppDataSource = require("../db/data-source");
 const courseRepo = AppDataSource.getRepository("Course");
+const chapterRepo = AppDataSource.getRepository("Course_Chapter");
 const planRepo = AppDataSource.getRepository("Plan");
 const coachRepo = AppDataSource.getRepository("Coach");
 const subscriptionRepo = AppDataSource.getRepository("Subscription");
@@ -8,6 +9,10 @@ const skillRepo = AppDataSource.getRepository("Skill");
 const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
 const coachLisenseRepo = AppDataSource.getRepository("Coach_License");
 const paymentRepo = AppDataSource.getRepository("Payment_Transfer");
+const { Mux } = require("@mux/mux-node");
+const mux = new Mux();
+const config = require("../config/index");
+const { muxSigningKeyForPublic, muxSigningKeySecretForPublic } = config.get("mux");
 //services
 const { getAllCourseTypes } = require("../services/typeServices");
 const { courseFilter, coachFilter } = require("../services/filterServices");
@@ -637,6 +642,99 @@ async function getCourses(req, res, next) {
   }
 }
 
+//取得課程詳細資訊
+async function getCourseDetails(req, res, next) {
+  try {
+    const courseId = req.params.courseId;
+    if (isNotValidUUID(courseId)) {
+      return next(generateError(400, "課程 ID 格式不正確"));
+    }
+    const course = await courseRepo.findOneBy({ id: courseId });
+    if (!course) {
+      return next(generateError(404, "查無此課程"));
+    }
+    const coachId = course.coach_id;
+    const coach = await coachRepo.findOneBy({ id: coachId });
+    if (!coach) {
+      return next(generateError(404, "查無此教練"));
+    }
+    //取得章節資訊
+    const chapters = await chapterRepo.find({
+      where: { course_id: courseId },
+      order: {
+        chapter_number: "ASC", //先按照主標題排序
+        sub_chapter_number: "ASC", //按照副標題排序
+      },
+    });
+    let formattedChapters = [];
+    let trailer_url = null;
+    if (chapters && chapters.length !== 0) {
+      formattedChapters = await Promise.all(
+        chapters.map(async (chapter) => {
+          const playbackId = chapter.playbackId;
+          //製作播放url
+          let baseOptions = {
+            keyId: muxSigningKeyForPublic,
+            keySecret: muxSigningKeySecretForPublic,
+            expiration: "2h", //設定url 2小時有效
+            start_time: 0,
+            end_time: 7200,
+            params: {
+              max_resolution: "2160p", //設定最大解析度
+            },
+          };
+          const token = await mux.jwt.signPlaybackId(playbackId, {
+            ...baseOptions,
+            type: "video",
+          });
+
+          //生成播放網址
+          const streamURL = `https://stream.mux.com/${playbackId}.m3u8?token=${token}`;
+          return {
+            id: chapter.id,
+            title: chapter.title,
+            subtitle: chapter.subtitle,
+            video_url: streamURL, // 使用生成的播放網址
+            duration: chapter.duration,
+            uploaded_at: formatDate(chapter.uploaded_at),
+          };
+        })
+      );
+      trailer_url = formattedChapters[0].video_url; //預告片為第一個影片
+    }
+
+    const data = {
+      course: {
+        id: course.id,
+        name: course.name,
+        score: course.score,
+        numbers_of_view: course.numbers_of_view,
+        hours: course.total_hours,
+        trailer_url: trailer_url,
+        image_url: course.image_url,
+        description: course.description,
+      },
+      coach: {
+        id: coach.id,
+        name: coach.nickname,
+        title: coach.job_title,
+        intro: coach.about_me,
+        profile_image_url: coach.profile_image_url,
+        coachPage_Url: `https://tteddhuang.github.io/sportify-plus/coaches/${coachId}`,
+      },
+      chapters: formattedChapters,
+    };
+
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 //取得後台數據分析
 async function getDataAnalysis(req, res, next) {
   try {
@@ -850,6 +948,7 @@ module.exports = {
   getCoachDetails,
   patchReviewCourse,
   getCourses,
+  getCourseDetails,
   getCoachTypes,
   getCourseTypes,
   getDataAnalysis,
