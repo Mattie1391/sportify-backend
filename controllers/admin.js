@@ -666,37 +666,42 @@ async function getCourseDetails(req, res, next) {
         sub_chapter_number: "ASC", //按照副標題排序
       },
     });
-    const formattedChapters = await Promise.all(
-      chapters.map(async (chapter) => {
-        const playbackId = chapter.playbackId;
-        //製作播放url
-        let baseOptions = {
-          keyId: muxSigningKeyForPublic,
-          keySecret: muxSigningKeySecretForPublic,
-          expiration: "2h", //設定url 2小時有效
-          start_time: 0,
-          end_time: 7200, //設定url 2小時後失效
-          params: {
-            max_resolution: "2160p", //設定最大解析度
-          },
-        };
-        const token = await mux.jwt.signPlaybackId(playbackId, {
-          ...baseOptions,
-          type: "video",
-        });
+    let formattedChapters = [];
+    let trailer_url = null;
+    if (chapters && chapters.length !== 0) {
+      formattedChapters = await Promise.all(
+        chapters.map(async (chapter) => {
+          const playbackId = chapter.playbackId;
+          //製作播放url
+          let baseOptions = {
+            keyId: muxSigningKeyForPublic,
+            keySecret: muxSigningKeySecretForPublic,
+            expiration: "2h", //設定url 2小時有效
+            start_time: 0,
+            end_time: 7200,
+            params: {
+              max_resolution: "2160p", //設定最大解析度
+            },
+          };
+          const token = await mux.jwt.signPlaybackId(playbackId, {
+            ...baseOptions,
+            type: "video",
+          });
 
-        //生成播放網址
-        const streamURL = `https://stream.mux.com/${playbackId}.m3u8?token=${token}`;
-        return {
-          id: chapter.id,
-          title: chapter.title,
-          subtitle: chapter.subtitle,
-          video_url: streamURL, // 使用生成的播放網址
-          duration: chapter.duration,
-          uploaded_at: formatDate(chapter.uploaded_at),
-        };
-      })
-    );
+          //生成播放網址
+          const streamURL = `https://stream.mux.com/${playbackId}.m3u8?token=${token}`;
+          return {
+            id: chapter.id,
+            title: chapter.title,
+            subtitle: chapter.subtitle,
+            video_url: streamURL, // 使用生成的播放網址
+            duration: chapter.duration,
+            uploaded_at: formatDate(chapter.uploaded_at),
+          };
+        })
+      );
+      trailer_url = formattedChapters[0].video_url; //預告片為第一個影片
+    }
 
     const data = {
       course: {
@@ -705,7 +710,7 @@ async function getCourseDetails(req, res, next) {
         score: course.score,
         numbers_of_view: course.numbers_of_view,
         hours: course.total_hours,
-        trailer_url: formattedChapters[0].video_url,
+        trailer_url: trailer_url,
         image_url: course.image_url,
         description: course.description,
       },
