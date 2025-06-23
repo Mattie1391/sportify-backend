@@ -671,7 +671,7 @@ async function getCourseDetails(req, res, next) {
     if (chapters && chapters.length !== 0) {
       formattedChapters = await Promise.all(
         chapters.map(async (chapter) => {
-          const playbackId = chapter.playbackId;
+          const playbackId = chapter.mux_playback_id;
           //製作播放url
           let baseOptions = {
             keyId: muxSigningKeyForPublic,
