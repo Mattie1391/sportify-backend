@@ -666,9 +666,6 @@ async function getCourseDetails(req, res, next) {
         sub_chapter_number: "ASC", //按照副標題排序
       },
     });
-    if (!chapters || chapters.length === 0) {
-      return next(generateError(404, "查無章節"));
-    }
     const formattedChapters = await Promise.all(
       chapters.map(async (chapter) => {
         const playbackId = chapter.playbackId;
@@ -676,9 +673,9 @@ async function getCourseDetails(req, res, next) {
         let baseOptions = {
           keyId: muxSigningKeyForPublic,
           keySecret: muxSigningKeySecretForPublic,
-          expiration: "1h", //設定url 1小時有效
+          expiration: "2h", //設定url 2小時有效
           start_time: 0,
-          end_time: 300,
+          end_time: 7200, //設定url 2小時後失效
           params: {
             max_resolution: "2160p", //設定最大解析度
           },
