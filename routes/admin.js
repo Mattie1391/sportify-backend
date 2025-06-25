@@ -5,6 +5,7 @@ const ratingController = require("../controllers/rating");
 const auth = require("../middlewares/auth");
 const isAdmin = require("../middlewares/isAdmin");
 const userController = require("../controllers/user");
+const strTrimmer = require("../middlewares/strTrimmer");
 
 //固定路由
 //固定路由順序要放在動態路由前，如:userId，否則會被/:userId的路由攔截
@@ -32,7 +33,13 @@ router.get("/courses/:courseId/ratings", auth, isAdmin, ratingController.getRati
 //刪除課程評價
 router.delete("/courses/:courseId/ratings/:ratingId", auth, isAdmin, ratingController.deleteRating);
 //審核課程是否上架
-router.patch("/courses/:courseId/review", auth, isAdmin, adminController.patchReviewCourse);
+router.patch(
+  "/courses/:courseId/review",
+  auth,
+  isAdmin,
+  strTrimmer,
+  adminController.patchReviewCourse
+);
 //審核教練資格
 router.patch("/coaches/:coachId/review", auth, isAdmin, adminController.patchReviewCoach);
 //取得教練詳細資訊
