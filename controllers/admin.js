@@ -456,10 +456,17 @@ async function patchReviewCourse(req, res, next) {
     }
 
     //檢查 body 參數
-    const { status, reviewComment } = req.body;
+    const { status, review_comment: reviewComment } = req.body;
     const allowedStatus = ["approved", "rejected"];
     if (!status || !allowedStatus.includes(status)) {
       return next(generateError(400, "status 參數錯誤，必須為 approved 或 rejected"));
+    }
+    //審核建議在通過時為選填，但若審核未通過則為必填
+    if (status === "rejected" && !reviewComment) {
+      return next(generateError(400, "若審核未通過，請填寫建議"));
+    }
+    if (reviewComment && reviewComment.length > 200) {
+      return next(generateError(400, "審核建議限制字數為200字"));
     }
 
     //取得課程資料
@@ -467,11 +474,13 @@ async function patchReviewCourse(req, res, next) {
     if (!course) {
       return next(generateError(404, "查無此課程"));
     }
-
     //更新課程審核狀態
     course.is_approved = status === "approved";
+    course.review_comment = reviewComment;
     if (status === "approved") {
       course.approved_at = new Date(); // 只有審核通過才更新 approved_at
+    } else {
+      course.approved_at = null;
     }
 
     await courseRepo.save(course);
@@ -713,6 +722,7 @@ async function getCourseDetails(req, res, next) {
         trailer_url: trailer_url,
         image_url: course.image_url,
         description: course.description,
+        review_comment: course.review_comment,
       },
       coach: {
         id: coach.id,

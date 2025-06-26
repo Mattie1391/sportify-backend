@@ -70,6 +70,13 @@ module.exports = new EntitySchema({
       nullable: true,
     },
 
+    //管理員審核留言(無論通過與否都可以留言，並被取得)
+    review_comment: {
+      type: "varchar",
+      length: 200,
+      nullable: true,
+    },
+
     // 是否通過審核
     is_approved: {
       type: "boolean",
