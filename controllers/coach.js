@@ -498,7 +498,7 @@ async function patchProfile(req, res, next) {
 
         const value = filteredData[key];
         const error = validateField(key, value);
-        if (error) throw generateError(400, `${key}${error}`);
+        if (error) throw generateError(400, `${error}`);
 
         //取得舊值
         const oldVal = transactionalCoach[key];
@@ -659,6 +659,11 @@ async function patchProfile(req, res, next) {
         if (licenseDataActuallyChanged) {
           updatedFields.push("license_data");
         }
+      }
+
+      //若有欄位更新，且教練資格已通過審核，則退回待審核
+      if (updatedFields.length > 0 && transactionalCoach.is_verified === true) {
+        transactionalCoach.is_verified = false;
       }
 
       //更新Coach主表，license證照字串會原原本本寫入Coach資料表中
@@ -903,12 +908,16 @@ async function patchCourse(req, res, next) {
       return next(generateError(400, `您不具受認證的${sports_type}專長，無法開設此課程`));
     }
 
-    //驗證教練是否的確是此課程表單的創建者
     let course = await courseRepo.findOne({
       where: { id: courseId, coach_id: coachId },
+      relations: ["Coach"],
     });
     if (!course) {
       return next(generateError(400, "查無此課程表單"));
+    }
+    //檢查教練資格是否為已審核
+    if (course.Coach.is_verified === false) {
+      return next(generateError(400, "您的教練資格還未審核通過"));
     }
     //驗證課程是否有撞名
     const sameCourseName = await courseRepo.find({
