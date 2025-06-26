@@ -844,6 +844,7 @@ async function getEditingCourse(req, res, next) {
       sports_type: course.Skill.name,
       image_url: course.image_url,
       image_public_id: course.image_public_id,
+      review_comment: course.review_comment,
       chapters: resChapters,
     };
 
