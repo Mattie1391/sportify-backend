@@ -53,15 +53,13 @@ async function postSignup(req, res, next) {
       return next(generateError(400, "密碼確認錯誤"));
     }
 
+    const isEmailExisted = await findRoleAndRepoByEmail(email);
+    if (isEmailExisted) {
+      return next(generateError(400, "Email 已被使用"));
+    }
+
     // 判斷角色來決定資料庫
     const repo = await findRepoByRole(role);
-
-    // 從資料庫中根據 email 查詢使用者
-    const user = await repo.findOne({ where: { email } });
-
-    if (user) {
-      return next(generateError(409, "Email 已被使用"));
-    }
 
     // 密碼加密
     const salt = await bcrypt.genSalt(10);
