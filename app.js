@@ -18,6 +18,7 @@ const muxRouter = require("./routes/mux");
 
 //排程
 const { scheduleMuxDaliyStats } = require("./services/viewStatsCatcher");
+const { courseDeletion, scheduleCourseDeletion } = require("./services/courseDeletion");
 
 const app = express();
 
@@ -47,6 +48,7 @@ app.use("/api/v1/mux", muxRouter);
 //啟動排程
 //每日取得昨天所有觀看數據
 scheduleMuxDaliyStats();
+scheduleCourseDeletion();
 
 // 錯誤處理中介軟體
 app.use(function (req, res, next) {
