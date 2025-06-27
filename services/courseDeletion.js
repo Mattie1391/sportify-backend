@@ -5,17 +5,13 @@ const chapterRepo = AppDataSource.getRepository("Course_Chapter");
 const courseRepo = AppDataSource.getRepository("Course");
 const { IsNull, LessThan, In } = require("typeorm");
 
-//utils
-const { formatDate, addDays } = require("../utils/formatDate");
-const maskString = require("../utils/maskString");
-
 //模組
 const cron = require("node-cron"); //導入cron，純javascript的排程工具
 const logger = require("../config/logger");
 
-// 設定每日排程，早上八點開始，從左到右每個*對應分、時、日...
+// 設定每日排程，(utc+8)早上八點執行，從左到右每個*對應分、時、日...
 function scheduleCourseDeletion() {
-  cron.schedule("* * * * *", async () => {
+  cron.schedule("0 8 * * *", async () => {
     await courseDeletion();
   });
 }
@@ -29,34 +25,26 @@ async function courseDeletion() {
       where: { name: IsNull(), updated_at: LessThan(twentyFourHoursAgo) },
       select: ["id"],
     });
-    console.log(coursesToDeleteArr);
     if (coursesToDeleteArr.length === 0) {
-      logger.info("[CourseDeletion] 查無須刪除課程及小節資料");
+      logger.info("[CourseDeletion] 查無須刪除的課程資料");
+      return;
     }
-    //刪除該課程資料與小節資料
+    //找到課程的小節資料
     const coursesToDeleteIds = coursesToDeleteArr.map((c) => c.id);
     const subToDeleteArr = await chapterRepo.find({
       where: { course_id: In(coursesToDeleteIds) },
       select: ["id"],
     });
-    console.log(coursesToDeleteIds);
-    await chapterRepo.delete();
+    if (subToDeleteArr.length === 0) {
+      logger.info("[CourseDeletion] 查無須刪除的小節資料");
+    }
+    const subToDeleteIds = subToDeleteArr.map((s) => s.id);
+    //執行課程跟小節資料的刪除
 
-    // await courseRepo.
-    //     const statsToInsert = [];
-    // const courseToUpdate = [];
-
-    // for (const data of dataList) {
-    //   const { views, field: asset_id } = data;
-    //   const subChapter = subChapters.find((s) => s.mux_asset_id === asset_id);
-    // for (const id of coursesToDelete) {
-    //   const subChaptersOfCourse = await chapterRepo.find({ where: { course_id: id } });
-    //   console.log(subChaptersOfCourse);
-    // }
-
-    //找尋
+    await chapterRepo.delete(subToDeleteIds);
+    await courseRepo.delete(coursesToDeleteIds);
+    logger.info(`已刪除多餘課程 ${coursesToDeleteIds.length}筆、多餘小節 ${subToDeleteIds}筆`);
   } catch (error) {
-    console.error(error);
     logger.info("刪除無用課程失敗", error);
   }
 }

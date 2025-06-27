@@ -18,7 +18,7 @@ const muxRouter = require("./routes/mux");
 
 //排程
 const { scheduleMuxDaliyStats } = require("./services/viewStatsCatcher");
-const { courseDeletion, scheduleCourseDeletion } = require("./services/courseDeletion");
+const { scheduleCourseDeletion } = require("./services/courseDeletion");
 
 const app = express();
 
