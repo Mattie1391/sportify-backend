@@ -15,6 +15,7 @@ const courseRouter = require("./routes/course");
 const adminRouter = require("./routes/admin");
 const coachRouter = require("./routes/coach");
 const muxRouter = require("./routes/mux");
+const chatRouter = require("./routes/chat"); 
 
 //排程
 const { scheduleMuxDaliyStats } = require("./services/viewStatsCatcher");
@@ -44,6 +45,7 @@ app.use("/api/v1/courses", courseRouter);
 app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/coaches", coachRouter);
 app.use("/api/v1/mux", muxRouter);
+app.use("/api/v1/chat", chatRouter);
 
 //啟動排程
 //每日取得昨天所有觀看數據
