@@ -11,6 +11,8 @@ router.post("/coaches/signup", authController.postSignup);
 router.post("/admins/signup", authController.postAdminSignup);
 //登入
 router.post("/login", authController.postLogin);
+//Google登入
+router.post("/google-login", authController.postGoogleLogin);
 //驗證登入狀態
 router.get("/me", auth, authController.getMe);
 //忘記密碼

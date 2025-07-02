@@ -28,12 +28,18 @@ module.exports = new EntitySchema({
       nullable: false,
       unique: true,
     },
-
-    // 密碼（建議為雜湊加密字串）
+    // Google ID
+    google_id: {
+      type: "varchar",
+      length: 50,
+      nullable: true,
+      unique: true, // 若有使用 Google 登入，則此欄位會有值
+    },
+    // 密碼
     password: {
       type: "varchar",
       length: 72,
-      nullable: false,
+      nullable: true,
     },
 
     // 重設密碼的 token，僅儲存一組最新有效的 token，避免使用者在時限內多次請求產生好幾組有效的 token

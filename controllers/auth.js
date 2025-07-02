@@ -1,9 +1,12 @@
 const bcrypt = require("bcryptjs");
 const nodemailer = require("nodemailer");
+const { OAuth2Client } = require("google-auth-library");
 const { isUndefined, isNotValidString, isNotValidEmail } = require("../utils/validators");
 const generateError = require("../utils/generateError");
 const AppDataSource = require("../db/data-source");
+const userRepo = AppDataSource.getRepository("User");
 const { generateJWT, verifyJWT } = require("../utils/jwtUtils");
+const logger = require("../config/logger");
 const config = require("../config/index");
 const secret = config.get("secret.jwtSecret");
 const expiresDay = config.get("secret.jwtExpiresDay");
@@ -200,6 +203,63 @@ async function postLogin(req, res, next) {
     next(error);
   }
 }
+//google第三方登入
+async function postGoogleLogin(req, res, next) {
+  try {
+    const { tokenId } = req.body; // 前端傳來的 Google ID token
+    if (!tokenId) return next(generateError(400, "缺少 Google Token ID"));
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    const ticket = await client.verifyIdToken({
+      idToken: tokenId,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    if (!payload) return next(generateError(400, "驗證 Google Token 失敗"));
+    const { sub: google_id, email, name, picture: profile_image_url } = payload;
+    const result = await findRoleAndRepoByEmail(email);
+    let role = null;
+    let user;
+    if (result) {
+      ({ role } = result);
+      //若使用者已存在，將此用戶連結 Google 帳號
+      if (role === "USER") {
+        user = await userRepo.findOne({ where: { email } });
+        if (!user.google_id) user.google_id = google_id;
+        if (!user.profile_image_url) user.profile_image_url = profile_image_url;
+        await userRepo.save(user);
+      }
+      //若此帳號已註冊為教練，需輸入帳號密碼登入
+      if (role === "COACH") {
+        return next(generateError(400, "教練登入，請輸入註冊時填寫的帳號密碼"));
+      }
+    } else {
+      //若使用者不存在，則建立新使用者
+      user = userRepo.create({
+        name,
+        email,
+        google_id,
+        profile_image_url,
+        password: null,
+      });
+      await userRepo.save(user);
+    }
+    // 生成 JWT
+    const token = await generateJWT({ id: user.id, role: "USER" }, secret, {
+      expiresIn: expiresDay,
+    });
+
+    return res.status(200).json({
+      status: true,
+      message: "Google 登入成功",
+      data: {
+        token,
+      },
+    });
+  } catch (error) {
+    logger.error(error, "Google 登入失敗:");
+    next(error);
+  }
+}
 //忘記密碼
 async function postForgotPassword(req, res, next) {
   try {
@@ -347,6 +407,7 @@ module.exports = {
   postSignup,
   postAdminSignup,
   postLogin,
+  postGoogleLogin,
   getMe,
   postForgotPassword,
   patchResetPassword,
