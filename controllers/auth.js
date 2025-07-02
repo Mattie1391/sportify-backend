@@ -207,7 +207,6 @@ async function postLogin(req, res, next) {
 async function postGoogleLogin(req, res, next) {
   try {
     const { tokenId } = req.body; // 前端傳來的 Google ID token
-    logger.info("Google Token ID:%s", tokenId);
     if (!tokenId) return next(generateError(400, "缺少 Google Token ID"));
     const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
     const ticket = await client.verifyIdToken({
@@ -215,14 +214,12 @@ async function postGoogleLogin(req, res, next) {
       audience: process.env.GOOGLE_CLIENT_ID,
     });
     const payload = ticket.getPayload();
-    logger.info(payload, "Google Token Payload:");
     if (!payload) return next(generateError(400, "驗證 Google Token 失敗"));
     const { sub: google_id, email, name, picture: profile_image_url } = payload;
     const result = await findRoleAndRepoByEmail(email);
     let role = null;
     let user;
     if (result) {
-      logger.info("Google登入查詢結果:%s", result.role);
       ({ role } = result);
       //若使用者已存在，將此用戶連結 Google 帳號
       if (role === "USER") {
@@ -237,7 +234,6 @@ async function postGoogleLogin(req, res, next) {
       }
     } else {
       //若使用者不存在，則建立新使用者
-      logger.info("建立新的 Google 用戶");
       user = userRepo.create({
         name,
         email,
@@ -247,7 +243,6 @@ async function postGoogleLogin(req, res, next) {
       });
       await userRepo.save(user);
     }
-    logger.info(user, "綁定Google後的新帳號資料:");
     // 生成 JWT
     const token = await generateJWT({ id: user.id, role: "USER" }, secret, {
       expiresIn: expiresDay,
