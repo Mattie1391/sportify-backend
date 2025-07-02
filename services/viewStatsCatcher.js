@@ -112,5 +112,87 @@ async function fetchMuxViewStats() {
     logger.info(`[View_Stats] 呼叫mux api發生錯誤`, err);
   }
 }
+// 抓取影片觀看時長
+async function fetchMuxViewSeconds() {
+  try {
+    //取得昨天日期
+    function getYesterdayFormatted() {
+      const today = new Date();
+      return formatDate(addDays(today, -1));
+    }
+    const lastday = getYesterdayFormatted();
 
-module.exports = { scheduleMuxDaliyStats, fetchMuxViewStats };
+    const response = await mux.data.metrics.listBreakdownValues("views", {
+      group_by: "asset_id", //依照asset_id做分組
+      measurement: "count",
+      timeframe: ["24:hours"], //選擇24小時內累積的觀看次數
+    });
+
+    //檢查是否取得mux回覆
+    if (!response.body || response.body.data.length === 0) {
+      logger.warn(`[View_Stats] ${lastday}沒有資料可更新`);
+      return; //如果沒有任何觀看數據，就不會送response來。避免catch錯誤就return中斷。
+    }
+    const dataList = response.body.data;
+
+    //查出所有asset_id對應的章節與課程
+    const assetIds = dataList.map((d) => d.field);
+
+    const subChapters = await chapterRepo
+      .createQueryBuilder("cc")
+      .where("cc.mux_asset_id IN (:...assetIds)", { assetIds })
+      .select([
+        "cc.id AS chapter_sub_chapter_set_id",
+        "cc.course_id AS course_id",
+        "cc.mux_asset_id AS mux_asset_id",
+      ])
+      .getRawMany();
+
+    //將查詢結果比對組合成View_Stat資料表更新資料
+    const statsToInsert = [];
+    const courseToUpdate = [];
+
+    for (const data of dataList) {
+      const { views, field: asset_id } = data;
+      const subChapter = subChapters.find((s) => s.mux_asset_id === asset_id);
+
+      if (!subChapter) {
+        logger.warn(
+          `[View_Stats] 找不到asset_id :${maskString(asset_id, 5)}章節資料，故不儲存觀看數據`
+        );
+        continue;
+      }
+      statsToInsert.push({
+        course_id: subChapter.course_id,
+        chapter_sub_chapter_set_id: subChapter.chapter_sub_chapter_set_id,
+        date: lastday,
+        view_count: views,
+      });
+      courseToUpdate.push({
+        course_id: subChapter.course_id,
+        view_count: views,
+      });
+    }
+
+    const updateResultViewStat = await viewRepo.save(statsToInsert);
+    if (subChapters.length > 0 && updateResultViewStat.affected === 0) {
+      logger.warn(`[View_Stats] 觀看數據更新失敗`);
+    }
+    //typeorm不支持多筆不同主鍵的update，用querybuilder+sql更新
+    for (const courseStat of courseToUpdate) {
+      const { course_id, view_count } = courseStat;
+
+      await courseRepo
+        .createQueryBuilder()
+        .update()
+        .set({ numbers_of_view: () => `"numbers_of_view"+${view_count}` })
+        .where("id = :id", { id: course_id })
+        .execute();
+    }
+
+    logger.info(`[View_Stats] Mux統計已更新:${lastday}`);
+  } catch (err) {
+    logger.info(`[View_Stats] 呼叫mux api發生錯誤`, err);
+  }
+}
+module.exports = { scheduleMuxDaliyStats, fetchMuxViewStats, fetchMuxViewSeconds };
