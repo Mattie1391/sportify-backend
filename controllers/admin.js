@@ -57,7 +57,7 @@ function sendReviewEmail (email, subject, text, reviewComment) {
   transporter.sendMail(mailOptions, (error, info) => {
     if (error) {
       // 如果發送失敗，回傳 HTTP 錯誤
-      return next(generateError(500, "無法發送電子郵件，請稍後再試"));
+      return error;
     }
   });  
 }

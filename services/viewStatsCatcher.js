@@ -22,9 +22,9 @@ const mux = new Mux({
   muxTokenSecret,
 });
 
-// 設定每日排程，早上八點開始，從左到右每個*對應分、時、日...
+// 設定每日排程，(utc+8)早上八點開始，從左到右每個*對應分、時、日...
 function scheduleMuxDaliyStats() {
-  cron.schedule("* 8 * * *", async () => {
+  cron.schedule("0 8 * * *", async () => {
     await fetchMuxViewStats();
   });
 }

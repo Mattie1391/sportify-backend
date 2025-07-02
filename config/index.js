@@ -6,6 +6,7 @@ const email = require("./email"); // 新增 email 設定
 const mux = require("./mux");
 const ecpay = require("./ecpay");
 const cloudinary = require("./cloudinary"); // 新增 cloudinary 設定
+const chat = require("./chat"); // 新增 chat 設定
 
 // 整合所有設定檔案
 const config = {
@@ -16,6 +17,7 @@ const config = {
   mux, //添加mux串流token
   ecpay, //綠界金流
   cloudinary, // 添加 cloudinary 設定
+  chat, // 添加 chat 設定
 };
 
 class ConfigManager {
