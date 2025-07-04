@@ -6,3 +6,4 @@ dist/
 db/seed.js
 public/upload.html
 public/player.html
+public/google.html

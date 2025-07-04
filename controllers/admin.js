@@ -33,8 +33,7 @@ const paginate = require("../utils/paginate");
 const { parseYYYYMMDD } = require("../utils/formatDate");
 const { formatDate, addDays } = require("../utils/formatDate");
 
-
-function sendReviewEmail (email, subject, text, reviewComment) {
+function sendReviewEmail(email, subject, text, reviewComment) {
   // 創建郵件傳輸器
   const transporter = nodemailer.createTransport({
     service: "gmail", // 使用 Gmail 作為電子郵件服務
@@ -59,7 +58,7 @@ function sendReviewEmail (email, subject, text, reviewComment) {
       // 如果發送失敗，回傳 HTTP 錯誤
       return error;
     }
-  });  
+  });
 }
 
 //新增訂閱方案，目前沒有畫管理員相應UI的線稿
@@ -392,87 +391,88 @@ async function getCoachDetails(req, res, next) {
       relations: ["Skill"],
     });
     // 取得教練技能資料
+    let coachSkills = [];
     if (coachSkillData.length > 0) {
-      const coachSkills = coachSkillData.map((cs) => ({
+      coachSkills = coachSkillData.map((cs) => ({
         name: cs.Skill.name,
       }));
-      // 整理教練個人資料
-      const coachData = {
-        id: coach.id,
-        email: coach.email,
-        nickname: coach.nickname,
-        skills: coachSkills || [], //技能陣列
-        profile_image_url: coach.profile_image_url,
-        background_image_url: coach.background_image_url,
-        job_title: coach.job_title,
-        about_me: coach.about_me,
-        hobby: coach.hobby,
-        experience: coach.experience,
-        favorite_words: coach.favorite_words,
-        motto: coach.motto,
-        is_verified: coach.is_verified,
-        realname: coach.realname,
-        id_number: coach.id_number,
-        phone_number: coach.phone_number,
-        birthday: coach.birthday,
-        lisence: coach.lisence,
-        bank_code: coach.bank_code,
-        bank_account: coach.bank_account,
-        bankbook_copy_url: coach.bankbook_copy_url,
-        skill_description: coach.skill_description,
-        experience_years: coach.experience_years,
-        created_at: formatDate(coach.created_at),
-        updated_at: formatDate(coach.updated_at),
-      };
-      // 取得教練證照檔案
-      const coachLicenseData = await coachLisenseRepo.find({
-        where: { coach_id: coachId },
-      });
-      let coachLicenses = [];
-      if (coachLicenseData.length > 0) {
-        coachLicenses = coachLicenseData.map((cl) => ({
-          id: cl.id,
-          name: cl.filename,
-        }));
-      }
-      const coachCourseData = await courseRepo.find({
-        where: { coach_id: coachId },
-        relations: ["Skill"],
-      });
-      let coachCourses = [];
-      if (coachCourseData.length > 0) {
-        coachCourses = coachCourseData.map((cc) => ({
-          course_type: cc.Skill.name,
-          id: cc.id,
-          name: cc.name,
-          approved_at: cc.approved_at,
-          is_approved: cc.is_approved,
-        }));
-      }
-      // 取得教練匯款紀錄
-      const coachPaymentData = await paymentRepo.find({
-        where: { coach_id: coachId },
-      });
-      let coachPayments = [];
-      if (coachPaymentData.length > 0) {
-        coachPayments = coachPaymentData.map((cp) => ({
-          id: cp.id,
-          amount: cp.amount,
-          transfer_at: cp.transfer_at,
-          is_transfered: cp.is_transfered,
-        }));
-      }
-      res.status(200).json({
-        status: true,
-        message: "成功取得資料",
-        data: {
-          coachDetails: coachData,
-          licenses: coachLicenses || [],
-          payment_transfer: coachPayments || [],
-          courses: coachCourses || [],
-        },
-      });
     }
+    // 整理教練個人資料
+    const coachData = {
+      id: coach.id,
+      email: coach.email,
+      nickname: coach.nickname,
+      skills: coachSkills || [], //技能陣列
+      profile_image_url: coach.profile_image_url,
+      background_image_url: coach.background_image_url,
+      job_title: coach.job_title,
+      about_me: coach.about_me,
+      hobby: coach.hobby,
+      experience: coach.experience,
+      favorite_words: coach.favorite_words,
+      motto: coach.motto,
+      is_verified: coach.is_verified,
+      realname: coach.realname,
+      id_number: coach.id_number,
+      phone_number: coach.phone_number,
+      birthday: coach.birthday,
+      lisence: coach.lisence,
+      bank_code: coach.bank_code,
+      bank_account: coach.bank_account,
+      bankbook_copy_url: coach.bankbook_copy_url,
+      skill_description: coach.skill_description,
+      experience_years: coach.experience_years,
+      created_at: formatDate(coach.created_at),
+      updated_at: formatDate(coach.updated_at),
+    };
+    // 取得教練證照檔案
+    const coachLicenseData = await coachLisenseRepo.find({
+      where: { coach_id: coachId },
+    });
+    let coachLicenses = [];
+    if (coachLicenseData.length > 0) {
+      coachLicenses = coachLicenseData.map((cl) => ({
+        id: cl.id,
+        name: cl.filename,
+      }));
+    }
+    const coachCourseData = await courseRepo.find({
+      where: { coach_id: coachId },
+      relations: ["Skill"],
+    });
+    let coachCourses = [];
+    if (coachCourseData.length > 0) {
+      coachCourses = coachCourseData.map((cc) => ({
+        course_type: cc.Skill.name,
+        id: cc.id,
+        name: cc.name,
+        approved_at: cc.approved_at,
+        is_approved: cc.is_approved,
+      }));
+    }
+    // 取得教練匯款紀錄
+    const coachPaymentData = await paymentRepo.find({
+      where: { coach_id: coachId },
+    });
+    let coachPayments = [];
+    if (coachPaymentData.length > 0) {
+      coachPayments = coachPaymentData.map((cp) => ({
+        id: cp.id,
+        amount: cp.amount,
+        transfer_at: cp.transfer_at,
+        is_transfered: cp.is_transfered,
+      }));
+    }
+    res.status(200).json({
+      status: true,
+      message: "成功取得資料",
+      data: {
+        coachDetails: coachData,
+        licenses: coachLicenses || [],
+        payment_transfer: coachPayments || [],
+        courses: coachCourses || [],
+      },
+    });
   } catch (error) {
     next(error);
   }
@@ -516,7 +516,7 @@ async function patchReviewCourse(req, res, next) {
     }
 
     await courseRepo.save(course);
-    
+
     //取得課程對應的教練資料
     const coach = await coachRepo.findOneBy({ id: course.coach_id });
 
@@ -527,7 +527,7 @@ async function patchReviewCourse(req, res, next) {
         "Sportify+ 課程審核通過通知",
         `恭喜！您的課程 "${course.name}" 已通過審核`,
         reviewComment
-      )
+      );
       return res.status(200).json({
         status: true,
         message: "課程審核成功，狀態已更新為 approved",
@@ -538,7 +538,7 @@ async function patchReviewCourse(req, res, next) {
         "Sportify+ 課程審核未通過通知",
         `很抱歉！您的課程 "${course.name}" 未通過審核`,
         reviewComment
-      )
+      );
       return res.status(200).json({
         status: true,
         message: "課程審核未通過，狀態已更新為 rejected",
@@ -582,7 +582,7 @@ async function patchReviewCoach(req, res, next) {
         "Sportify+ 教練資格審核通過通知",
         `恭喜！您的教練資格已通過審核`,
         reviewComment
-      )
+      );
       return res.status(200).json({
         status: true,
         message: "教練資格審核成功，狀態已更新為 approved",
@@ -593,7 +593,7 @@ async function patchReviewCoach(req, res, next) {
         "Sportify+ 教練資格審核未通過通知",
         `很抱歉！您的教練資格未通過審核`,
         reviewComment
-      )
+      );
       return res.status(200).json({
         status: true,
         message: "教練資格審核未通過，狀態已更新為 rejected",

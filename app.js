@@ -15,7 +15,7 @@ const courseRouter = require("./routes/course");
 const adminRouter = require("./routes/admin");
 const coachRouter = require("./routes/coach");
 const muxRouter = require("./routes/mux");
-const chatRouter = require("./routes/chat"); 
+const chatRouter = require("./routes/chat");
 
 //排程
 const { scheduleMuxDaliyStats } = require("./services/viewStatsCatcher");
