@@ -402,7 +402,7 @@ async function getCoachDetails(req, res, next) {
       id: coach.id,
       email: coach.email,
       nickname: coach.nickname,
-      skills: coachSkills || [], //技能陣列
+      skills: coachSkills, //技能陣列
       profile_image_url: coach.profile_image_url,
       background_image_url: coach.background_image_url,
       job_title: coach.job_title,

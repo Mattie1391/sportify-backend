@@ -3,7 +3,8 @@ const secret = process.env.JWT_SECRET;
 const generateError = require("../utils/generateError");
 const { verifyJWT } = require("../utils/jwtUtils");
 const { checkHasTrial, checkActiveSubscription } = require("../services/checkServices");
-
+const AppDataSource = require("../db/data-source");
+const coachSkillRepo = AppDataSource.getRepository("Coach_Skill");
 module.exports = async (req, res, next) => {
   if (!secret || typeof secret !== "string") {
     logger.error("[Auth] JWT secret 不存在或格式錯誤！");
@@ -80,7 +81,23 @@ module.exports = async (req, res, next) => {
     //判斷此人最新一筆訂閱是否仍有效
     const hasActiveSubscription = await checkActiveSubscription(userId);
     //設定要回傳的使用者資料內容
-    if (role !== "USER") {
+    if (role === "COACH") {
+      const coachSkillData = await coachSkillRepo.find({
+        where: { coach_id: userId },
+        relations: ["Skill"],
+      });
+      const coachSkills = [];
+      if (coachSkillData.length > 0) {
+        coachSkillData.map((cs) => coachSkills.push(cs.Skill.name));
+      }
+      req.user = {
+        id: userId, //id
+        role: role, //角色
+        displayName: displayName, //顯示名稱
+        is_verified: user.is_verified, //是否已驗證
+        skills: coachSkills, //教練技能
+      };
+    } else if (role === "ADMIN") {
       req.user = {
         id: userId, //id
         role: role, //角色
