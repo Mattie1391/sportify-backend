@@ -30,6 +30,11 @@ module.exports = new EntitySchema({
       type: "int",
       nullable: true, //不確定是否有取得觀看次數null的狀況，先設true
     },
+    //當日此小節的總觀看"毫秒數"
+    total_playing_time: {
+      type: "int",
+      nullable: true,
+    },
   },
   // === 關聯設定 ===
   relations: {

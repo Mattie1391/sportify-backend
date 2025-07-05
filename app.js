@@ -15,11 +15,12 @@ const courseRouter = require("./routes/course");
 const adminRouter = require("./routes/admin");
 const coachRouter = require("./routes/coach");
 const muxRouter = require("./routes/mux");
-const chatRouter = require("./routes/chat"); 
+const chatRouter = require("./routes/chat");
 
 //排程
 const { scheduleMuxDaliyStats } = require("./services/viewStatsCatcher");
 const { scheduleCourseDeletion } = require("./services/courseDeletion");
+const { scheduleShareProfit } = require("./services/shareProfit");
 
 const app = express();
 
@@ -51,6 +52,7 @@ app.use("/api/v1/chat", chatRouter);
 //每日取得昨天所有觀看數據
 scheduleMuxDaliyStats();
 scheduleCourseDeletion();
+scheduleShareProfit();
 
 // 錯誤處理中介軟體
 app.use(function (req, res, next) {
