@@ -434,6 +434,8 @@ async function getCoachDetails(req, res, next) {
       coachLicenses = coachLicenseData.map((cl) => ({
         id: cl.id,
         name: cl.filename,
+        file_public_id: cl.file_public_id,
+        file_url: cl.file_url,
       }));
     }
     const coachCourseData = await courseRepo.find({
