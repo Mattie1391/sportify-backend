@@ -93,7 +93,7 @@ const muxUploadHandler = async (req, res, next) => {
     });
     //送出post request到 https://api.mux.com/video/v1/uploads
     const upload = await mux.video.uploads.create({
-      cors_origin: "*", //上線後要改為同網域內
+      cors_origin: "https://sportify.zeabur.app", //上線後要改為同網域內
       timeout: 7200, //上傳任務時限。由於上傳任務多，先設20分鐘看看。
       new_asset_settings: {
         playback_policy: ["signed"],

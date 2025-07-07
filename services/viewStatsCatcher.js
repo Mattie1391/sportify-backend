@@ -45,7 +45,6 @@ async function fetchMuxViewStats() {
       measurement: "count",
       timeframe: ["24:hours"], //選擇24小時內累積的觀看次數
     });
-    console.log(response.body.data);
 
     //檢查是否取得mux回覆
     if (!response.body || response.body.data.length === 0) {
@@ -79,6 +78,10 @@ async function fetchMuxViewStats() {
         logger.warn(
           `[View_Stats] 找不到asset_id :${maskString(asset_id, 5)}章節資料，故不儲存觀看數據`
         );
+        continue;
+      }
+      //total_playing_time為null代表播放失敗導致無播放時長。故不計入播放時數中
+      if (total_playing_time === null) {
         continue;
       }
       statsToInsert.push({

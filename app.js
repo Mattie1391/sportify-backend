@@ -48,12 +48,6 @@ app.use("/api/v1/coaches", coachRouter);
 app.use("/api/v1/mux", muxRouter);
 app.use("/api/v1/chat", chatRouter);
 
-//啟動排程
-//每日取得昨天所有觀看數據
-scheduleMuxDaliyStats();
-scheduleCourseDeletion();
-scheduleShareProfit();
-
 // 錯誤處理中介軟體
 app.use(function (req, res, next) {
   next(generateError(404, "找不到該路由"));
@@ -63,6 +57,10 @@ app.use(errorHandler);
 AppDataSource.initialize()
   .then(() => {
     console.log("📦 Data Source has been initialized!");
+    //啟動排程
+    scheduleMuxDaliyStats();
+    scheduleCourseDeletion();
+    scheduleShareProfit();
   })
   .catch((err) => {
     console.error("❌ Error during Data Source initialization", err);

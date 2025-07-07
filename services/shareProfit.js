@@ -62,7 +62,8 @@ async function updateCoachShareProfit() {
     //計算每位教練的觀看次數占比
 
     const sumOfPlayingTime = ableToShareCoaches.reduce((acc, current) => {
-      return acc + parseInt(current.total_playing_time);
+      const time = parseInt(current.total_playing_time || 0);
+      return acc + time;
     }, 0);
     if (isNaN(sumOfPlayingTime)) {
       //若非可轉變為數字的字串導致加總是NaN，直接停止並回報錯誤
