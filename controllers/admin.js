@@ -422,6 +422,7 @@ async function getCoachDetails(req, res, next) {
       bankbook_copy_url: coach.bankbook_copy_url,
       skill_description: coach.skill_description,
       experience_years: coach.experience_years,
+      review_comment: coach.review_comment,
       created_at: formatDate(coach.created_at),
       updated_at: formatDate(coach.updated_at),
     };
@@ -561,10 +562,13 @@ async function patchReviewCoach(req, res, next) {
     }
 
     // 檢查 body 參數
-    const { status, reviewComment } = req.body;
+    const { status, review_comment: reviewComment } = req.body;
     const allowedStatus = ["approved", "rejected"];
     if (!status || !allowedStatus.includes(status)) {
       return next(generateError(400, "status 參數錯誤，必須為 approved 或 rejected"));
+    }
+    if (reviewComment && reviewComment.length > 200) {
+      return next(generateError(400, "審核建議限制字數為200字"));
     }
 
     // 取得教練資料
@@ -573,8 +577,9 @@ async function patchReviewCoach(req, res, next) {
       return next(generateError(404, "查無此教練"));
     }
 
-    // 更新教練審核狀態
+    // 更新教練審核狀態與審核評語
     coach.is_verified = status === "approved";
+    coach.review_comment = reviewComment;
     await coachRepo.save(coach);
 
     // 回傳訊息
