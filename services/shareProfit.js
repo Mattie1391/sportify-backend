@@ -33,9 +33,9 @@ async function updateCoachShareProfit() {
       .andWhere("s.purchased_at BETWEEN :monthBegin AND :monthEnd", { monthBegin, monthEnd })
       .getRawOne();
 
-    if (lastMonthIncome.length === 0) {
+    if (!lastMonthIncome.income) {
       //避免無收益導致計算錯誤，直接終止運行
-      logger.info("上月分無可分配收益");
+      logger.info("[ShareProfit] 上月分無可分配收益，不結算分潤");
       return;
     }
 
@@ -58,16 +58,19 @@ async function updateCoachShareProfit() {
       //若無教練滿足可分潤條件，就終止運行
       return;
     }
-
     //計算每位教練的觀看次數占比
 
     const sumOfPlayingTime = ableToShareCoaches.reduce((acc, current) => {
-      const time = parseInt(current.total_playing_time || 0);
-      return acc + time;
+      const time = parseInt(current.total_playing_time);
+      return acc + (isNaN(time) ? 0 : time);
     }, 0);
     if (isNaN(sumOfPlayingTime)) {
       //若非可轉變為數字的字串導致加總是NaN，直接停止並回報錯誤
       logger.warn("[ShareProfit] 觀看時數加總有誤，摻入了非數值導致計算為NaN。直接終止計算");
+      return;
+    } else if (sumOfPlayingTime === 0) {
+      //若上個月無人上課，導致觀看時數為零，就停止計算
+      logger.warn("[ShareProfit] 上個月平台總計觀看時數為零，不產生分潤");
       return;
     }
     ableToShareCoaches.map((coach) => {

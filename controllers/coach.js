@@ -126,6 +126,7 @@ async function getCoachAnalysis(req, res, next) {
       .andWhere("p.transfered_at BETWEEN :monthBegin AND :monthEnd", { monthBegin, monthEnd })
       .groupBy("month")
       .addGroupBy("is_transfered")
+      .addGroupBy("p.transfered_at")
       .orderBy("month", "ASC")
       .getRawMany();
 
