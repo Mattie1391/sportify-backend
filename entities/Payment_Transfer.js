@@ -32,7 +32,7 @@ module.exports = new EntitySchema({
 
     // 該分成的所屬月度
     month: {
-      type: "varchar", //為2025-06格式的年份月份
+      type: "date", //為當月份的第一天，如2025-06-01理論上每名教練每月只有一筆資料
       nullable: true,
     },
 

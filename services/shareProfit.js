@@ -91,7 +91,10 @@ async function updateCoachShareProfit() {
     //將分潤更新到payment transfer資料表，標示為未匯款狀態
     for (const coachShareDetail of ableToShareCoaches) {
       coachShareDetail.is_transfered = false;
-      coachShareDetail.month = `${dayjs().year()}-${lastMonth + 1}`;
+      coachShareDetail.month = dayjs()
+        .set("month", lastMonth)
+        .startOf("month")
+        .format("YYYY-MM-DD");
       await paymentTransferRepo.save(coachShareDetail);
     }
   } catch (error) {
