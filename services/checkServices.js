@@ -1,5 +1,5 @@
 const AppDataSource = require("../db/data-source");
-// const userRepo = AppDataSource.getRepository("User");
+const userRepo = AppDataSource.getRepository("User");
 const planRepo = AppDataSource.getRepository("Plan");
 const courseRepo = AppDataSource.getRepository("Course");
 const subscriptionRepo = AppDataSource.getRepository("Subscription");
@@ -72,16 +72,23 @@ const checkSkillAccess = async (userId, skillId) => {
 
 //判斷此人是否有試用資格
 const checkHasTrial = async (userId) => {
-  const plan = await planRepo.findOneBy({ name: "Eagerness方案-7天試用" });
-  const trialPlan_id = plan.id;
-  //從此人的訂閱紀錄中查找是否有方案名為"Eagerness方案-7天試用"
-  const result = await subscriptionRepo.findOneBy({
-    user_id: userId,
-    plan_id: trialPlan_id,
-  });
-  //有試用紀錄回傳false（已無試用資格）
-  //沒使用記錄回傳true （尚有試用資格）
-  return !result;
+  const user = await userRepo.findOneBy({ id: userId });
+  if (user && user.is_verified) {
+    const plan = await planRepo.findOneBy({ name: "Eagerness方案-7天試用" });
+    const trialPlan_id = plan.id;
+    //從此人的訂閱紀錄中查找是否有方案名為"Eagerness方案-7天試用"
+    const result = await subscriptionRepo.findOneBy({
+      user_id: userId,
+      plan_id: trialPlan_id,
+    });
+    //有試用紀錄回傳false（已無試用資格）
+    //沒使用記錄回傳true （尚有試用資格）
+    return !result;
+  } else {
+    //若使用者未驗證，則無試用資格
+    return false;
+  }
+  
 };
 
 module.exports = {

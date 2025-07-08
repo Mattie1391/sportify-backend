@@ -42,6 +42,12 @@ module.exports = new EntitySchema({
       nullable: true,
     },
 
+    // 是否已驗證
+    is_verified: {
+      type: "boolean",
+      default: false, // 預設為未驗證
+    },
+
     // 重設密碼的 token，僅儲存一組最新有效的 token，避免使用者在時限內多次請求產生好幾組有效的 token
     reset_password_token: {
       type: "varchar",

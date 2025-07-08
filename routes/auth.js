@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const auth = require("../middlewares/auth");
 const authController = require("../controllers/auth");
+const isUser = require("../middlewares/isUser");
 
 //使用者註冊
 router.post("/users/signup", authController.postSignup);
@@ -19,5 +20,9 @@ router.get("/me", auth, authController.getMe);
 router.post("/forgot-password", authController.postForgotPassword);
 //重設密碼
 router.patch("/reset-password", authController.patchResetPassword);
+//信箱驗證
+router.patch("/user-verification", authController.patchUserVerification);
+//重寄認證信件
+router.post("/resend-verification", auth, isUser, authController.postSendVerificationEmail);
 
 module.exports = router;

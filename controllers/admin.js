@@ -13,9 +13,6 @@ const { Mux } = require("@mux/mux-node");
 const mux = new Mux();
 const config = require("../config/index");
 const { muxSigningKeyForPublic, muxSigningKeySecretForPublic } = config.get("mux");
-const nodemailer = require("nodemailer");
-const gmailUserName = config.get("email.gmailUserName");
-const gmailAppPassword = config.get("email.gmailAppPassword");
 //services
 const { getAllCourseTypes } = require("../services/typeServices");
 const { courseFilter, coachFilter } = require("../services/filterServices");
@@ -32,34 +29,7 @@ const generateError = require("../utils/generateError");
 const paginate = require("../utils/paginate");
 const { parseYYYYMMDD } = require("../utils/formatDate");
 const { formatDate, addDays } = require("../utils/formatDate");
-
-function sendReviewEmail(email, subject, text, reviewComment) {
-  // 創建郵件傳輸器
-  const transporter = nodemailer.createTransport({
-    service: "gmail", // 使用 Gmail 作為電子郵件服務
-    auth: {
-      user: gmailUserName, // 發送郵件的 Gmail 帳號
-      pass: gmailAppPassword, // 從環境變數讀取應用程式專用密碼
-    },
-  });
-
-  // 定義要發送的郵件內容
-  const mailOptions = {
-    from: "Sportify Plus <sportifyplus2025@gmail.com>", // 寄件者名稱和電子郵件
-    to: email, // 收件者的電子郵件地址
-    subject: subject, // 郵件主旨
-    text: text, // 純文字內容
-    html: `<a href="https://tteddhuang.github.io/sportify-plus/"><p>立即前往Sportify+查看</p></a><p>${reviewComment}`, // HTML 格式內容
-  };
-
-  // 發送郵件
-  transporter.sendMail(mailOptions, (error, info) => {
-    if (error) {
-      // 如果發送失敗，回傳 HTTP 錯誤
-      return error;
-    }
-  });
-}
+const { sendReviewEmail} = require("../utils/sendEmail");
 
 //新增訂閱方案，目前沒有畫管理員相應UI的線稿
 async function postPlan(req, res, next) {
