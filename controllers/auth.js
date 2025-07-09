@@ -12,7 +12,7 @@ const expiresDay = config.get("secret.jwtExpiresDay");
 const temporaryExpiresDay = config.get("secret.jwtTemporaryExpiresDay");
 const Admin = require("../entities/Admin");
 const { findRoleAndRepoByEmail, findRepoByRole } = require("../services/roleServices");
-const { sendUserVerificationEmail, sendResetPasswordEmail} = require("../utils/sendEmail");
+const { sendUserVerificationEmail, sendResetPasswordEmail } = require("../utils/sendEmail");
 
 //使用者/教練註冊
 async function postSignup(req, res, next) {
@@ -91,7 +91,7 @@ async function postSignup(req, res, next) {
       const verificationLink = `https://tteddhuang.github.io/sportify-plus/api/v1/auth/user-verification?token=${temporaryToken}`;
 
       // 定義要發送的郵件內容
-      
+
       sendUserVerificationEmail(email, verificationLink);
     }
 
@@ -109,6 +109,7 @@ async function postSignup(req, res, next) {
   }
 }
 
+//信箱驗證
 async function patchUserVerification(req, res, next) {
   try {
     const token = req.query.token; // 從 URL 的 Query Parameters 中取得 Token
@@ -126,7 +127,7 @@ async function patchUserVerification(req, res, next) {
 
     const { id, role } = decoded;
 
-    if(role === "USER") {
+    if (role === "USER") {
       // 從資料庫中找出對應的使用者
       const user = await userRepo.findOne({ where: { id } });
 
@@ -144,12 +145,13 @@ async function patchUserVerification(req, res, next) {
       });
     } else {
       return next(generateError(400, "只有使用者需要進行帳號認證"));
-    } 
+    }
   } catch (error) {
     next(error);
   }
 }
 
+//重寄認證信件
 async function postSendVerificationEmail(req, res, next) {
   try {
     const userId = req.user.id; // 從 JWT 中取得使用者 ID
@@ -161,7 +163,7 @@ async function postSendVerificationEmail(req, res, next) {
       return next(generateError(400, "使用者不存在"));
     }
 
-    if (user.is_verified) { 
+    if (user.is_verified) {
       return next(generateError(400, "帳號已經驗證過了"));
     }
 
@@ -176,7 +178,7 @@ async function postSendVerificationEmail(req, res, next) {
     const verificationLink = `https://tteddhuang.github.io/sportify-plus/api/v1/auth/user-verification?token=${temporaryToken}`;
 
     // 定義要發送的郵件內容
-    sendUserVerificationEmail( user.email, verificationLink); // 發送郵件
+    sendUserVerificationEmail(user.email, verificationLink); // 發送郵件
 
     res.status(200).json({
       status: true,
@@ -253,6 +255,7 @@ async function postAdminSignup(req, res, next) {
     next(error);
   }
 }
+
 //登入
 async function postLogin(req, res, next) {
   try {
@@ -298,6 +301,7 @@ async function postLogin(req, res, next) {
     next(error);
   }
 }
+
 //google第三方登入
 async function postGoogleLogin(req, res, next) {
   try {
@@ -321,6 +325,7 @@ async function postGoogleLogin(req, res, next) {
         user = await userRepo.findOne({ where: { email } });
         if (!user.google_id) user.google_id = google_id;
         if (!user.profile_image_url) user.profile_image_url = profile_image_url;
+        user.is_verified = true; // Google 登入的使用者視為已驗證
         await userRepo.save(user);
       }
       //若此帳號已註冊為教練，需輸入帳號密碼登入
@@ -335,6 +340,7 @@ async function postGoogleLogin(req, res, next) {
         google_id,
         profile_image_url,
         password: null,
+        is_verified: true, // Google 登入的使用者視為已驗證
       });
       await userRepo.save(user);
     }
