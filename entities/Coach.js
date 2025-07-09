@@ -87,6 +87,11 @@ module.exports = new EntitySchema({
       length: 100,
       nullable: true, // 座右銘，可空
     },
+    review_comment: {
+      type: "varchar",
+      length: 200,
+      nullable: true,
+    },
 
     //以下為驗證教練身分需要資料
     is_verified: {

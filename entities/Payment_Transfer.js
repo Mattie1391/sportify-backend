@@ -15,7 +15,7 @@ module.exports = new EntitySchema({
     // 轉帳時間
     transfered_at: {
       type: "timestamp", // 儲存轉帳發生的時間
-      nullable: false, // 此欄位為必填
+      nullable: true, // 更新應轉帳金額當下還未發生轉帳事實，故可為null
     },
 
     // 金額（以新台幣計價）
@@ -28,6 +28,12 @@ module.exports = new EntitySchema({
     is_transfered: {
       type: "boolean", // 儲存轉帳是否已完成的狀態
       nullable: false, // 此欄位為必填
+    },
+
+    // 該分成的所屬月度
+    month: {
+      type: "date", //為當月份的第一天，如2025-06-01理論上每名教練每月只有一筆資料
+      nullable: true,
     },
 
     // 講師 ID（外鍵）

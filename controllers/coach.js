@@ -126,6 +126,7 @@ async function getCoachAnalysis(req, res, next) {
       .andWhere("p.transfered_at BETWEEN :monthBegin AND :monthEnd", { monthBegin, monthEnd })
       .groupBy("month")
       .addGroupBy("is_transfered")
+      .addGroupBy("p.transfered_at")
       .orderBy("month", "ASC")
       .getRawMany();
 
@@ -352,6 +353,7 @@ async function getProfile(req, res, next) {
       bankbook_copy_public_id: coach.bankbook_copy_public_id,
       skill_description: coach.skill_description,
       experience_years: coach.experience_years,
+      review_comment: coach.review_comment,
       created_at: formatDate(coach.created_at),
       updated_at: formatDate(coach.updated_at),
     };

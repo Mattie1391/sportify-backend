@@ -40,6 +40,7 @@ async function fetchMuxViewStats() {
     const lastday = getYesterdayFormatted();
 
     const response = await mux.data.metrics.listBreakdownValues("views", {
+      filters: ["viewer_plan:member"], //前端驗證為會員上課的播放，才會是member，其餘試看為preview將不採計。
       group_by: "asset_id", //依照asset_id做分組
       measurement: "count",
       timeframe: ["24:hours"], //選擇24小時內累積的觀看次數
@@ -48,7 +49,7 @@ async function fetchMuxViewStats() {
     //檢查是否取得mux回覆
     if (!response.body || response.body.data.length === 0) {
       logger.warn(`[View_Stats] ${lastday}沒有資料可更新`);
-      return; //如果沒有任何觀看數據，就不會送response來。避免catch錯誤就return中斷。
+      return; //如果沒有任何觀看數據，就不會送response來。為避免catch錯誤就以return中斷作業。
     }
     const dataList = response.body.data;
 
@@ -70,7 +71,7 @@ async function fetchMuxViewStats() {
     const courseToUpdate = [];
 
     for (const data of dataList) {
-      const { views, field: asset_id } = data;
+      const { views, field: asset_id, total_playing_time } = data;
       const subChapter = subChapters.find((s) => s.mux_asset_id === asset_id);
 
       if (!subChapter) {
@@ -79,11 +80,16 @@ async function fetchMuxViewStats() {
         );
         continue;
       }
+      //total_playing_time為null代表播放失敗導致無播放時長。故不計入播放時數中
+      if (total_playing_time === null) {
+        continue;
+      }
       statsToInsert.push({
         course_id: subChapter.course_id,
         chapter_sub_chapter_set_id: subChapter.chapter_sub_chapter_set_id,
         date: lastday,
         view_count: views,
+        total_playing_time,
       });
       courseToUpdate.push({
         course_id: subChapter.course_id,
@@ -95,7 +101,6 @@ async function fetchMuxViewStats() {
     if (subChapters.length > 0 && updateResultViewStat.affected === 0) {
       logger.warn(`[View_Stats] 觀看數據更新失敗`);
     }
-    //typeorm不支持多筆不同主鍵的update，用querybuilder+sql更新
     for (const courseStat of courseToUpdate) {
       const { course_id, view_count } = courseStat;
 
