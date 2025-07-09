@@ -493,7 +493,13 @@ async function getCourses(req, res, next) {
 async function postSubscription(req, res, next) {
   try {
     const userId = req.user.id; // 從驗證中獲取使用者 ID
-
+    const user = await userRepo.findOneBy({ id: userId });
+    if (!user) {
+      return next(generateError(400, "使用者不存在"));
+    }
+    if (user.is_verified === false) {
+      return next(generateError(403, "請先完成信箱驗證"));
+    }
     //檢查是否訂閱中
     const validSubscription = await subscriptionRepo.findOne({
       where: { user_id: userId, is_renewal: true },
@@ -629,12 +635,7 @@ async function postSubscription(req, res, next) {
       await subscriptionSkillRepo.save(newSubscriptionSkills);
     }
 
-    // 更新 User 資料表的 subscription_id 和 is_subscribed 欄位
-    const user = await userRepo.findOneBy({ id: userId });
-    if (!user) {
-      return next(generateError(400, "使用者不存在"));
-    }
-
+    // 更新 User 資料表的 subscription_id 欄位
     user.subscription_id = savedSubscription.id; // 設定訂閱 ID
 
     // 儲存更新後的使用者資料
@@ -947,7 +948,8 @@ async function getCourseChaptersSidebar(req, res, next) {
         title: chapter.title,
         name: chapter.subtitle,
         length: lengthStr,
-        isFinished: viewProgress.find(c=> c.sub_chapter_id === chapter.id)?.is_completed || false, // 檢查是否已完成觀看
+        isFinished:
+          viewProgress.find((c) => c.sub_chapter_id === chapter.id)?.is_completed || false, // 檢查是否已完成觀看
       };
     });
 
