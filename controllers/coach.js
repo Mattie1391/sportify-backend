@@ -64,6 +64,20 @@ async function getCoachAnalysis(req, res, next) {
     if (monthStart && !isValidMonthFormat(monthStart)) {
       return next(generateError(400, "月份格式錯誤，請使用 YYYY-MM 格式"));
     }
+    //檢查月份是否在一年內
+    // 生成一年內月份
+    const months = [];
+    const today = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      months.push(`${year}-${month}`);
+    }
+    if (!months.includes(monthStart)) {
+      return next(generateError(400, `月份格式錯誤，需輸入 ${months[0]} 以後月份`));
+    }
+
     //建立供教練選擇的課程選項列
     const courseOptions = await courseRepo.find({
       where: { coach_id: coachId, is_approved: "true" },
@@ -86,8 +100,6 @@ async function getCoachAnalysis(req, res, next) {
     const courseParams = courseId ? { courseId } : { courseIds };
 
     //設定若有只訂月份時的查詢範圍
-    const today = new Date();
-    // const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
     const monthBegin = monthStart
       ? dayjs(monthStart + "-01")
           .startOf("month")
@@ -253,9 +265,6 @@ async function getCoachAnalysis(req, res, next) {
       chapter.lastMonth = chapter.monthly[lastMonthStr] || 0;
     }
 
-    //取得教練個人資訊
-    const coachInfo = await coachRepo.findOneBy({ id: coachId });
-
     //生成教練課程列表
     let courseList;
     if (!courseId) {
@@ -274,8 +283,6 @@ async function getCoachAnalysis(req, res, next) {
     const analysisData = {
       coach: {
         coach_id: coachId,
-        nickname: coachInfo.nickname,
-        profile_image_url: coachInfo.profile_image_url,
         course_list: Array.isArray(courseList) ? courseList : [courseList], //統一回傳陣列格式
       },
       summary: {
