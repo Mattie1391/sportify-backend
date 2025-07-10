@@ -49,7 +49,7 @@ async function getCoachAnalysis(req, res, next) {
     const coachId = req.user.id;
     //驗證req.body與query string的資訊
     const courseId = req.query.courseId || null;
-    const monthStart = req.query.month || null;
+    const monthStart = req.query.monthStart || null;
     if (courseId !== null && (isNotValidString(courseId) || isNotValidUUID(courseId))) {
       return next(generateError(400, "課程ID格式不正確"));
     }
@@ -85,6 +85,16 @@ async function getCoachAnalysis(req, res, next) {
     const courseFilter = courseId ? "v.course_id = :courseId" : "v.course_id IN (:...courseIds)"; //將courseIds展開以列出所有值
     const courseParams = courseId ? { courseId } : { courseIds };
 
+    //設定若有只訂月份時的查詢範圍
+    const today = new Date();
+    // const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+    const monthBegin = monthStart
+      ? dayjs(monthStart + "-01")
+          .startOf("month")
+          .toDate()
+      : dayjs(today).subtract(1, "year").startOf("month").toDate();
+    const monthEnd = dayjs(today).endOf("month").toDate();
+
     //查詢by課程、所有月份觀看次數統計
     const viewStats = await viewRepo
       .createQueryBuilder("v")
@@ -96,6 +106,7 @@ async function getCoachAnalysis(req, res, next) {
         "c.name AS name",
       ])
       .where(courseFilter, courseParams)
+      .andWhere("v.date BETWEEN :monthBegin AND :monthEnd", { monthBegin, monthEnd })
       .groupBy("course_id")
       .addGroupBy("name")
       .addGroupBy("month")
@@ -111,25 +122,11 @@ async function getCoachAnalysis(req, res, next) {
     //目前收益分成沒有計算by課程的要素，所以只有不分課程時才呈現
     // 但若深究分成計算方式，也會需要依照課程執行
 
-    //設定若有只訂月份時的查詢範圍
-    const today = new Date();
-    // const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
-    const monthBegin = monthStart
-      ? dayjs(monthStart + "-01")
-          .startOf("month")
-          .toDate()
-      : dayjs(today).subtract(1, "year").startOf("month").toDate();
-    const monthEnd = dayjs(today).endOf("month").toDate();
-
-    const qbPayment = paymentRepo
+    const revenueStats = await paymentRepo
       .createQueryBuilder("p")
       .select(["p.month AS month", "SUM(p.amount) AS revenue", "p.is_transfered AS is_transfered"])
-      .where("p.coach_id = :coachId", { coachId });
-
-    if (monthStart) {
-      qbPayment.andWhere("p.month BETWEEN :monthBegin AND :monthEnd", { monthBegin, monthEnd });
-    }
-    const revenueStats = await qbPayment
+      .where("p.coach_id = :coachId", { coachId })
+      .andWhere("p.month BETWEEN :monthBegin AND :monthEnd", { monthBegin, monthEnd })
       .groupBy("p.month")
       .addGroupBy("p.is_transfered")
       .orderBy("p.month", "ASC")
@@ -279,7 +276,7 @@ async function getCoachAnalysis(req, res, next) {
         coach_id: coachId,
         nickname: coachInfo.nickname,
         profile_image_url: coachInfo.profile_image_url,
-        course_list: courseList,
+        course_list: Array.isArray(courseList) ? courseList : [courseList], //統一回傳陣列格式
       },
       summary: {
         total_income: revenueOfAllTime,
