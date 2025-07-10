@@ -109,6 +109,7 @@ module.exports = async (req, res, next) => {
         role: role, //角色
         displayName: displayName, //顯示名稱
         profile_image_url: user.profile_image_url || null, //大頭貼url
+        is_verified: user.is_verified, //是否已驗證
         hasTrial: hasTrial, //是否有試用資格
         hasActiveSubscription: hasActiveSubscription, //最新訂閱是否有效
       };
