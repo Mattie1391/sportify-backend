@@ -38,10 +38,30 @@ const timezone = require("dayjs/plugin/timezone");
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+//生成指定月份之間的所有月份YYYY-MM
+function getMonthsBetween(startMonth, endMonth) {
+  const result = [];
+  let current = dayjs(startMonth);
+  const end = dayjs(endMonth);
+
+  while (current.isBefore(end, "month") || current.isSame(end, "month")) {
+    result.push(current.format("YYYY-MM"));
+    current = current.add(1, "month");
+  }
+  return result;
+}
+
 const unixTot8zYYYYMMDD = (unixtime) => {
   const unix = unixtime;
   const result = dayjs.unix(unix).tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss.SSS");
   return result;
 };
 
-module.exports = { formatDate, formatYYYYMMDD, parseYYYYMMDD, addDays, unixTot8zYYYYMMDD };
+module.exports = {
+  formatDate,
+  formatYYYYMMDD,
+  parseYYYYMMDD,
+  addDays,
+  unixTot8zYYYYMMDD,
+  getMonthsBetween,
+};
