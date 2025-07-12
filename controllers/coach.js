@@ -99,7 +99,7 @@ async function getCoachAnalysis(req, res, next) {
     const courseFilter = courseId ? "v.course_id = :courseId" : "v.course_id IN (:...courseIds)"; //將courseIds展開以列出所有值
     const courseParams = courseId ? { courseId } : { courseIds };
 
-    //設定若有只訂月份時的查詢範圍
+    //設定若有指定月份時的查詢範圍
     const monthBegin = monthStart
       ? dayjs(monthStart + "-01")
           .startOf("month")

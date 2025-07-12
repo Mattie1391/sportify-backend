@@ -53,7 +53,7 @@ async function getProfile(req, res, next) {
     }
     const user = await userRepo.findOneBy({ id: userId });
     if (!user) {
-      return next(generateError(404, "使用者不存在"));
+      throw generateError(404, "使用者不存在");
     }
 
     //檢查頭貼網址是否正確，不正確則設為null

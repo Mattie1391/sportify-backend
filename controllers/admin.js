@@ -1,3 +1,4 @@
+const dayjs = require("dayjs");
 const AppDataSource = require("../db/data-source");
 const courseRepo = AppDataSource.getRepository("Course");
 const chapterRepo = AppDataSource.getRepository("Course_Chapter");
@@ -23,13 +24,12 @@ const {
   isNotValidString,
   isNotValidInteger,
   isNotValidUUID,
-  isNotValidUrl,
+  isValidMonthFormat,
 } = require("../utils/validators");
 const generateError = require("../utils/generateError");
 const paginate = require("../utils/paginate");
-const { parseYYYYMMDD } = require("../utils/formatDate");
-const { formatDate, addDays } = require("../utils/formatDate");
-const { sendReviewEmail} = require("../utils/sendEmail");
+const { formatDate, addDays, getMonthsBetween } = require("../utils/formatDate");
+const { sendReviewEmail } = require("../utils/sendEmail");
 
 //新增訂閱方案，目前沒有畫管理員相應UI的線稿
 async function postPlan(req, res, next) {
@@ -784,41 +784,60 @@ async function getCourseDetails(req, res, next) {
 //取得後台數據分析
 async function getDataAnalysis(req, res, next) {
   try {
-    const { startDate, endDate } = req.query;
+    //禁止前端亂輸入參數，如banana=999
+    const validQuery = ["startMonth", "endMonth"]; //month是用以選擇特定收益月份
+    const queryKeys = Object.keys(req.query);
+    const invalidQuery = queryKeys.filter((key) => !validQuery.includes(key));
+    if (invalidQuery.length > 0) {
+      return next(generateError(400, `不允許的參數：${invalidQuery.join(", ")}`));
+    }
+    const { startMonth, endMonth } = req.query;
+    console.log(startMonth, endMonth);
 
     // 驗證查詢參數存在且為合法字串
     if (
-      isUndefined(startDate) ||
-      isUndefined(endDate) ||
-      isNotValidString(startDate) ||
-      isNotValidString(endDate)
+      isUndefined(startMonth) ||
+      isUndefined(endMonth) ||
+      isNotValidString(startMonth) ||
+      isNotValidString(endMonth)
     ) {
-      return next(generateError(400, "請正確提供 startDate 和 endDate 查詢參數"));
+      return next(generateError(400, "請正確提供 startMonth 和 endMonth 查詢參數"));
+    }
+    if (startMonth && !isValidMonthFormat(startMonth)) {
+      return next(generateError(400, "月份格式錯誤，請使用 YYYY-MM 格式"));
     }
 
-    // 將 YYYYMMDD 轉為 Date
-    const start = parseYYYYMMDD(startDate);
-    const end = parseYYYYMMDD(endDate);
-    if (!start || !end || isNaN(start) || isNaN(end)) {
-      return next(generateError(400, "日期格式錯誤，請使用 YYYYMMDD"));
-    }
+    //設定本月份
 
     const currentMonth = new Date();
     const currentMonthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+    //設定月份範圍
+    const start = dayjs(startMonth + "-01")
+      .startOf("month")
+      .toDate();
+    const end = dayjs(endMonth).endOf("month").toDate();
 
     // 查詢區間總收入
     const totalIncomeResult = await subscriptionRepo
       .createQueryBuilder("s") // 建立查詢，對 Subscription 表別名為 s
       .select("SUM(s.price)", "total") // 選取 s.price 的總和，命名為 total
-      .where("s.created_at BETWEEN :start AND :end", { start, end }) // created_at 在 start 與 end 之間
+      .where("s.purchased_at BETWEEN :start AND :end", { start, end })
       .getRawOne(); // 回傳格式為 { total: '金額' }
+
+    const totalIncome =
+      totalIncomeResult && totalIncomeResult.total ? parseInt(totalIncomeResult.total) : 0;
 
     // 查詢本月收入
     const currentMonthIncomeResult = await subscriptionRepo
       .createQueryBuilder("s")
       .select("SUM(s.price)", "total") // 聚合本月收入
-      .where("s.created_at >= :currentMonthStart", { currentMonthStart }) // created_at 在本月初以後
+      .where("s.purchased_at >= :currentMonthStart", { currentMonthStart }) // created_at 在本月初以後
       .getRawOne();
+
+    const currentMonthIncome =
+      currentMonthIncomeResult && currentMonthIncomeResult.total
+        ? parseInt(currentMonthIncomeResult.total)
+        : 0;
 
     // 查詢總會員數
     const totalMembers = await userRepo.count();
@@ -835,33 +854,122 @@ async function getDataAnalysis(req, res, next) {
     // 查詢總課程數
     const totalCourses = await courseRepo.count();
 
-    // 查詢各訂閱方案的訂閱數量
-    const planCountsRaw = await subscriptionRepo
+    // 查詢期間各訂閱方案的總計訂閱數量
+    const planCounts = await subscriptionRepo
       .createQueryBuilder("s") // s 是 Subscription 表
       .select("p.name", "plan") // 取訂閱方案名稱
-      .addSelect("COUNT(*)", "count") // 聚合該方案的訂閱筆數
+      .addSelect("COUNT(*)", "amount") // 聚合該方案的訂閱筆數
       .innerJoin("s.Plan", "p") // 將 s.Plan 關聯到 Plan 表，p 是 Plan 的別名
+      .where("s.purchased_at BETWEEN :start AND :end", { start, end })
       .groupBy("p.name") // 依照訂閱方案名稱分組
       .getRawMany(); // 回傳格式如：[{ plan: 'Fitness', count: '2' }, ...]
 
-    // 建立初始方案統計物件
-    const planCounts = {
-      Wellness: 0,
-      Fitness: 0,
-      Eagerness: 0,
-    };
+    //加總訂閱人數
+    const subscribersTotal = planCounts.reduce((sum, v) => sum + Number(v.amount), 0);
 
-    // 將查詢結果統整進 planCounts
-    planCountsRaw.forEach((item) => {
-      if (item.plan.includes("試用")) return; // 排除含「試用」的方案
+    //將方案人數轉為數字，並計算比例
+    planCounts.forEach((item) => {
+      item.amount = parseInt(item.amount);
+      item.proportion =
+        subscribersTotal > 0 ? Math.round((Number(item.amount) / subscribersTotal) * 100) : 0;
+    });
 
-      if (item.plan.includes("Eagerness")) {
-        planCounts.Eagerness += parseInt(item.count);
-      } else if (item.plan.includes("Fitness")) {
-        planCounts.Fitness += parseInt(item.count);
-      } else if (item.plan.includes("Wellness")) {
-        planCounts.Wellness += parseInt(item.count);
-      }
+    //查詢指定區間內每月各等級訂閱者人數
+    const subscriberByMonthRaw = await subscriptionRepo
+      .createQueryBuilder("s")
+      .leftJoin("s.Plan", "p")
+      .select([
+        "DATE_TRUNC('month',s.purchased_at) AS month",
+        "COUNT(*) AS amount",
+        "p.name AS name",
+      ])
+      .where("s.purchased_at BETWEEN :start AND :end", { start, end })
+      .groupBy("p.name")
+      .addGroupBy("month")
+      .orderBy("p.name", "ASC")
+      .addOrderBy("month", "ASC")
+      .getRawMany();
+
+    //生成YYYY-MM格式的指定期間月份
+    const months = getMonthsBetween(startMonth, endMonth);
+    const plans = ["Eagerness方案", "Wellness方案", "Fitness方案"];
+
+    //快速查詢某方案在某月份的數值
+    const dataMap = new Map(); //dataMap是 key-value集合的結構
+    subscriberByMonthRaw.forEach((row) => {
+      const month = dayjs(row.month).format("YYYY-MM");
+      const name = row.name;
+      const amount = Number(row.amount);
+      dataMap.set(`${name}-${month}`, amount); //組一個key name-month關係來保存跟數量的關係
+    });
+    const subscriberByMonthOutput = plans.map((planName) => {
+      const monthly = {};
+      months.forEach((month) => {
+        const key = `${planName}-${month}`; //用該key尋找是否有amount，沒有就補0
+        monthly[month] = dataMap.get(key) || 0;
+      });
+      return {
+        name: planName,
+        monthly,
+      };
+    });
+    //加上所有方案總合
+    const totalMonthly = {};
+    months.forEach((month) => {
+      let sum = 0;
+      subscriberByMonthOutput.forEach((planObj) => {
+        sum += planObj.monthly[month];
+      });
+      totalMonthly[month] = sum;
+    });
+    subscriberByMonthOutput.push({ name: "所有訂閱人數", monthly: totalMonthly });
+
+    //查詢運動項目訂閱人數
+    const subscribeSportsRaw = await subscriptionRepo
+      .createQueryBuilder("s")
+      .leftJoin("s.Subscription_Skills", "ss")
+      .leftJoin("ss.Skill", "skill")
+      .select(["skill.name AS name", "COUNT(*) AS amount"])
+      .where("s.purchased_at BETWEEN :start AND :end", { start, end })
+      .groupBy("skill.name")
+      .getRawMany();
+
+    //取得所有運動項目
+    const sports = await skillRepo.find({ select: ["name"] });
+    //將subscribeSports運動種類為null(也就是Eagerness方案者)的次數加到各運動上
+    const ePlanItem = subscribeSportsRaw.find((item) => item.name === null);
+    const ePlanAmount = ePlanItem ? Number(ePlanItem.amount) : 0;
+
+    //建立現有運動種類的amount map
+    const sportMap = new Map();
+    subscribeSportsRaw
+      .filter((item) => item.name !== null)
+      .forEach((item) => {
+        sportMap.set(item.name, Number(item.amount));
+      });
+    const subscribeSports = sports.map((sport) => {
+      const baseAmount = sportMap.get(sport.name) || 0;
+      return {
+        name: sport.name,
+        amount: baseAmount + ePlanAmount,
+      };
+    });
+
+    //查詢教練分潤比例
+    const profitShare = await paymentRepo
+      .createQueryBuilder("pt")
+      .leftJoin("pt.Coach", "c")
+      .select(["c.nickname AS name", "SUM(pt.amount) AS amount"])
+      .where("pt.month BETWEEN :start AND :end", { start, end })
+      .addGroupBy("c.nickname")
+      .getRawMany();
+
+    //將金額amount轉成數字，並加上比例
+
+    const profitTotal = profitShare.reduce((sum, c) => sum + Number(c.amount), 0);
+    profitShare.forEach((item) => {
+      item.amount = parseInt(item.amount);
+      item.share = profitTotal ? Math.round((Number(item.amount) / profitTotal) * 100) : 0;
     });
 
     // 回傳統計資料
@@ -869,13 +977,16 @@ async function getDataAnalysis(req, res, next) {
       status: true,
       message: "成功取得資料",
       data: {
-        totalIncome: parseInt(totalIncomeResult.total) || 0,
-        currentMonthIncome: parseInt(currentMonthIncomeResult.total) || 0,
+        totalIncome,
+        currentMonthIncome,
         totalMembers,
         newMembersThisMonth,
         totalCoaches,
         totalCourses,
         planCounts,
+        subscriberByMonthOutput,
+        subscribeSports,
+        profitShare,
       },
     });
   } catch (error) {
